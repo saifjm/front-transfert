@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 HELP.md
 target/
 !.mvn/wrapper/maven-wrapper.jar
@@ -31,3 +32,12 @@ build/
 
 ### VS Code ###
 .vscode/
+=======
+# Maven build output
+target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+>>>>>>> origin/Micro_SECURITE
