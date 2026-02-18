@@ -1,0 +1,152 @@
+{
+	"info": {
+		"_postman_id": "ava-gen-service-collection",
+		"name": "AVA-Gen-Service API",
+		"description": "Collection Postman pour tester les APIs du microservice AVA-Gen",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8085",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Declaration Fiscale",
+			"item": [
+				{
+					"name": "GET - Etat et CA Fiscal (Année N-1)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/declarations-fiscales/etat-ca-fiscal?typePieceClient=1&noPieceClient=12345678901",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "declarations-fiscales", "etat-ca-fiscal"],
+							"query": [
+								{
+									"key": "typePieceClient",
+									"value": "1",
+									"description": "Type de pièce client (Integer)"
+								},
+								{
+									"key": "noPieceClient",
+									"value": "12345678901",
+									"description": "Numéro de pièce client (max 13 caractères)"
+								}
+							]
+						},
+						"description": "Récupère l'état et le montant CA fiscal pour un client donné (année précédente N-1).\n\nUtilisé quand codeTypeDosAva = 3"
+					},
+					"response": [
+						{
+							"name": "Succès - 200 OK",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{baseUrl}}/api/declarations-fiscales/etat-ca-fiscal?typePieceClient=1&noPieceClient=12345678901"
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"etat\": \"V\",\n    \"mntCaFiscal\": 150000.500\n}"
+						},
+						{
+							"name": "Non trouvé - 404",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{baseUrl}}/api/declarations-fiscales/etat-ca-fiscal?typePieceClient=1&noPieceClient=99999999999"
+								}
+							},
+							"status": "Not Found",
+							"code": 404,
+							"body": ""
+						}
+					]
+				},
+				{
+					"name": "GET - Etat et CA Fiscal (Année N-2)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/declarations-fiscales/etat-ca-fiscal-2?typePieceClient=1&noPieceClient=12345678901",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "declarations-fiscales", "etat-ca-fiscal-2"],
+							"query": [
+								{
+									"key": "typePieceClient",
+									"value": "1",
+									"description": "Type de pièce client (Integer)"
+								},
+								{
+									"key": "noPieceClient",
+									"value": "12345678901",
+									"description": "Numéro de pièce client (max 13 caractères)"
+								}
+							]
+						},
+						"description": "Récupère l'état et le montant CA fiscal pour un client donné (année N-2).\n\nUtilisé quand codeTypeDosAva = 3"
+					},
+					"response": [
+						{
+							"name": "Succès - 200 OK",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{baseUrl}}/api/declarations-fiscales/etat-ca-fiscal-2?typePieceClient=1&noPieceClient=12345678901"
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"etat\": \"V\",\n    \"mntCaFiscal\": 120000.000\n}"
+						}
+					]
+				},
+				{
+					"name": "GET - Declaration Fiscale Complète",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/declarations-fiscales/by-client?typePieceClient=1&noPieceClient=12345678901",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "declarations-fiscales", "by-client"],
+							"query": [
+								{
+									"key": "typePieceClient",
+									"value": "1",
+									"description": "Type de pièce client (Integer)"
+								},
+								{
+									"key": "noPieceClient",
+									"value": "12345678901",
+									"description": "Numéro de pièce client (max 13 caractères)"
+								}
+							]
+						},
+						"description": "Récupère la déclaration fiscale complète pour un client donné (année précédente N-1)"
+					},
+					"response": [
+						{
+							"name": "Succès - 200 OK",
+							"originalRequest": {
+								"method": "GET",
+								"url": {
+									"raw": "{{baseUrl}}/api/declarations-fiscales/by-client?typePieceClient=1&noPieceClient=12345678901"
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"body": "{\n    \"numDossier\": 1000,\n    \"typePieceClient\": 1,\n    \"noPieceClient\": \"12345678901\",\n    \"annee\": 2025,\n    \"dateDeclaration\": \"2025-03-15\",\n    \"datePresentation\": \"2025-03-20\",\n    \"mntCaFiscal\": 150000.500,\n    \"etat\": \"V\"\n}"
+						}
+					]
+				}
+			]
+		}
+	]
+}
+
