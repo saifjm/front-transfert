@@ -1,7 +1,13 @@
 package IbansysPoc.AVA.service;
 
+import IbansysPoc.AVA.DTO.AutorisationBctDTO;
+import IbansysPoc.AVA.DTO.ExportateurDTO;
 import IbansysPoc.AVA.DTO.InitiationOuvertureDTO;
+import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
 import IbansysPoc.AVA.DTO.OperationCreationResponseDTO;
+import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
+import IbansysPoc.AVA.DTO.SuspensionDTO;
+import IbansysPoc.AVA.DTO.SuspensionDataDTO;
 import IbansysPoc.AVA.entity.OperationsDelegueesMvt;
 import IbansysPoc.AVA.entity.OperationsDelegueesMvtId;
 
@@ -46,9 +52,13 @@ public interface OperationsDelegueesMvtService {
      */
     OperationCreationResponseDTO updateOperationWithFinalize(Long refOperation, InitiationOuvertureDTO dto, boolean finalize);
 
+    ExportateurDTO createMvtForRapatriementExportateur(ExportateurDTO dto);
+
     boolean existsById(Long refOperation, LocalDate dateOperation);
 
     // Nouvelle méthode: récupérer les mouvements MVT pour un numDossier entre deux dates (inclusives)
     // Retourne maintenant les entités complètes OperationsDelegueesMvt (avec relations chargées)
     List<OperationsDelegueesMvt> findByNumDossierAndPeriod(Integer numDossier, LocalDate startDate, LocalDate endDate);
+  
+
 }

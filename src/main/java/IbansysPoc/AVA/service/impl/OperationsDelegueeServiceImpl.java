@@ -1,21 +1,48 @@
 package IbansysPoc.AVA.service.impl;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.AvaMarcheDTO;
 import IbansysPoc.AVA.DTO.BeneficiaireDTO;
+import IbansysPoc.AVA.DTO.BeneficiaireSummaryDTO;
 import IbansysPoc.AVA.DTO.DocumentDTO;
 import IbansysPoc.AVA.DTO.DossierValideDTO;
-import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
+import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
 import IbansysPoc.AVA.DTO.OperationsDelegueeSummaryDTO;
-import IbansysPoc.AVA.DTO.BeneficiaireSummaryDTO;
+import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
 import IbansysPoc.AVA.DTO.PersonneDTO;
-import IbansysPoc.AVA.entity.*;
+import IbansysPoc.AVA.DTO.SuspensionDTO;
+import IbansysPoc.AVA.entity.AvaMarche;
+import IbansysPoc.AVA.entity.AvaMarcheMvt;
+import IbansysPoc.AVA.entity.Beneficiaire;
+import IbansysPoc.AVA.entity.BeneficiaireId;
+import IbansysPoc.AVA.entity.BeneficiairesMvt;
+import IbansysPoc.AVA.entity.Document;
+import IbansysPoc.AVA.entity.OperationsDeleguee;
+import IbansysPoc.AVA.entity.OperationsDelegueesMvt;
+import IbansysPoc.AVA.entity.OperationsDelegueesMvtId;
 import IbansysPoc.AVA.exception.BusinessException;
 import IbansysPoc.AVA.exception.ResourceNotFoundException;
 import IbansysPoc.AVA.mapper.AvaMarcheMapper;
 import IbansysPoc.AVA.mapper.BeneficiaireMapper;
 import IbansysPoc.AVA.mapper.DocumentMapper;
 import IbansysPoc.AVA.mapper.OperationsDelegueeMapper;
-import IbansysPoc.AVA.repository.*;
+import IbansysPoc.AVA.repository.AvaMarcheMvtRepository;
+import IbansysPoc.AVA.repository.AvaMarcheRepository;
+import IbansysPoc.AVA.repository.BeneficiaireMvtRepository;
+import IbansysPoc.AVA.repository.BeneficiaireRepository;
+import IbansysPoc.AVA.repository.DocumentRepository;
+import IbansysPoc.AVA.repository.OperationsDelegueeMvtRepository;
+import IbansysPoc.AVA.repository.OperationsDelegueeRepository;
 import IbansysPoc.AVA.service.ApiExterneService;
 import IbansysPoc.AVA.service.BusinessRulesService;
 import IbansysPoc.AVA.service.OperationsDelegueeService;
@@ -23,15 +50,6 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Implémentation du service pour les opérations déléguées.
@@ -52,6 +70,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     private final DocumentRepository documentRepository;
     private final AvaMarcheRepository avaMarcheRepository;
     private final OperationsDelegueeMvtRepository mvtRepository;
+    private final OperationsDelegueeMvtRepository operationsDelegueeMvtRepository;
 
     private final OperationsDelegueeMapper operationsDelegueeMapper;
     private final BeneficiaireMapper beneficiaireMapper;
@@ -60,6 +79,8 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
 
     private final BusinessRulesService businessRulesService;
     private final ApiExterneService apiExterneService;
+    private static final String STATUS_FINALIZED = "A";
+    
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -443,6 +464,75 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         operationsDelegueeRepository.flush();
 
         log.info("[applyFVToDossier] ✅ Succès - Valeurs copiées depuis MVT vers dossier={}, mntUtilise={}, solde={}",
+                numDossier, nouveauMntUtilise, nouveauSolde);
+    }
+
+    /**
+     * Applique un mouvement RC (Rétrocession) au dossier.
+     * Logique RC (inverse du FV) :
+     * - mnt_utilise ↓ (diminue) = ancien - mnt_mvt_ava (plancher à 0)
+     * - solde ↑ (augmente) = ancien + mnt_mvt_ava
+     * - dernier_num_mvt_ava ↑ (incrémente)
+     * Lock pessimiste sur le dossier.
+     */
+    @Override
+    @Transactional
+    public void applyRCToDossier(Integer numDossier, Long refOperation) {
+        log.info("[applyRCToDossier] Début pour dossier={}, refOperation={}", numDossier, refOperation);
+
+        if (numDossier == null || refOperation == null) {
+            throw new BusinessException("PARAMS_REQUIS",
+                    "Le numéro de dossier et la référence d'opération sont requis");
+        }
+
+        // 1. Charger le MVT RC
+        LocalDate today = LocalDate.now();
+        OperationsDelegueesMvtId mvtId = new OperationsDelegueesMvtId();
+        mvtId.setDateOperation(today);
+        mvtId.setRefOperation(refOperation);
+
+        OperationsDelegueesMvt mvtRC = mvtRepository.findById(mvtId)
+                .orElseThrow(() -> new BusinessException("MVT_RC_NON_TROUVE",
+                        "Mouvement RC non trouvé : refOperation=" + refOperation + ", date=" + today));
+
+        // Vérifier que c'est bien un MVT validé
+        if (!"V".equals(mvtRC.getStatus())) {
+            throw new BusinessException("MVT_NON_VALIDE",
+                    "Le mouvement RC doit avoir le status V pour être appliqué (status actuel=" + mvtRC.getStatus() + ")");
+        }
+
+        // 2. Charger le dossier avec lock pessimiste
+        OperationsDeleguee dossier = operationsDelegueeRepository.findByIdForUpdate(numDossier)
+                .orElseThrow(() -> new BusinessException("DOSSIER_NON_TROUVE",
+                        "Dossier non trouvé : numDossier=" + numDossier));
+
+        // 3. Copier les valeurs calculées depuis le MVT vers le dossier
+        BigDecimal ancienMntUtilise = dossier.getMntUtilise() != null ?
+            dossier.getMntUtilise() : BigDecimal.ZERO;
+        BigDecimal ancienSolde = dossier.getSolde() != null ?
+            dossier.getSolde() : BigDecimal.ZERO;
+
+        BigDecimal nouveauMntUtilise = mvtRC.getMntUtilise();
+        BigDecimal nouveauSolde = mvtRC.getSolde();
+
+        dossier.setMntUtilise(nouveauMntUtilise);
+        dossier.setSolde(nouveauSolde);
+
+        log.info("[applyRCToDossier] Copie depuis MVT - mntUtilise : ancien={}, nouveau={}",
+                ancienMntUtilise, nouveauMntUtilise);
+        log.info("[applyRCToDossier] Copie depuis MVT - solde : ancien={}, nouveau={}",
+                ancienSolde, nouveauSolde);
+
+        // 4. Mettre à jour dernier_num_mvt_ava
+        if (mvtRC.getNumMvtAva() != null) {
+            dossier.setDernierNumMvtAva(mvtRC.getNumMvtAva());
+        }
+
+        // 5. Sauvegarder
+        operationsDelegueeRepository.save(dossier);
+        operationsDelegueeRepository.flush();
+
+        log.info("[applyRCToDossier] ✅ Succès - Valeurs copiées depuis MVT vers dossier={}, mntUtilise={}, solde={}",
                 numDossier, nouveauMntUtilise, nouveauSolde);
     }
 
@@ -997,8 +1087,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
                             .noPieceBenef(b.getId() != null ? b.getId().getNoPieceBenef() : null)
                             .nomBenef(b.getNomBenef())
                             .qualite(b.getQualite())
-                            .typePieceBenef(b.getId() != null && b.getId().getTypePieceBenef() != null ?
-                                    (b.getId().getTypePieceBenef() ? 1 : 0) : null)
+                            .typePieceBenef(b.getId() != null ? b.getId().getTypePieceBenef() : null)
                             .build())
                     .toList();
 
@@ -1025,4 +1114,496 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         dto.setMntBlocage(entity.getMntBlocage());
         return dto;
     }
+     @Override
+    @Transactional
+    public OuvertureDossierDTO suspensionDossier(SuspensionDTO dto) {
+        return suspensionDossier(dto, true);
+    }
+
+    @Override
+    @Transactional
+    public OuvertureDossierDTO suspensionDossier(SuspensionDTO dto, boolean finalizeFlag) {
+        log.info("Suspension de l'opération déléguée avec numDossier: {}, finalize: {}", dto.getNumDossier(), finalizeFlag);
+
+        // 1) Vérification que le dossier existe
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(dto.getNumDossier().intValue())
+                .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + dto.getNumDossier()));
+
+        // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
+
+        // 2) Vérification que l'état du dossier est 'V' (validé)
+        if (!"V".equals(operationsDeleguee.getEtatDossier())) {
+            throw new BusinessException("Le dossier n'est pas validé. État actuel: " + operationsDeleguee.getEtatDossier());
+        }
+
+        // 3) Validation du codeEtat (valeurs autorisées: 1, 2, 3, 4, 99)
+        if (dto.getCodeEtat() == null || !(dto.getCodeEtat() == 1 || dto.getCodeEtat() == 2 || 
+                dto.getCodeEtat() == 3 || dto.getCodeEtat() == 4 || dto.getCodeEtat() == 99)) {
+            throw new BusinessException("Code d'état invalide. Valeurs autorisées: " +
+                    "1 (DEPASSEMENT DU MONTANT AUTORISE), " +
+                    "2 (DECLARATION FISCALE NON PRESENTEE), " +
+                    "3 (TOTAL IMPORTATIONS INSUFFISANT), " +
+                    "4 (DOSSIER NON RENOUVELE), " +
+                    "99 (AUTRE MOTIF)");
+        }
+
+        // 4) Validation du motifEtat si codeEtat = 99
+        if (dto.getCodeEtat() == 99 && (dto.getMotifEtat() == null || dto.getMotifEtat().trim().isEmpty())) {
+            throw new BusinessException("Le motif d'état est obligatoire lorsque le code d'état est 99 (AUTRE MOTIF)");
+        }
+
+        if (finalizeFlag) {
+            // ===== FINALIZE == TRUE : logique complète =====
+
+            // 5) Mise à jour de l'opération déléguée
+            operationsDeleguee.setEtatDossier("B"); // Bloqué
+            operationsDeleguee.setCodeEtat(dto.getCodeEtat());
+            operationsDeleguee.setMotifEtat(dto.getMotifEtat());
+            operationsDeleguee.setDateEtat(LocalDate.now());
+
+            OperationsDeleguee savedOperationsDeleguee = operationsDelegueeRepository.save(operationsDeleguee);
+            log.debug("Opération déléguée suspendue avec ID: {}", savedOperationsDeleguee.getNumDossier());
+
+            // 6) Création du mouvement avec status='A'
+            createSuspensionMovement(savedOperationsDeleguee, STATUS_FINALIZED);
+
+            // 7) Construction du résultat
+            OuvertureDossierDTO resultDTO = buildSuspensionResultDTO(savedOperationsDeleguee);
+            log.info("Opération déléguée suspendue avec succès. NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+
+        } else {
+            // ===== FINALIZE == FALSE : MVT seul =====
+
+            // Création du mouvement sans modifier l'entité
+            createSuspensionMovement(operationsDeleguee, null);
+
+            // Retour minimal
+            OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();
+            resultDTO.setNumDossier(operationsDeleguee.getNumDossier());
+            resultDTO.setEtatDossier(operationsDeleguee.getEtatDossier());
+            log.info("MVT suspension créé (finalize=false). NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+        }
+    }
+
+    @Override
+    @Transactional
+    public OuvertureDossierDTO leveeSuspensionDossier(LeveeSuspensionDTO dto) {
+        return leveeSuspensionDossier(dto, true);
+    }
+
+    @Override
+    @Transactional
+    public OuvertureDossierDTO leveeSuspensionDossier(LeveeSuspensionDTO dto, boolean finalizeFlag) {
+        log.info("Levée de suspension de l'opération déléguée avec numDossier: {}, finalize: {}", dto.getNumDossier(), finalizeFlag);
+
+        // 1) Vérification que le dossier existe
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(dto.getNumDossier().intValue())
+                .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + dto.getNumDossier()));
+
+        // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
+
+        // 2) Vérification que l'état du dossier est 'B' (suspendu)
+        if (!"B".equals(operationsDeleguee.getEtatDossier())) {
+            throw new BusinessException("Le dossier n'est pas suspendu. État actuel: " + operationsDeleguee.getEtatDossier());
+        }
+
+        // 3) Vérification conditionnelle: si codeEtat était 1 (DEPASSEMENT DU MONTANT AUTORISE),
+        //    alors numBct et dateBct sont obligatoires
+        Short codeEtatAvantLevee = operationsDeleguee.getCodeEtat();
+        if (codeEtatAvantLevee != null && codeEtatAvantLevee == 1) {
+            if (dto.getNumBct() == null || dto.getNumBct().trim().isEmpty()) {
+                throw new BusinessException("NUM_BCT_REQUIS",
+                        "Le numéro BCT est obligatoire pour la levée de suspension d'un dossier avec code état 1 (DEPASSEMENT DU MONTANT AUTORISE)");
+            }
+            if (dto.getDateBct() == null) {
+                throw new BusinessException("DATE_BCT_REQUISE",
+                        "La date BCT est obligatoire pour la levée de suspension d'un dossier avec code état 1 (DEPASSEMENT DU MONTANT AUTORISE)");
+            }
+            // Validation du format numBct (doit être numérique)
+            try {
+                Integer.parseInt(dto.getNumBct());
+            } catch (NumberFormatException e) {
+                throw new BusinessException("NUM_BCT_INVALIDE",
+                        "Le numéro BCT doit être un nombre entier valide: " + dto.getNumBct());
+            }
+        }
+
+        if (finalizeFlag) {
+            // ===== FINALIZE == TRUE : logique complète =====
+
+            // Mise à jour BCT si codeEtat était 1
+            if (codeEtatAvantLevee != null && codeEtatAvantLevee == 1) {
+                operationsDeleguee.setNumeroBct(Integer.parseInt(dto.getNumBct()));
+                operationsDeleguee.setDateBct(dto.getDateBct());
+                log.info("Mise à jour BCT pour levée suspension - numBct: {}, dateBct: {}", dto.getNumBct(), dto.getDateBct());
+            }
+
+            // 4) Mise à jour de l'opération déléguée
+            operationsDeleguee.setEtatDossier("V"); // Validé
+            operationsDeleguee.setCodeEtat(null);
+            operationsDeleguee.setMotifEtat(dto.getMotifEtat()); // Stockage du motif de levée
+            operationsDeleguee.setDateEtat(LocalDate.now());
+
+            OperationsDeleguee savedOperationsDeleguee = operationsDelegueeRepository.save(operationsDeleguee);
+            log.debug("Levée de suspension appliquée avec ID: {}", savedOperationsDeleguee.getNumDossier());
+
+            // 5) Création du mouvement avec status='A'
+            createLeveeSuspensionMovement(savedOperationsDeleguee, STATUS_FINALIZED);
+
+            // 6) Construction du résultat
+            OuvertureDossierDTO resultDTO = buildSuspensionResultDTO(savedOperationsDeleguee);
+            log.info("Levée de suspension appliquée avec succès. NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+
+        } else {
+            // ===== FINALIZE == FALSE : MVT seul =====
+
+            // Création du mouvement sans modifier l'entité
+            createLeveeSuspensionMovement(operationsDeleguee, null);
+
+            // Retour minimal
+            OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();
+            resultDTO.setNumDossier(operationsDeleguee.getNumDossier());
+            resultDTO.setEtatDossier(operationsDeleguee.getEtatDossier());
+            log.info("MVT levée suspension créé (finalize=false). NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+        }
+    }
+
+    @Override
+    @Transactional
+    public OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto) {
+        return alimentationSuiteAccordBct(numDossier, dto, true);
+    }
+
+    @Override
+    @Transactional
+    public OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto, boolean finalizeFlag) {
+        log.info("Alimentation suite accord BCT pour numDossier: {} avec numeroBct: {}, finalize: {}", numDossier, dto.getNumeroBct(), finalizeFlag);
+
+        // 1) Vérification que le dossier existe
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(numDossier)
+                .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + numDossier));
+
+        // Calcul du nouveau montant d'autorisation BCT (nécessaire pour le MVT dans les deux cas)
+        BigDecimal currentMntAutoriseBct = operationsDeleguee.getMntAutoriseBct() != null ? operationsDeleguee.getMntAutoriseBct() : BigDecimal.ZERO;
+        BigDecimal newMntAutoriseBct = currentMntAutoriseBct.add(dto.getMntMvtAva());
+
+        // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
+
+        // 2) Vérification que l'état du dossier est 'V' (validé)
+        if (!"V".equals(operationsDeleguee.getEtatDossier())) {
+            throw new BusinessException("Le dossier n'est pas validé. État actuel: " + operationsDeleguee.getEtatDossier());
+        }
+
+        if (finalizeFlag) {
+            // ===== FINALIZE == TRUE : logique complète =====
+
+            // 3) Mise à jour de l'opération déléguée
+            operationsDeleguee.setNumeroBct(dto.getNumeroBct());
+            operationsDeleguee.setDateBct(dto.getDateBct());
+            operationsDeleguee.setMntAutoriseBct(newMntAutoriseBct);
+
+            OperationsDeleguee savedOperationsDeleguee = operationsDelegueeRepository.save(operationsDeleguee);
+            log.debug("Opération déléguée mise à jour avec alimentation BCT - ID: {}", savedOperationsDeleguee.getNumDossier());
+
+            // 4) Création du mouvement avec status='A'
+            createAlimentationBctMovement(savedOperationsDeleguee, dto, newMntAutoriseBct, STATUS_FINALIZED);
+
+            // 5) Construction du résultat
+            OuvertureDossierDTO resultDTO = buildSuspensionResultDTO(savedOperationsDeleguee);
+            log.info("Alimentation suite accord BCT appliquée avec succès. NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+
+        } else {
+            // ===== FINALIZE == FALSE : MVT seul =====
+
+            // Création du mouvement sans modifier l'entité
+            createAlimentationBctMovement(operationsDeleguee, dto, newMntAutoriseBct, null);
+
+            // Retour minimal
+            OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();
+            resultDTO.setNumDossier(operationsDeleguee.getNumDossier());
+            resultDTO.setEtatDossier(operationsDeleguee.getEtatDossier());
+            log.info("MVT alimentation BCT créé (finalize=false). NumDossier: {}", resultDTO.getNumDossier());
+            return resultDTO;
+        }
+    }
+       // ==================== PRIVATE HELPERS FOR SUSPENSION ====================
+
+    private OuvertureDossierDTO buildSuspensionResultDTO(OperationsDeleguee operationsDeleguee) {
+        OuvertureDossierDTO dto = new OuvertureDossierDTO();
+        dto.setNumDossier(operationsDeleguee.getNumDossier());
+        dto.setCodeTypeDosAva(operationsDeleguee.getCodeTypeDosAva());
+        dto.setDateDossier(operationsDeleguee.getDateDossier());
+        dto.setCodeAgenceAva(operationsDeleguee.getCodeAgenceAva());
+        dto.setTypePieceClient(operationsDeleguee.getTypePieceClient() != null ? operationsDeleguee.getTypePieceClient().intValue() : null);
+        dto.setNoPieceClient(operationsDeleguee.getNoPieceClient());
+        dto.setNumeroCompte(operationsDeleguee.getNumeroCompte());
+        dto.setTel(operationsDeleguee.getTel());
+        dto.setCodeActivite(operationsDeleguee.getCodeActivite());
+        dto.setCodeSousActivite(operationsDeleguee.getCodeSousActivite());
+        dto.setDeclarationFiscale(operationsDeleguee.getDeclarationFiscale());
+        dto.setDateUltDeclCaf(operationsDeleguee.getDateUltDeclCaf());
+        dto.setCodeBanqueProvenance(operationsDeleguee.getCodeBanqueProvenance());
+        dto.setMntAvance(operationsDeleguee.getMntAvance());
+        dto.setMntUtilise(operationsDeleguee.getMntUtilise());
+        dto.setMntAutorise(operationsDeleguee.getMntAutorise());
+        dto.setMntAutoriseBct(operationsDeleguee.getMntAutoriseBct());
+        dto.setMntReserve(operationsDeleguee.getMntReserve());
+        dto.setMntBlocage(operationsDeleguee.getMntBlocage());
+        dto.setSolde(operationsDeleguee.getSolde());
+        dto.setMntCa(operationsDeleguee.getMntCa());
+        dto.setMntCaFiscal(operationsDeleguee.getMntCaFiscal());
+        dto.setMntImportation(operationsDeleguee.getMntImportation());
+        dto.setNumeroBct(operationsDeleguee.getNumeroBct());
+        dto.setDateBct(operationsDeleguee.getDateBct());
+        dto.setEcheance(operationsDeleguee.getEcheance());
+        dto.setAnnee(operationsDeleguee.getAnnee());
+        dto.setDernierNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        dto.setEtatDossier(operationsDeleguee.getEtatDossier());
+        dto.setCodeEtat(operationsDeleguee.getCodeEtat());
+        dto.setDateEtat(operationsDeleguee.getDateEtat());
+        dto.setMotifEtat(operationsDeleguee.getMotifEtat());
+        return dto;
+    }
+
+    private void createSuspensionMovement(OperationsDeleguee operationsDeleguee, String status) {
+        log.info("Création du mouvement de suspension pour numDossier: {}, status: {}", operationsDeleguee.getNumDossier(), status);
+
+        // Générer le refOperation et dateOperation
+        Long refOperation = operationsDelegueeMvtRepository.getNextRefOperation();
+        LocalDate dateOperation = LocalDate.now();
+
+        // Créer l'ID du mouvement
+        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
+        id.setRefOperation(refOperation);
+        id.setDateOperation(dateOperation);
+
+        // Créer l'entité mouvement
+        OperationsDelegueesMvt mouvement = new OperationsDelegueesMvt();
+        mouvement.setId(id);
+
+        // Copier les données de l'opération déléguée
+        mouvement.setCodeProduitService((short) 108);
+        mouvement.setCodeOperation(9021); // Code for suspension
+        mouvement.setCodeTypeDosAva(operationsDeleguee.getCodeTypeDosAva());
+        mouvement.setNumDossier(operationsDeleguee.getNumDossier());
+        mouvement.setDateDossier(operationsDeleguee.getDateDossier());
+        mouvement.setCodeAgenceAva(operationsDeleguee.getCodeAgenceAva());
+        mouvement.setTypePieceClient(operationsDeleguee.getTypePieceClient() != null ? operationsDeleguee.getTypePieceClient().intValue() : null);
+        mouvement.setNoPieceClient(operationsDeleguee.getNoPieceClient());
+        mouvement.setNumeroCompte(operationsDeleguee.getNumeroCompte());
+        mouvement.setTel(operationsDeleguee.getTel());
+        mouvement.setCodeActivite(operationsDeleguee.getCodeActivite());
+        mouvement.setCodeSousActivite(operationsDeleguee.getCodeSousActivite());
+        mouvement.setDeclarationFiscale(operationsDeleguee.getDeclarationFiscale());
+        mouvement.setDateUltDeclCaf(operationsDeleguee.getDateUltDeclCaf());
+        mouvement.setCodeBanqueProvenance(operationsDeleguee.getCodeBanqueProvenance());
+        mouvement.setMntAvance(operationsDeleguee.getMntAvance());
+        mouvement.setMntUtilise(operationsDeleguee.getMntUtilise());
+        mouvement.setSolde(operationsDeleguee.getSolde());
+        mouvement.setMntCa(operationsDeleguee.getMntCa());
+        mouvement.setMntCaFiscal(operationsDeleguee.getMntCaFiscal());
+        mouvement.setMntImportation(operationsDeleguee.getMntImportation());
+        mouvement.setNumeroBct(operationsDeleguee.getNumeroBct());
+        mouvement.setDateBct(operationsDeleguee.getDateBct());
+        mouvement.setEcheance(operationsDeleguee.getEcheance());
+        mouvement.setAnnee(operationsDeleguee.getAnnee());
+        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
+        mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
+        mouvement.setDateEtat(operationsDeleguee.getDateEtat());
+        mouvement.setMotifEtat(operationsDeleguee.getMotifEtat());
+        mouvement.setStatus(status); 
+        mouvement.setDateValidation(dateOperation);
+        mouvement.setMntAutoriseBct(operationsDeleguee.getMntAutoriseBct());
+        mouvement.setMntBlocage(operationsDeleguee.getMntBlocage());
+        mouvement.setMntReserve(operationsDeleguee.getMntReserve());
+        mouvement.setMntAutorise(operationsDeleguee.getMntAutorise());
+
+        // Sauvegarder le mouvement
+        operationsDelegueeMvtRepository.save(mouvement);
+        log.debug("Mouvement de suspension créé avec refOperation: {}", refOperation);
+    }
+
+    private void createLeveeSuspensionMovement(OperationsDeleguee operationsDeleguee, String status) {
+        log.info("Création du mouvement de levée de suspension pour numDossier: {}, status: {}", operationsDeleguee.getNumDossier(), status);
+
+        // Générer le refOperation et dateOperation
+        Long refOperation = operationsDelegueeMvtRepository.getNextRefOperation();
+        LocalDate dateOperation = LocalDate.now();
+
+        // Créer l'ID du mouvement
+        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
+        id.setRefOperation(refOperation);
+        id.setDateOperation(dateOperation);
+
+        // Créer l'entité mouvement
+        OperationsDelegueesMvt mouvement = new OperationsDelegueesMvt();
+        mouvement.setId(id);
+
+        // Copier les données de l'opération déléguée
+        mouvement.setCodeProduitService((short) 108); // Always 108
+        mouvement.setCodeOperation(221); // Code for levée de suspension
+        mouvement.setCodeTypeDosAva(operationsDeleguee.getCodeTypeDosAva());
+        mouvement.setNumDossier(operationsDeleguee.getNumDossier());
+        mouvement.setDateDossier(operationsDeleguee.getDateDossier());
+        mouvement.setCodeAgenceAva(operationsDeleguee.getCodeAgenceAva());
+        mouvement.setTypePieceClient(operationsDeleguee.getTypePieceClient() != null ? operationsDeleguee.getTypePieceClient().intValue() : null);
+        mouvement.setNoPieceClient(operationsDeleguee.getNoPieceClient());
+        mouvement.setNumeroCompte(operationsDeleguee.getNumeroCompte());
+        mouvement.setTel(operationsDeleguee.getTel());
+        mouvement.setCodeActivite(operationsDeleguee.getCodeActivite());
+        mouvement.setCodeSousActivite(operationsDeleguee.getCodeSousActivite());
+        mouvement.setDeclarationFiscale(operationsDeleguee.getDeclarationFiscale());
+        mouvement.setDateUltDeclCaf(operationsDeleguee.getDateUltDeclCaf());
+        mouvement.setCodeBanqueProvenance(operationsDeleguee.getCodeBanqueProvenance());
+        mouvement.setMntAvance(operationsDeleguee.getMntAvance());
+        mouvement.setMntUtilise(operationsDeleguee.getMntUtilise());
+        mouvement.setSolde(operationsDeleguee.getSolde());
+        mouvement.setMntCa(operationsDeleguee.getMntCa());
+        mouvement.setMntCaFiscal(operationsDeleguee.getMntCaFiscal());
+        mouvement.setMntImportation(operationsDeleguee.getMntImportation());
+        mouvement.setNumeroBct(operationsDeleguee.getNumeroBct());
+        mouvement.setDateBct(operationsDeleguee.getDateBct());
+        mouvement.setEcheance(operationsDeleguee.getEcheance());
+        mouvement.setAnnee(operationsDeleguee.getAnnee());
+        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
+        mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
+        mouvement.setDateEtat(operationsDeleguee.getDateEtat());
+        mouvement.setMotifEtat(operationsDeleguee.getMotifEtat());
+        mouvement.setStatus(status); // Status pour levée de suspension
+        mouvement.setDateValidation(dateOperation);
+        mouvement.setMntAutoriseBct(operationsDeleguee.getMntAutoriseBct());
+        mouvement.setMntBlocage(operationsDeleguee.getMntBlocage());
+        mouvement.setMntReserve(operationsDeleguee.getMntReserve());
+        mouvement.setMntAutorise(operationsDeleguee.getMntAutorise());
+
+        // Sauvegarder le mouvement
+        operationsDelegueeMvtRepository.save(mouvement);
+        log.debug("Mouvement de levée de suspension créé avec refOperation: {}", refOperation);
+    }
+
+    private void createAlimentationBctMovement(OperationsDeleguee operationsDeleguee, AutorisationBctDTO dto, BigDecimal newMntAutoriseBct, String status) {
+        log.info("Création du mouvement d'alimentation BCT pour numDossier: {}, status: {}", operationsDeleguee.getNumDossier(), status);
+
+        // Générer le refOperation et dateOperation
+        Long refOperation = operationsDelegueeMvtRepository.getNextRefOperation();
+        LocalDate dateOperation = LocalDate.now();
+
+        // Créer l'ID du mouvement
+        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
+        id.setRefOperation(refOperation);
+        id.setDateOperation(dateOperation);
+
+        // Créer l'entité mouvement
+        OperationsDelegueesMvt mouvement = new OperationsDelegueesMvt();
+        mouvement.setId(id);
+
+        // Copier les données de l'opération déléguée
+        mouvement.setCodeProduitService((short) 1); // À adapter selon les besoins
+        mouvement.setCodeOperation(5); // Code pour alimentation BCT
+        mouvement.setCodeTypeDosAva(operationsDeleguee.getCodeTypeDosAva());
+        mouvement.setNumDossier(operationsDeleguee.getNumDossier());
+        mouvement.setDateDossier(operationsDeleguee.getDateDossier());
+        mouvement.setCodeAgenceAva(operationsDeleguee.getCodeAgenceAva());
+        mouvement.setTypePieceClient(operationsDeleguee.getTypePieceClient() != null ? operationsDeleguee.getTypePieceClient().intValue() : null);
+        mouvement.setNoPieceClient(operationsDeleguee.getNoPieceClient());
+        mouvement.setNumeroCompte(operationsDeleguee.getNumeroCompte());
+        mouvement.setTel(operationsDeleguee.getTel());
+        mouvement.setCodeActivite(operationsDeleguee.getCodeActivite());
+        mouvement.setCodeSousActivite(operationsDeleguee.getCodeSousActivite());
+        mouvement.setDeclarationFiscale(operationsDeleguee.getDeclarationFiscale());
+        mouvement.setDateUltDeclCaf(operationsDeleguee.getDateUltDeclCaf());
+        mouvement.setCodeBanqueProvenance(operationsDeleguee.getCodeBanqueProvenance());
+        mouvement.setMntAvance(operationsDeleguee.getMntAvance());
+        mouvement.setMntMvtAva(dto.getMntMvtAva()); // Montant du mouvement AVA depuis l'input
+        mouvement.setMntUtilise(operationsDeleguee.getMntUtilise());
+        mouvement.setSolde(operationsDeleguee.getSolde());
+        mouvement.setMntCa(operationsDeleguee.getMntCa());
+        mouvement.setMntCaFiscal(operationsDeleguee.getMntCaFiscal());
+        mouvement.setMntImportation(operationsDeleguee.getMntImportation());
+        mouvement.setNumeroBct(dto.getNumeroBct()); // Depuis l'input
+        mouvement.setDateBct(dto.getDateBct()); // Depuis l'input
+        mouvement.setEcheance(operationsDeleguee.getEcheance());
+        mouvement.setAnnee(operationsDeleguee.getAnnee());
+        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
+        mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
+        mouvement.setDateEtat(operationsDeleguee.getDateEtat());
+        mouvement.setMotifEtat(operationsDeleguee.getMotifEtat());
+        mouvement.setStatus(status); // Status pour alimentation BCT
+        mouvement.setDateValidation(dateOperation); // Date du mouvement AVA = sysdate
+        mouvement.setMntAutoriseBct(newMntAutoriseBct); // Montant d'autorisation BCT mis à jour
+        mouvement.setMntBlocage(operationsDeleguee.getMntBlocage());
+        mouvement.setMntReserve(operationsDeleguee.getMntReserve());
+        mouvement.setMntAutorise(operationsDeleguee.getMntAutorise());
+
+        // Sauvegarder le mouvement
+        operationsDelegueeMvtRepository.save(mouvement);
+        log.debug("Mouvement d'alimentation BCT créé avec refOperation: {}", refOperation);
+    }
+        @Override
+    @Transactional(readOnly = true)
+    public Optional<IbansysPoc.AVA.DTO.SuspensionDataDTO> getSuspensionData(Integer numDossier) {
+        log.info("Récupération des données de suspension pour numDossier: {}", numDossier);
+        
+        if (numDossier == null) {
+            throw new BusinessException("NUM_DOSSIER_REQUIS", "Le numéro de dossier est requis");
+        }
+
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(numDossier)
+                .orElseThrow(() -> new ResourceNotFoundException("Dossier non trouvé avec numDossier: " + numDossier));
+        
+        // Vérifier que l'état du dossier est 'B' (suspendu/bloqué)
+        if (!"B".equals(operationsDeleguee.getEtatDossier())) {
+            log.warn("Le dossier {} n'est pas en état suspendu (B), état actuel: {}", 
+                    numDossier, operationsDeleguee.getEtatDossier());
+            throw new BusinessException("DOSSIER_NON_SUSPENDU", 
+                    "Le dossier " + numDossier + " n'est pas suspendu. État actuel: " + operationsDeleguee.getEtatDossier());
+        }
+        
+        // Mapper le code d'état vers le motif descriptif
+        String motif = mapCodeEtatToMotif(operationsDeleguee.getCodeEtat());
+        
+        IbansysPoc.AVA.DTO.SuspensionDataDTO dto = new IbansysPoc.AVA.DTO.SuspensionDataDTO(
+                operationsDeleguee.getDateEtat(),
+                motif
+        );
+        
+        log.info("Données de suspension récupérées pour dossier {}: dateEtat={}, motif={}", 
+                numDossier, dto.getDateEtat(), dto.getMotif());
+        
+        return Optional.of(dto);
+    }
+     /**
+     * Mappe le code d'état vers un motif descriptif.
+     * @param codeEtat Le code d'état (1, 2, 3, 4, 99)
+     * @return Le motif descriptif
+     */
+    private String mapCodeEtatToMotif(Short codeEtat) {
+        if (codeEtat == null) {
+            return "AUTRE MOTIF";
+        }
+        
+        return switch (codeEtat) {
+            case 1 -> "DEPASSEMENT DU MONTANT AUTORISE";
+            case 2 -> "DECLARATION FISCALE NON PRESENTEE";
+            case 3 -> "TOTAL IMPORTATIONS INSUFFISANT";
+            case 4 -> "DOSSIER NON RENOUVELE";
+            case 99 -> "AUTRE MOTIF";
+            default -> "AUTRE MOTIF";
+        };
+    }
+
+    /**
+     * Mappe le code d'état vers un motif descriptif.
+     * @param codeEtat Le code d'état (1, 2, 3, 4, 99)
+     * @return Le motif descriptif
+     */
+
 }

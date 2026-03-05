@@ -1,10 +1,15 @@
 package IbansysPoc.AVA.service.impl;
 
+import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.AvaMarcheMvtDTO;
 import IbansysPoc.AVA.DTO.BeneficiaireMvtDTO;
 import IbansysPoc.AVA.DTO.DocumentDTO;
+import IbansysPoc.AVA.DTO.ExportateurDTO;
 import IbansysPoc.AVA.DTO.InitiationOuvertureDTO;
+import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
 import IbansysPoc.AVA.DTO.OperationCreationResponseDTO;
+import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
+import IbansysPoc.AVA.DTO.SuspensionDTO;
 import IbansysPoc.AVA.entity.*;
 import IbansysPoc.AVA.exception.BusinessException;
 import IbansysPoc.AVA.exception.ResourceNotFoundException;
@@ -20,7 +25,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import IbansysPoc.AVA.mapper.ExportateurMapper;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -28,7 +35,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -55,7 +61,7 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
     private final BeneficiaireMvtMapper beneficiaireMvtMapper;
     private final DocumentMapper documentMapper;
     private final AvaMarcheMvtMapper avaMarcheMvtMapper;
-
+    private final ExportateurMapper exportateurMapper;
     private final TypeDossierAvaRepository typeDossierAvaRepository;
     private final BusinessRulesService businessRulesService;
     private final OperationsDelegueeService operationsDelegueeService;
@@ -72,7 +78,59 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
                 .orElseThrow(() -> new BusinessException("MVT_INTROUVABLE",
                         "Mouvement introuvable après création refOperation=" + resp.getRefOperation()));
     }
+ @Override
+    public ExportateurDTO createMvtForRapatriementExportateur(ExportateurDTO dto) {
+        log.info("Création MVT exportateur pour rapatriement - refOperation: {}, dateOperation: {}, numDossier: {}", 
+                 dto.getRefOperation(), dto.getDateOperation(), dto.getNumDossier());
 
+        // Validation : vérifier que refOperation et dateOperation sont définis
+        if (dto.getRefOperation() == null || dto.getDateOperation() == null) {
+            throw new BusinessException("INVALID_MVT_DATA", "refOperation et dateOperation doivent être définis pour le MVT");
+        }
+
+        // Validation : vérifier que numDossier correspond à une OperationsDeleguee existante
+        if (dto.getNumDossier() == null) {
+            throw new BusinessException("INVALID_NUM_DOSSIER", "numDossier ne peut pas être null");
+        }
+
+        // Contrôle d'idempotence : vérifier si le MVT existe déjà
+        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
+        id.setRefOperation(dto.getRefOperation());
+        id.setDateOperation(dto.getDateOperation());
+        
+        if (operationsDelegueeMvtRepository.existsById(id)) {
+            log.warn("MVT déjà existant pour rapatriement - refOperation: {}, dateOperation: {} - Retour de l'existant", 
+                     dto.getRefOperation(), dto.getDateOperation());
+            Optional<OperationsDelegueesMvt> existing = operationsDelegueeMvtRepository.findById(id);
+            if (existing.isPresent()) {
+                return exportateurMapper.toDTO(existing.get());
+            }
+        }
+
+        log.info("Contrôles passés - Création du MVT exportateur pour rapatriement");
+
+        // Map DTO -> entity
+        OperationsDelegueesMvt operationsDelegueesMvt = exportateurMapper.toEntity(dto);
+
+        // Safety: si MapStruct n'a pas copié numeroCompte, forcer la copie
+        if ((operationsDelegueesMvt.getNumeroCompte() == null || operationsDelegueesMvt.getNumeroCompte().isBlank())
+                && dto.getNumeroCompte() != null && !dto.getNumeroCompte().isBlank()) {
+            operationsDelegueesMvt.setNumeroCompte(dto.getNumeroCompte());
+        }
+
+        OperationsDelegueesMvtId mvtId = new OperationsDelegueesMvtId();
+        mvtId.setDateOperation(dto.getDateOperation());
+        mvtId.setRefOperation(dto.getRefOperation());
+        operationsDelegueesMvt.setId(mvtId);
+
+        // Sauvegarder
+        OperationsDelegueesMvt savedOperationsDelegueesMvt = operationsDelegueeMvtRepository.save(operationsDelegueesMvt);
+
+        log.info("MVT exportateur créé avec succès - refOperation: {}, dateOperation: {}", 
+                 savedOperationsDelegueesMvt.getId().getRefOperation(), savedOperationsDelegueesMvt.getId().getDateOperation());
+
+        return exportateurMapper.toDTO(savedOperationsDelegueesMvt);
+    }
     @Override
     @Transactional
     public OperationCreationResponseDTO create(InitiationOuvertureDTO dto, boolean finalize) {
@@ -864,5 +922,5 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         log.info("Trouvé {} mouvements pour numDossier={}", mvts.size(), numDossier);
         return mvts;
     }
-
+   
 }

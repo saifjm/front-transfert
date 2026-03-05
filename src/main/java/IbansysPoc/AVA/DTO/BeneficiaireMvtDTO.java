@@ -1,11 +1,12 @@
 package IbansysPoc.AVA.DTO;
 
+import java.time.LocalDate;
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -26,7 +27,7 @@ public class BeneficiaireMvtDTO {
     @JsonProperty(required = false)
     private LocalDate dateDossier;  // SYSDATE - Alimenté automatiquement
 
-    private Boolean typePieceBenef;
+    private Integer typePieceBenef;
     private String noPieceBenef;
 
     @JsonProperty(required = false)

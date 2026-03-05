@@ -29,12 +29,10 @@ public interface BeneficiaireRepository extends JpaRepository<Beneficiaire, Bene
 
     /**
      * Vérifie l'existence d'un bénéficiaire par numéro de dossier, type de pièce et numéro de pièce.
-     * Note: typePieceBenef est Boolean dans BeneficiaireId.
-     * Conversion : code 0 = false, code != 0 = true
      */
     @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Beneficiaire b " +
            "WHERE b.id.numDossier = :numDossier " +
-           "AND b.id.typePieceBenef = CASE WHEN :code = 0 THEN false ELSE true END " +
+           "AND b.id.typePieceBenef = :code " +
            "AND b.id.noPieceBenef = :noPiece")
     boolean existsByNumDossierCodeAndNoPiece(
         @Param("numDossier") Integer numDossier,

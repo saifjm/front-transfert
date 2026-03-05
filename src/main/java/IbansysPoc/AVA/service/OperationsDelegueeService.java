@@ -1,7 +1,11 @@
 package IbansysPoc.AVA.service;
 
+import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.DossierValideDTO;
+import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
 import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
+import IbansysPoc.AVA.DTO.SuspensionDTO;
+import IbansysPoc.AVA.DTO.SuspensionDataDTO;
 import IbansysPoc.AVA.DTO.OperationsDelegueeSummaryDTO;
 import IbansysPoc.AVA.entity.OperationsDeleguee;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +32,16 @@ public interface OperationsDelegueeService {
      * @param refOperation La référence de l'opération FV validée (status V)
      */
     void applyFVToDossier(Integer numDossier, Long refOperation);
+
+    /**
+     * Applique un mouvement RC (Rétrocession) au dossier.
+     * Met à jour mnt_utilise (↓), solde (↑) et dernier_num_mvt_ava (↑).
+     * Lock pessimiste sur le dossier.
+     *
+     * @param numDossier   Le numéro du dossier à mettre à jour
+     * @param refOperation La référence de l'opération RC validée (status V)
+     */
+    void applyRCToDossier(Integer numDossier, Long refOperation);
 
     /**
      * Applique TOUS les mouvements validés (V) ou en erreur (E) pour un dossier.
@@ -65,4 +79,17 @@ public interface OperationsDelegueeService {
     Optional<OperationsDelegueeSummaryDTO> findSummaryById(Integer numDossier);
 
     Optional<OperationsDelegueeSummaryDTO> findSummaryWithBenefById(Integer numDossier);
+         OuvertureDossierDTO suspensionDossier(SuspensionDTO dto);
+
+    OuvertureDossierDTO suspensionDossier(SuspensionDTO dto, boolean finalizeFlag);
+    
+    OuvertureDossierDTO leveeSuspensionDossier(LeveeSuspensionDTO dto);
+
+    OuvertureDossierDTO leveeSuspensionDossier(LeveeSuspensionDTO dto, boolean finalizeFlag);
+    
+    OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto);
+
+    OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto, boolean finalizeFlag);
+    
+    Optional<SuspensionDataDTO> getSuspensionData(Integer numDossier);
 }

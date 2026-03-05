@@ -1,14 +1,15 @@
 package IbansysPoc.AVA.entity;
 
+import java.io.Serializable;
+import java.time.LocalDate;
+import java.util.Objects;
+
+import org.hibernate.Hibernate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.Hibernate;
-
-import java.io.Serializable;
-import java.time.LocalDate;
-import java.util.Objects;
 
 @Getter
 @Setter
@@ -22,7 +23,7 @@ public class BeneficiaireId implements Serializable {
     private LocalDate dateDossier;
 
     @Column(name = "TYPE_PIECE_BENEF", nullable = false)
-    private Boolean typePieceBenef = false;
+    private Integer typePieceBenef;
 
     @Column(name = "NO_PIECE_BENEF", nullable = false, length = 13)
     private String noPieceBenef;

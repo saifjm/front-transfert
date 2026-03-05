@@ -1,13 +1,17 @@
 package IbansysPoc.AVA.controller;
 
+import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.DossierValideDTO;
+import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
 import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
+import IbansysPoc.AVA.DTO.SuspensionDTO;
 import IbansysPoc.AVA.DTO.OperationsDelegueeSummaryDTO;
 import IbansysPoc.AVA.entity.OperationsDeleguee;
 import IbansysPoc.AVA.service.OperationsDelegueeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -325,4 +329,52 @@ public class OperationsDelegueeController {
         List<OperationsDeleguee> result = operationsDelegueeService.findByMatriculeFiscaleValide(noPieceClient);
         return ResponseEntity.ok(result);
     }
+     @Operation(
+        summary = "Suspension d'un dossier",
+        description = "Suspend un dossier validé en changeant son état à 'B' (Bloqué) et en créant un mouvement correspondant"
+    )
+    @PostMapping("/suspension/{Finalize}")
+    public ResponseEntity<OuvertureDossierDTO> suspensionDossier(
+            @Parameter(description = "true = logique complète + MVT status='A', false = MVT seul", required = true)
+            @PathVariable("Finalize") boolean finalizeFlag,
+            @Parameter(description = "DTO contenant les informations de suspension (numDossier, codeEtat, motifEtat)", required = true)
+            @RequestBody @Valid SuspensionDTO dto) {
+        log.info("POST /api/operations-deleguees/suspension/{} - numDossier: {}", finalizeFlag, dto.getNumDossier());
+        OuvertureDossierDTO result = operationsDelegueeService.suspensionDossier(dto, finalizeFlag);
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Levée de suspension d'un dossier",
+        description = "Lève la suspension d'un dossier bloqué en changeant son état à 'V' (Validé) et en créant un mouvement correspondant"
+    )
+    @PostMapping("/levee-suspension/{Finalize}")
+    public ResponseEntity<OuvertureDossierDTO> leveeSuspensionDossier(
+            @Parameter(description = "true = logique complète + MVT status='A', false = MVT seul", required = true)
+            @PathVariable("Finalize") boolean finalizeFlag,
+            @Parameter(description = "DTO contenant le numéro de dossier pour la levée de suspension", required = true)
+            @RequestBody @Valid LeveeSuspensionDTO dto) {
+        log.info("POST /api/operations-deleguees/levee-suspension/{} - numDossier: {}", finalizeFlag, dto.getNumDossier());
+        OuvertureDossierDTO result = operationsDelegueeService.leveeSuspensionDossier(dto, finalizeFlag);
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Alimentation suite accord BCT",
+        description = "Met à jour les informations BCT d'un dossier validé et crée un mouvement correspondant"
+    )
+    @PostMapping("/{numDossier}/alimentation-bct/{Finalize}")
+    public ResponseEntity<OuvertureDossierDTO> alimentationSuiteAccordBct(
+            @Parameter(description = "Numéro du dossier à alimenter", required = true)
+            @PathVariable Integer numDossier,
+            @Parameter(description = "true = logique complète + MVT status='A', false = MVT seul", required = true)
+            @PathVariable("Finalize") boolean finalizeFlag,
+            @Parameter(description = "DTO contenant les informations BCT pour l'alimentation", required = true)
+            @RequestBody @Valid AutorisationBctDTO dto) {
+        log.info("POST /api/operations-deleguees/{}/alimentation-bct/{} - numeroBct: {}, dateBct: {}, typeBct: {}, mntMvtAva: {}",
+                numDossier, finalizeFlag, dto.getNumeroBct(), dto.getDateBct(), dto.getTypeBct(), dto.getMntMvtAva());
+        OuvertureDossierDTO result = operationsDelegueeService.alimentationSuiteAccordBct(numDossier, dto, finalizeFlag);
+        return ResponseEntity.ok(result);
+    }
+ 
 }
