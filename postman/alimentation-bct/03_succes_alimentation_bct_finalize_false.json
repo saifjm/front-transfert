@@ -1,0 +1,12 @@
+{
+    "_description": "SUCCES: Alimentation BCT en mode finalize=false (MVT seul — dossier non modifié)",
+    "_cas_test": "finalize=false : crée uniquement le mouvement MVT sans mettre à jour mntAutoriseBct sur le dossier",
+    "_endpoint": "POST /api/operations-deleguees/10001/alimentation-bct/false",
+    "_resultat_attendu": "HTTP 200 - MVT créé avec status=null, mntAutoriseBct du dossier inchangé",
+    "_prerequis": "Le dossier 10001 doit exister avec etatDossier='V'",
+
+    "numeroBct": 20261001,
+    "dateBct": "2026-02-10",
+    "typeBct": "N",
+    "mntMvtAva": 25000.00
+}

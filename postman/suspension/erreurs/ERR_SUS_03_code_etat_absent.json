@@ -1,0 +1,9 @@
+{
+    "_description": "ERREUR: Code d'état absent (obligatoire)",
+    "_erreur_attendue": "Le code d'état est obligatoire",
+    "_http_status": 400,
+    "_type_erreur": "MethodArgumentNotValidException",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+
+    "numDossier": 10001
+}

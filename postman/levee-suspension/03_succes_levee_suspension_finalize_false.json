@@ -1,0 +1,10 @@
+{
+    "_description": "SUCCES: Levée de suspension en mode finalize=false (MVT seul — dossier non modifié)",
+    "_cas_test": "finalize=false : crée uniquement le mouvement MVT sans changer l'état du dossier",
+    "_endpoint": "POST /api/operations-deleguees/levee-suspension/false",
+    "_resultat_attendu": "HTTP 200 - MVT créé avec status=null, etatDossier reste 'B' (inchangé)",
+    "_prerequis": "Le dossier 10004 doit exister avec etatDossier='B'",
+
+    "numDossier": 10004,
+    "motifEtat": "Test mode finalize false — MVT préparatoire sans finalisation"
+}

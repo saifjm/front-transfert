@@ -1,0 +1,11 @@
+{
+    "_description": "ERREUR: Dossier non validé — etatDossier déjà 'B' (Bloqué/Suspendu)",
+    "_erreur_attendue": "Le dossier n'est pas validé. État actuel: B",
+    "_http_status": 422,
+    "_type_erreur": "BusinessException",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+    "_prerequis": "Le dossier 10004 doit exister avec etatDossier='B' (déjà suspendu suite à TraitementAva)",
+
+    "numDossier": 10004,
+    "codeEtat": 1
+}

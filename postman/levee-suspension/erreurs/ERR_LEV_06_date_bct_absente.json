@@ -1,0 +1,12 @@
+{
+    "_description": "ERREUR: dateBct absente alors que codeEtat du dossier était 1 (DEPASSEMENT DU MONTANT AUTORISE)",
+    "_erreur_attendue": "La date BCT est obligatoire pour la levée de suspension d'un dossier avec code état 1 (DEPASSEMENT DU MONTANT AUTORISE)",
+    "_http_status": 422,
+    "_type_erreur": "BusinessException / DATE_BCT_REQUISE",
+    "_endpoint": "POST /api/operations-deleguees/levee-suspension/true",
+    "_prerequis": "Le dossier 10004 doit exister avec etatDossier='B' et codeEtat=1",
+
+    "numDossier": 10004,
+    "motifEtat": "Dépassement régularisé",
+    "numBct": "20261234"
+}

@@ -1,0 +1,10 @@
+{
+    "_description": "SUCCES: Suspension pour dossier non renouvelé",
+    "_cas_test": "codeEtat=4 (DOSSIER NON RENOUVELE), motifEtat non requis",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+    "_resultat_attendu": "HTTP 200 - Dossier passé à état 'B' (Bloqué), MVT status='A' créé",
+    "_prerequis": "Le dossier 10001 doit exister avec etatDossier='V'",
+
+    "numDossier": 10001,
+    "codeEtat": 4
+}

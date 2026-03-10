@@ -47,6 +47,16 @@ public interface ApiExterneService {
     Integer verifierPersonne(Integer typePiecePersonne, String noPiecePersonne);
 
     /**
+     * Vérifier l'existence d'une personne par numéro de pièce uniquement.
+     * Endpoint: /api/ref/personnes/by-nopiececlient/{noPiecePersonne}
+     * Microservice: REF (port 8443)
+     *
+     * @param noPieceBenef Numéro de la pièce du bénéficiaire
+     * @return true si au moins une personne est trouvée, false sinon
+     */
+    boolean existsPersonneByNoPiece(String noPieceBenef);
+
+    /**
      * Récupérer la personne complète depuis le microservice REF.
      * Endpoint (REF): /api/ref/personnes/{typePiecePersonne}/{noPiecePersonne}
      * Remarque: la classe exacte de retour dépend du microservice REF ; ici on retourne Object

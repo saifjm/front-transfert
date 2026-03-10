@@ -1,0 +1,10 @@
+{
+    "_description": "SUCCES: Suspension en mode finalize=false (MVT seul — dossier non modifié)",
+    "_cas_test": "finalize=false : crée uniquement le mouvement MVT sans changer l'état du dossier",
+    "_endpoint": "POST /api/operations-deleguees/suspension/false",
+    "_resultat_attendu": "HTTP 200 - MVT créé avec status=null, etatDossier reste 'V' (inchangé)",
+    "_prerequis": "Le dossier 10001 doit exister avec etatDossier='V'",
+
+    "numDossier": 10001,
+    "codeEtat": 1
+}

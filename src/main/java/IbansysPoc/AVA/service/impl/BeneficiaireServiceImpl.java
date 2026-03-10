@@ -19,6 +19,7 @@ import IbansysPoc.AVA.mapper.BeneficiaireMapper;
 import IbansysPoc.AVA.repository.BeneficiaireRepository;
 import IbansysPoc.AVA.repository.OperationsDelegueeMvtRepository;
 import IbansysPoc.AVA.repository.OperationsDelegueeRepository;
+import IbansysPoc.AVA.service.ApiExterneService;
 import IbansysPoc.AVA.service.BeneficiaireService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +37,13 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
     private final OperationsDelegueeRepository operationsDelegueeRepository;
     private final OperationsDelegueeMvtRepository operationsMvtRepository;
     private final BeneficiaireMapper beneficiaireMapper;
+    private final ApiExterneService apiExterneService;
 
-    /** Constante pour le status finalisé du MVT. */
+    /** Constante pour le status finalisé du MVT (finalize=true). */
     public static final String STATUS_FINALIZED = "A";
+
+    /** Constante pour le status en attente du MVT (finalize=false). */
+    public static final String STATUS_PENDING = "X";
 
     /**
      * Crée ou met à jour un bénéficiaire pour une opération déléguée spécifique.
@@ -138,7 +143,7 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
                      isUpdate ? "mis à jour" : "créé", savedBeneficiaire.getId());
 
             // 6. Créer un mouvement dans OPERATIONS_DELEGUEES_MVT avec status='A'
-            createMovement(operationsDeleguee, STATUS_FINALIZED);
+            createMovement(operationsDeleguee, STATUS_FINALIZED, dto);
 
             // 7. Retourner le DTO
             BeneficiaireDTO resultDTO = beneficiaireMapper.toDTO(savedBeneficiaire);
@@ -149,7 +154,7 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
             // Créer uniquement le MVT, sans toucher à la table bénéficiaire
             log.info("Mode non-finalisé : création du MVT uniquement pour le dossier: {}", dto.getNumDossier());
 
-            createMovement(operationsDeleguee, null);
+            createMovement(operationsDeleguee, STATUS_PENDING, dto);
 
             // Retourner un DTO minimal avec les infos du dossier (pas de bénéficiaire persisté)
             BeneficiaireDTO resultDTO = new BeneficiaireDTO();
@@ -164,8 +169,9 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
      * 
      * @param operationsDeleguee l'opération déléguée source
      * @param status le status à affecter au MVT (null = pas de status, "A" = finalisé)
+     * @param dto le DTO du bénéficiaire contenant les données du JSON
      */
-    private void createMovement(OperationsDeleguee operationsDeleguee, String status) {
+    private void createMovement(OperationsDeleguee operationsDeleguee, String status, BeneficiaireDTO dto) {
         log.debug("Création d'un mouvement pour le dossier: {} (status={})", 
                  operationsDeleguee.getNumDossier(), status);
 
@@ -183,7 +189,7 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
         
         // Copier les informations de l'opération déléguée
         mvt.setNumDossier(operationsDeleguee.getNumDossier());
-        mvt.setDateDossier(operationsDeleguee.getDateDossier());
+        mvt.setDateDossier(dto.getDateDossier());
         mvt.setCodeTypeDosAva(operationsDeleguee.getCodeTypeDosAva());
         mvt.setCodeAgenceAva(operationsDeleguee.getCodeAgenceAva());
         mvt.setTypePieceClient(operationsDeleguee.getTypePieceClient().intValue());
@@ -258,6 +264,14 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
         if (!List.of(1, 4, 7).contains(dto.getTypePieceBenef())) {
             throw new BusinessException("typePieceBenef doit être 1, 4 ou 7");
         }
+        // Validation du format CIN : 7 chiffres suivis d'une lettre (ex: 1234567A)
+        if (Integer.valueOf(1).equals(dto.getTypePieceBenef())) {
+            String noPiece = dto.getNoPieceBenef().trim();
+            if (!noPiece.matches("\\d{7}[A-Za-z]")) {
+                throw new BusinessException("FORMAT_CIN_INVALIDE",
+                        "Le format du CIN (noPieceBenef) est invalide : doit contenir exactement 7 chiffres suivis d'une lettre (ex: 1234567A)");
+            }
+        }
         if (!List.of("Dirigeant", "Conseil d'administration","Employé").contains(dto.getQualite())) {
             throw new BusinessException("qualite doit être 'Dirigeant', 'Conseil d'administration' ou 'Employé'");
         }
@@ -266,6 +280,13 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
         }
         if (!List.of("AA", "A", "AD", "N").contains(dto.getEtat())) {
             throw new BusinessException("etat doit être 'AA', 'A', 'AD' ou 'N'");
+        }
+
+        // Vérification de l'existence du client dans la table Personne via l'API REF
+        boolean existe = apiExterneService.existsPersonneByNoPiece(dto.getNoPieceBenef().trim());
+        if (!existe) {
+            throw new BusinessException("CLIENT_NON_TROUVE",
+                    "Le client n'est pas trouvé dans la table Personne (noPieceBenef=" + dto.getNoPieceBenef().trim() + ")");
         }
     }
 

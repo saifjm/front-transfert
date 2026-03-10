@@ -1,0 +1,16 @@
+{
+    "_description": "ERREUR: Numero piece beneficiaire vide",
+    "_erreur_attendue": "Le numero de piece du beneficiaire est obligatoire",
+    "_http_status": 400,
+    "_type_erreur": "IllegalArgumentException",
+
+    "numDossierAva": 10001,
+    "dateDosRap": "2026-01-15",
+    "mntRap": 1000.00,
+    "codeDevise": 788,
+    "codeBanqueProvenance": 1,
+    "numeroCompte": "1234567890123456",
+    "typePieceBenef": 1,
+    "noPieceBenef": "",
+    "codeProduitService": 1
+}

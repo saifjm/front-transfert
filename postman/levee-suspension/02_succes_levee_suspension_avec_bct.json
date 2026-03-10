@@ -1,0 +1,12 @@
+{
+    "_description": "SUCCES: Levée de suspension avec autorisation BCT (suite dépassement codeEtat=1)",
+    "_cas_test": "Dossier suspendu pour DEPASSEMENT DU MONTANT AUTORISE (codeEtat=1) — numBct et dateBct OBLIGATOIRES",
+    "_endpoint": "POST /api/operations-deleguees/levee-suspension/true",
+    "_resultat_attendu": "HTTP 200 - Dossier repassé à état 'V', numeroBct et dateBct mis à jour sur le dossier",
+    "_prerequis": "Le dossier 10004 doit exister avec etatDossier='B' et codeEtat=1",
+
+    "numDossier": 10004,
+    "motifEtat": "Dépassement régularisé suite à accord de la Banque Centrale de Tunisie",
+    "numBct": "20261234",
+    "dateBct": "2026-02-15"
+}

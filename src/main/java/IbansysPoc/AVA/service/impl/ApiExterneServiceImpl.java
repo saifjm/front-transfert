@@ -209,6 +209,27 @@ public class ApiExterneServiceImpl implements ApiExterneService {
     }
 
     @Override
+    public boolean existsPersonneByNoPiece(String noPieceBenef) {
+        log.info("Appel API REF: /api/ref/personnes/by-nopiececlient/{}", noPieceBenef);
+
+        try {
+            Object[] response = refRestClient
+                    .get()
+                    .uri("/api/ref/personnes/by-nopiececlient/{noPiecePersonne}", noPieceBenef)
+                    .retrieve()
+                    .body(Object[].class);
+
+            boolean exists = response != null && response.length > 0;
+            log.debug("Reponse API REF existsPersonneByNoPiece: {} personne(s) trouvée(s)", response != null ? response.length : 0);
+            return exists;
+
+        } catch (Exception e) {
+            log.warn("Erreur API REF existsPersonneByNoPiece: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
     public Object getPersonne(Integer typePiecePersonne, String noPiecePersonne) {
         log.info("Appel API REF: /api/ref/personnes/{}/{}", typePiecePersonne, noPiecePersonne);
 
