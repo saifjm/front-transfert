@@ -1,5 +1,11 @@
 package IbansysPoc.AVA.service.impl;
 
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
 import IbansysPoc.AVA.DTO.AgenceDTO;
 import IbansysPoc.AVA.DTO.DeclarationCAFHTDTO;
 import IbansysPoc.AVA.DTO.DeclarationFiscaleDTO;
@@ -7,11 +13,6 @@ import IbansysPoc.AVA.DTO.EmailQueueDTO;
 import IbansysPoc.AVA.DTO.NotificationClientRequest;
 import IbansysPoc.AVA.service.ApiExterneService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-
-import java.util.Optional;
 
 /**
  * Implementation du service pour consommer les APIs externes.

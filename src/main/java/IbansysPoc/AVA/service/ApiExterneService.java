@@ -1,13 +1,13 @@
 package IbansysPoc.AVA.service;
 
+import java.util.Optional;
+
 import IbansysPoc.AVA.DTO.AgenceDTO;
 import IbansysPoc.AVA.DTO.DeclarationCAFHTDTO;
 import IbansysPoc.AVA.DTO.DeclarationFiscaleDTO;
 import IbansysPoc.AVA.DTO.EmailQueueDTO;
 import IbansysPoc.AVA.DTO.NotificationClientRequest;
 import IbansysPoc.AVA.DTO.PersonneDTO;
-
-import java.util.Optional;
 
 /**
  * Interface pour consommer les APIs externes.
