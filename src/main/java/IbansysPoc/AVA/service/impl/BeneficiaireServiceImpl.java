@@ -212,7 +212,12 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
         mvt.setDateBct(operationsDeleguee.getDateBct());
         mvt.setCodeProduitService((short) 1);  // Set to 1 as required (Short type)
         mvt.setCodeOperation(1);  // Set to 1 as required (Integer type)
-        
+
+        // Calcul et affectation de numMvtAva = dernierNumMvtAva + 1
+        Integer newNumMvtAva = (operationsDeleguee.getDernierNumMvtAva() != null
+                ? operationsDeleguee.getDernierNumMvtAva() : 0) + 1;
+        mvt.setNumMvtAva(newNumMvtAva);
+
         // Affecter le status si fourni ("A" pour finalize=true)
         if (status != null) {
             mvt.setStatus(status);
@@ -220,6 +225,10 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
         
         // Sauvegarder le mouvement
         operationsMvtRepository.save(mvt);
+        if ("A".equals(status) || "V".equals(status)) {
+            operationsDeleguee.setDernierNumMvtAva(newNumMvtAva);
+            operationsDelegueeRepository.save(operationsDeleguee);
+        }
         log.info("Mouvement créé avec succès. RefOperation: {}, DateOperation: {}, Status: {}", 
                  refOperation, mvtId.getDateOperation(), status);
     }

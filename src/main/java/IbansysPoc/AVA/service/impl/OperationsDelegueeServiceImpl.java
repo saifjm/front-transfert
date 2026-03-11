@@ -1413,7 +1413,9 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         mouvement.setDateBct(operationsDeleguee.getDateBct());
         mouvement.setEcheance(operationsDeleguee.getEcheance());
         mouvement.setAnnee(operationsDeleguee.getAnnee());
-        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        Integer newNumMvtAvaSusp = (operationsDeleguee.getDernierNumMvtAva() != null
+                ? operationsDeleguee.getDernierNumMvtAva() : 0) + 1;
+        mouvement.setNumMvtAva(newNumMvtAvaSusp);
         mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
         mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
         mouvement.setDateEtat(operationsDeleguee.getDateEtat());
@@ -1427,6 +1429,10 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
 
         // Sauvegarder le mouvement
         operationsDelegueeMvtRepository.save(mouvement);
+        if ("A".equals(status) || "V".equals(status)) {
+            operationsDeleguee.setDernierNumMvtAva(newNumMvtAvaSusp);
+            operationsDelegueeRepository.save(operationsDeleguee);
+        }
         log.debug("Mouvement de suspension créé avec refOperation: {}", refOperation);
     }
 
@@ -1472,7 +1478,9 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         mouvement.setDateBct(operationsDeleguee.getDateBct());
         mouvement.setEcheance(operationsDeleguee.getEcheance());
         mouvement.setAnnee(operationsDeleguee.getAnnee());
-        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        Integer newNumMvtAvaLev = (operationsDeleguee.getDernierNumMvtAva() != null
+                ? operationsDeleguee.getDernierNumMvtAva() : 0) + 1;
+        mouvement.setNumMvtAva(newNumMvtAvaLev);
         mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
         mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
         mouvement.setDateEtat(operationsDeleguee.getDateEtat());
@@ -1486,6 +1494,10 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
 
         // Sauvegarder le mouvement
         operationsDelegueeMvtRepository.save(mouvement);
+        if ("A".equals(status) || "V".equals(status)) {
+            operationsDeleguee.setDernierNumMvtAva(newNumMvtAvaLev);
+            operationsDelegueeRepository.save(operationsDeleguee);
+        }
         log.debug("Mouvement de levée de suspension créé avec refOperation: {}", refOperation);
     }
 
@@ -1532,7 +1544,9 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         mouvement.setDateBct(dto.getDateBct()); // Depuis l'input
         mouvement.setEcheance(operationsDeleguee.getEcheance());
         mouvement.setAnnee(operationsDeleguee.getAnnee());
-        mouvement.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        Integer newNumMvtAvaBct = (operationsDeleguee.getDernierNumMvtAva() != null
+                ? operationsDeleguee.getDernierNumMvtAva() : 0) + 1;
+        mouvement.setNumMvtAva(newNumMvtAvaBct);
         mouvement.setEtatDossier(operationsDeleguee.getEtatDossier());
         mouvement.setCodeEtat(operationsDeleguee.getCodeEtat());
         mouvement.setDateEtat(operationsDeleguee.getDateEtat());
@@ -1546,6 +1560,10 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
 
         // Sauvegarder le mouvement
         operationsDelegueeMvtRepository.save(mouvement);
+        if ("A".equals(status) || "V".equals(status)) {
+            operationsDeleguee.setDernierNumMvtAva(newNumMvtAvaBct);
+            operationsDelegueeRepository.save(operationsDeleguee);
+        }
         log.debug("Mouvement d'alimentation BCT créé avec refOperation: {}", refOperation);
     }
         @Override

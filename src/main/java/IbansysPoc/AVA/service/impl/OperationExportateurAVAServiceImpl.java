@@ -108,7 +108,9 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
         mvtDto.setDateBct(operationsDeleguee.getDateBct());
         mvtDto.setEcheance(operationsDeleguee.getEcheance());
         mvtDto.setAnnee(operationsDeleguee.getAnnee());
-        mvtDto.setNumMvtAva(operationsDeleguee.getDernierNumMvtAva());
+        Integer newNumMvtAva = (operationsDeleguee.getDernierNumMvtAva() != null
+                ? operationsDeleguee.getDernierNumMvtAva() : 0) + 1;
+        mvtDto.setNumMvtAva(newNumMvtAva);
         mvtDto.setEtatDossier(operationsDeleguee.getEtatDossier());
         mvtDto.setDateEtat(operationsDeleguee.getDateEtat());
         mvtDto.setMotifEtat(operationsDeleguee.getMotifEtat());
@@ -170,6 +172,9 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
             OperationExportateurAVA savedEntity = operationExportateurAVARepository.save(entity);
             log.info("Operation ExportateurAVA creee avec ID: {}", savedEntity.getNumId());
 
+            // Update dernierNumMvtAva (status='A')
+            operationsDeleguee.setDernierNumMvtAva(newNumMvtAva);
+
             BigDecimal mntMvtTnd = savedEntity.getMntMvtTnd();
             if (mntMvtTnd != null) {
                 BigDecimal currentMntAutorise = operationsDeleguee.getMntAutorise() != null ? operationsDeleguee.getMntAutorise() : BigDecimal.ZERO;
@@ -185,11 +190,11 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
                     log.info("MntAutorise mis a jour: {} + {} = {} TND",
                              currentMntAutorise, mntMvtTnd, newMntAutorise);
                 }
-
-                operationsDelegueeRepository.save(operationsDeleguee);
-                log.info("OperationsDeleguee mis a jour et persiste avec succes - numDossier: {}, mntAutorise: {}",
-                         operationsDeleguee.getNumDossier(), operationsDeleguee.getMntAutorise());
             }
+
+            operationsDelegueeRepository.save(operationsDeleguee);
+            log.info("OperationsDeleguee mis a jour et persiste avec succes - numDossier: {}, mntAutorise: {}, dernierNumMvtAva: {}",
+                     operationsDeleguee.getNumDossier(), operationsDeleguee.getMntAutorise(), operationsDeleguee.getDernierNumMvtAva());
 
             log.info("=== FIN createRapatriement (finalize=true) === numDossierAva: {}, thread: {}",
                     dto.getNumDossierAva(), Thread.currentThread().getName());
@@ -242,9 +247,9 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
         if (dto.getNumeroCompte() == null || dto.getNumeroCompte().trim().isEmpty()) {
             throw new IllegalArgumentException("Le numero de compte est obligatoire");
         }
-        if (!dto.getNumeroCompte().trim().matches("\\d{20}")) {
+        if (!dto.getNumeroCompte().trim().matches("\\d{13}")) {
             throw new BusinessException("FORMAT_COMPTE_INVALIDE",
-                    "Le numero de compte (numeroCompte) doit contenir exactement 20 chiffres");
+                    "Le numero de compte (numeroCompte) doit contenir exactement 13 chiffres");
         }
         if (dto.getTypePieceBenef() == null) {
             throw new IllegalArgumentException("Le type de piece du beneficiaire est obligatoire");
