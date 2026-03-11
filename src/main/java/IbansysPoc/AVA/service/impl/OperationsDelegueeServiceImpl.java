@@ -80,6 +80,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     private final BusinessRulesService businessRulesService;
     private final ApiExterneService apiExterneService;
     private static final String STATUS_FINALIZED = "A";
+    private static final String STATUS_PENDING = "X";
     
 
     @PersistenceContext
@@ -1176,7 +1177,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
             // ===== FINALIZE == FALSE : MVT seul =====
 
             // Création du mouvement sans modifier l'entité
-            createSuspensionMovement(operationsDeleguee, null);
+            createSuspensionMovement(operationsDeleguee, STATUS_PENDING);
 
             // Retour minimal
             OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();
@@ -1261,7 +1262,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
             // ===== FINALIZE == FALSE : MVT seul =====
 
             // Création du mouvement sans modifier l'entité
-            createLeveeSuspensionMovement(operationsDeleguee, null);
+            createLeveeSuspensionMovement(operationsDeleguee, STATUS_PENDING);
 
             // Retour minimal
             OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();
@@ -1321,7 +1322,7 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
             // ===== FINALIZE == FALSE : MVT seul =====
 
             // Création du mouvement sans modifier l'entité
-            createAlimentationBctMovement(operationsDeleguee, dto, newMntAutoriseBct, null);
+            createAlimentationBctMovement(operationsDeleguee, dto, newMntAutoriseBct, STATUS_PENDING);
 
             // Retour minimal
             OuvertureDossierDTO resultDTO = new OuvertureDossierDTO();

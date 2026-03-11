@@ -18,7 +18,7 @@ import lombok.Setter;
 @Entity
 @Audited
 @Table(name = "OPERATION_AVA")
-public class OperationAva {
+public class OperationExportateurAVA {
 
     @Id
     @Column(name = "NUM_ID")

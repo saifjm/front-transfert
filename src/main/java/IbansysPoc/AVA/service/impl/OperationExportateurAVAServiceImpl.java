@@ -8,14 +8,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import IbansysPoc.AVA.DTO.ExportateurDTO;
-import IbansysPoc.AVA.DTO.OperationAvaDTO;
-import IbansysPoc.AVA.entity.OperationAva;
+import IbansysPoc.AVA.DTO.OperationExportateurAVADTO;
+import IbansysPoc.AVA.entity.OperationExportateurAVA;
 import IbansysPoc.AVA.entity.OperationsDeleguee;
+import IbansysPoc.AVA.exception.BusinessException;
 import IbansysPoc.AVA.exception.ResourceNotFoundException;
-import IbansysPoc.AVA.mapper.OperationAvaMapper;
-import IbansysPoc.AVA.repository.OperationAvaRepository;
+import IbansysPoc.AVA.mapper.OperationExportateurAVAMapper;
+import IbansysPoc.AVA.repository.OperationExportateurAVARepository;
 import IbansysPoc.AVA.repository.OperationsDelegueeRepository;
-import IbansysPoc.AVA.service.OperationAvaService;
+import IbansysPoc.AVA.service.ApiExterneService;
+import IbansysPoc.AVA.service.OperationExportateurAVAService;
 import IbansysPoc.AVA.service.OperationsDelegueesMvtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,26 +26,30 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
-public class OperationAvaServiceImpl implements OperationAvaService {
+public class OperationExportateurAVAServiceImpl implements OperationExportateurAVAService {
 
-    /** Constante pour le status finalisé du MVT. */
+    /** Constante pour le status finalisé du MVT (finalize=true). */
     public static final String STATUS_FINALIZED = "A";
 
-    private final OperationAvaRepository operationAvaRepository;
+    /** Constante pour le status en attente du MVT (finalize=false). */
+    public static final String STATUS_PENDING = "X";
+
+    private final OperationExportateurAVARepository operationExportateurAVARepository;
     private final OperationsDelegueeRepository operationsDelegueeRepository;
-    private final OperationAvaMapper operationAvaMapper;
+    private final OperationExportateurAVAMapper operationExportateurAVAMapper;
     private final OperationsDelegueesMvtService operationsDelegueesMvtService;
+    private final ApiExterneService apiExterneService;
 
     /**
      * Délègue à la version avec finalizeFlag = true (comportement par défaut / rétrocompatibilité).
      */
     @Override
-    public OperationAvaDTO createRapatriement(OperationAvaDTO dto) {
+    public OperationExportateurAVADTO createRapatriement(OperationExportateurAVADTO dto) {
         return createRapatriement(dto, true);
     }
 
     @Override
-    public OperationAvaDTO createRapatriement(OperationAvaDTO dto, boolean finalizeFlag) {
+    public OperationExportateurAVADTO createRapatriement(OperationExportateurAVADTO dto, boolean finalizeFlag) {
         log.info("=== DEBUT createRapatriement === numDossierAva: {}, dateOperation: {}, finalize: {}, thread: {}",
                 dto.getNumDossierAva(), dto.getDateOperation(), finalizeFlag, Thread.currentThread().getName());
 
@@ -71,9 +77,8 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         dto.setTypeDosRap(resolveCodeTypeMvtAva(204));
 
         // ===================== CREATION MVT (dans les deux cas) =====================
-        // Construire le DTO MVT à partir de l'opération déléguée
         ExportateurDTO mvtDto = new ExportateurDTO();
-        Long generatedRefOperation = operationAvaRepository.getNextRefOperation();
+        Long generatedRefOperation = operationExportateurAVARepository.getNextRefOperation();
         log.info("RefOperation generee pour MVT: {}", generatedRefOperation);
         mvtDto.setRefOperation(generatedRefOperation);
         mvtDto.setDateOperation(dto.getDateOperation());
@@ -89,7 +94,6 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         mvtDto.setCodeSousActivite(operationsDeleguee.getCodeSousActivite());
         mvtDto.setDeclarationFiscale(operationsDeleguee.getDeclarationFiscale());
         mvtDto.setDateUltDeclCaf(operationsDeleguee.getDateUltDeclCaf());
-       // mvtDto.setCodeBanqueProvenance(operationsDeleguee.getCodeBanqueProvenance());
         mvtDto.setMntAvance(operationsDeleguee.getMntAvance());
         mvtDto.setMntUtilise(operationsDeleguee.getMntUtilise());
         mvtDto.setMntAutorise(operationsDeleguee.getMntAutorise());
@@ -109,14 +113,11 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         mvtDto.setDateEtat(operationsDeleguee.getDateEtat());
         mvtDto.setMotifEtat(operationsDeleguee.getMotifEtat());
         mvtDto.setDateValidation(operationsDeleguee.getDateEtat());
-
-        // Mapper les champs de calcul du DTO rapatriement
         mvtDto.setDateMvtAva(dto.getDateDosRap());
         mvtDto.setMntMvtAva(dto.getMntMvtTnd());
         mvtDto.setCodeProduitService(dto.getCodeProduitService() != null ? dto.getCodeProduitService().shortValue() : null);
         mvtDto.setCodeOperation(dto.getCodeOperation());
 
-        // Definir codeOrigine base sur codeOperation
         Integer codeOperation = dto.getCodeOperation();
         if (codeOperation == null) {
             log.error("codeOperation is null for DTO numDossierAva: {}", dto.getNumDossierAva());
@@ -137,21 +138,20 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         };
         mvtDto.setCodeOrigine(codeOrigine);
 
-        // Affecter le status : 'A' si finalize=true, sinon reprendre l'etatDossier existant
         if (finalizeFlag) {
             mvtDto.setStatus(STATUS_FINALIZED);
         } else {
-            mvtDto.setStatus(operationsDeleguee.getEtatDossier());
+            mvtDto.setStatus(STATUS_PENDING);
         }
 
-        log.info("AVANT createMvtForRapatriementExportateur - refOperation dans DTO: {}, dateOperation: {}, status: {}", 
+        log.info("AVANT createMvtForRapatriementExportateur - refOperation dans DTO: {}, dateOperation: {}, status: {}",
                 mvtDto.getRefOperation(), mvtDto.getDateOperation(), mvtDto.getStatus());
         ExportateurDTO createdMvt = operationsDelegueesMvtService.createMvtForRapatriementExportateur(mvtDto);
-        log.info("APRES createMvtForRapatriementExportateur - refOperation retourne: {}, dateOperation: {}", 
-                createdMvt != null ? createdMvt.getRefOperation() : "NULL", 
+        log.info("APRES createMvtForRapatriementExportateur - refOperation retourne: {}, dateOperation: {}",
+                createdMvt != null ? createdMvt.getRefOperation() : "NULL",
                 createdMvt != null ? createdMvt.getDateOperation() : "NULL");
         if (createdMvt != null && createdMvt.getRefOperation() != null) {
-            log.info("OperationsDelegueesMvt cree et persiste avec succes - refOperation: {}, dateOperation: {}", 
+            log.info("OperationsDelegueesMvt cree et persiste avec succes - refOperation: {}, dateOperation: {}",
                      createdMvt.getRefOperation(), createdMvt.getDateOperation());
         } else {
             log.warn("OperationsDelegueesMvt cree mais DTO retourne est null ou incomplet");
@@ -164,14 +164,12 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         if (finalizeFlag) {
             // ===================== FINALIZE == TRUE =====================
 
-            // Sauvegarder l'entité OperationAva
-            OperationAva entity = operationAvaMapper.toEntity(dto);
+            OperationExportateurAVA entity = operationExportateurAVAMapper.toEntity(dto);
             entity.setDateInsertion(LocalDateTime.now());
-            entity.setNumId(operationAvaRepository.getNextNumId());
-            OperationAva savedEntity = operationAvaRepository.save(entity);
-            log.info("Operation AVA creee avec ID: {}", savedEntity.getNumId());
+            entity.setNumId(operationExportateurAVARepository.getNextNumId());
+            OperationExportateurAVA savedEntity = operationExportateurAVARepository.save(entity);
+            log.info("Operation ExportateurAVA creee avec ID: {}", savedEntity.getNumId());
 
-            // Mise a jour d OperationsDeleguees - Le montant du mouvement s ajoute au montant autorise
             BigDecimal mntMvtTnd = savedEntity.getMntMvtTnd();
             if (mntMvtTnd != null) {
                 BigDecimal currentMntAutorise = operationsDeleguee.getMntAutorise() != null ? operationsDeleguee.getMntAutorise() : BigDecimal.ZERO;
@@ -180,31 +178,29 @@ public class OperationAvaServiceImpl implements OperationAvaService {
 
                 if (newMntAutorise.compareTo(plafond) > 0) {
                     operationsDeleguee.setMntAutorise(plafond);
-                    log.info("MntAutorise plafonne a {} TND (montant calcule: {} TND depassait le plafond)", 
+                    log.info("MntAutorise plafonne a {} TND (montant calcule: {} TND depassait le plafond)",
                              plafond, newMntAutorise);
                 } else {
                     operationsDeleguee.setMntAutorise(newMntAutorise);
-                    log.info("MntAutorise mis a jour: {} + {} = {} TND", 
+                    log.info("MntAutorise mis a jour: {} + {} = {} TND",
                              currentMntAutorise, mntMvtTnd, newMntAutorise);
                 }
 
                 operationsDelegueeRepository.save(operationsDeleguee);
-                log.info("OperationsDeleguee mis a jour et persiste avec succes - numDossier: {}, mntAutorise: {}", 
+                log.info("OperationsDeleguee mis a jour et persiste avec succes - numDossier: {}, mntAutorise: {}",
                          operationsDeleguee.getNumDossier(), operationsDeleguee.getMntAutorise());
             }
 
-            log.info("=== FIN createRapatriement (finalize=true) === numDossierAva: {}, thread: {}", 
+            log.info("=== FIN createRapatriement (finalize=true) === numDossierAva: {}, thread: {}",
                     dto.getNumDossierAva(), Thread.currentThread().getName());
-            return operationAvaMapper.toDTO(savedEntity);
+            return operationExportateurAVAMapper.toDTO(savedEntity);
 
         } else {
             // ===================== FINALIZE == FALSE =====================
-            // MVT déjà créé ci-dessus. Pas de sauvegarde OperationAva ni mise à jour OperationsDeleguee.
-            log.info("=== FIN createRapatriement (finalize=false) === MVT seul créé pour numDossierAva: {}, thread: {}", 
+            log.info("=== FIN createRapatriement (finalize=false) === MVT seul créé pour numDossierAva: {}, thread: {}",
                     dto.getNumDossierAva(), Thread.currentThread().getName());
 
-            // Retourner un DTO minimal avec les infos du dossier
-            OperationAvaDTO resultDto = new OperationAvaDTO();
+            OperationExportateurAVADTO resultDto = new OperationExportateurAVADTO();
             resultDto.setNumDossierAva(dto.getNumDossierAva());
             resultDto.setDateOperation(dto.getDateOperation());
             resultDto.setCodeOperation(dto.getCodeOperation());
@@ -235,10 +231,8 @@ public class OperationAvaServiceImpl implements OperationAvaService {
 
     /**
      * Valide que tous les champs obligatoires sont presents et non nulls.
-     * @param dto Le DTO a valider
-     * @throws IllegalArgumentException si un champ obligatoire est manquant ou null
      */
-    private void validateRequiredFields(OperationAvaDTO dto) {
+    private void validateRequiredFields(OperationExportateurAVADTO dto) {
         if (dto.getNumDossierAva() == null) {
             throw new IllegalArgumentException("Le numero de dossier AVA est obligatoire");
         }
@@ -248,14 +242,29 @@ public class OperationAvaServiceImpl implements OperationAvaService {
         if (dto.getNumeroCompte() == null || dto.getNumeroCompte().trim().isEmpty()) {
             throw new IllegalArgumentException("Le numero de compte est obligatoire");
         }
+        if (!dto.getNumeroCompte().trim().matches("\\d{20}")) {
+            throw new BusinessException("FORMAT_COMPTE_INVALIDE",
+                    "Le numero de compte (numeroCompte) doit contenir exactement 20 chiffres");
+        }
         if (dto.getTypePieceBenef() == null) {
             throw new IllegalArgumentException("Le type de piece du beneficiaire est obligatoire");
         }
         if (dto.getNoPieceBenef() == null || dto.getNoPieceBenef().trim().isEmpty()) {
             throw new IllegalArgumentException("Le numero de piece du beneficiaire est obligatoire");
         }
-
-        // Validation supplementaire pour mntRap si present
+        // Validation format CIN : 7 chiffres suivis d'une lettre
+        if (Integer.valueOf(1).equals(dto.getTypePieceBenef())) {
+            if (!dto.getNoPieceBenef().trim().matches("\\d{7}[A-Za-z]")) {
+                throw new BusinessException("FORMAT_CIN_INVALIDE",
+                        "Le format du CIN (noPieceBenef) est invalide : doit contenir exactement 7 chiffres suivis d'une lettre (ex: 1234567A)");
+            }
+        }
+        // Vérification existence du client dans la table Personne via l'API REF
+        boolean existe = apiExterneService.existsPersonneByNoPiece(dto.getNoPieceBenef().trim());
+        if (!existe) {
+            throw new BusinessException("CLIENT_NON_TROUVE",
+                    "Le client n'est pas trouvé dans la table Personne (noPieceBenef=" + dto.getNoPieceBenef().trim() + ")");
+        }
         if (dto.getMntRap() != null && dto.getMntRap().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Le montant de rapatriement doit etre positif");
         }
@@ -263,9 +272,6 @@ public class OperationAvaServiceImpl implements OperationAvaService {
 
     /**
      * Valide si la date de rapatriement est dans les 3 derniers mois.
-     * @param dateRap La date a valider
-     * @return true si valide
-     * @throws IllegalArgumentException si invalide
      */
     private boolean isDateRapValid(LocalDate dateRap) {
         LocalDate threeMonthsAgo = LocalDate.now().minusMonths(3);

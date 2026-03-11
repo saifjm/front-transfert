@@ -8,7 +8,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class OperationAvaDTO {
+public class OperationExportateurAVADTO {
 
     private Long numId;
     private Integer codeBanqueProvenance;
@@ -34,5 +34,5 @@ public class OperationAvaDTO {
     private Integer typePieceBenef;
     private String noPieceBenef;
     private Long numDossierAva;
-    private BigDecimal mntRap; 
+    private BigDecimal mntRap;
 }

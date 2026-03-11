@@ -5,6 +5,7 @@ import java.time.LocalDate;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,6 +16,7 @@ public class AutorisationBctDTO {
     private Integer numeroBct;
 
     @NotNull(message = "La date BCT est obligatoire")
+    @PastOrPresent(message = "La date BCT ne peut pas être dans le futur")
     private LocalDate dateBct;
 
     @NotNull(message = "Le type BCT est obligatoire")
