@@ -1125,10 +1125,13 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     @Transactional
     public OuvertureDossierDTO suspensionDossier(SuspensionDTO dto, boolean finalizeFlag) {
         log.info("Suspension de l'opération déléguée avec numDossier: {}, finalize: {}", dto.getNumDossier(), finalizeFlag);
+        log.info("[suspensionDossier] ⏳ Tentative d'acquisition du lock sur dossier {}", dto.getNumDossier());
 
-        // 1) Vérification que le dossier existe
-        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(dto.getNumDossier().intValue())
+        // 1) Vérification que le dossier existe AVEC LOCK PESSIMISTE
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findByIdForUpdate(dto.getNumDossier().intValue())
                 .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + dto.getNumDossier()));
+
+        log.info("[suspensionDossier] ✅ Lock acquis sur dossier {}", dto.getNumDossier());
 
         // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
 
@@ -1198,10 +1201,13 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     @Transactional
     public OuvertureDossierDTO leveeSuspensionDossier(LeveeSuspensionDTO dto, boolean finalizeFlag) {
         log.info("Levée de suspension de l'opération déléguée avec numDossier: {}, finalize: {}", dto.getNumDossier(), finalizeFlag);
+        log.info("[leveeSuspensionDossier] ⏳ Tentative d'acquisition du lock sur dossier {}", dto.getNumDossier());
 
-        // 1) Vérification que le dossier existe
-        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(dto.getNumDossier().intValue())
+        // 1) Vérification que le dossier existe AVEC LOCK PESSIMISTE
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findByIdForUpdate(dto.getNumDossier().intValue())
                 .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + dto.getNumDossier()));
+
+        log.info("[leveeSuspensionDossier] ✅ Lock acquis sur dossier {}", dto.getNumDossier());
 
         // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
 
@@ -1283,10 +1289,13 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     @Transactional
     public OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto, boolean finalizeFlag) {
         log.info("Alimentation suite accord BCT pour numDossier: {} avec numeroBct: {}, finalize: {}", numDossier, dto.getNumeroBct(), finalizeFlag);
+        log.debug("⏳ Tentative d'acquisition du lock pessimiste sur le dossier {}", numDossier);
 
-        // 1) Vérification que le dossier existe
-        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(numDossier)
+        // 1) Vérification que le dossier existe AVEC LOCK PESSIMISTE
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findByIdForUpdate(numDossier)
                 .orElseThrow(() -> new ResourceNotFoundException("Opération déléguée non trouvée avec numDossier: " + numDossier));
+
+        log.info("✅ Lock pessimiste acquis sur le dossier {}", numDossier);
 
         // Calcul du nouveau montant d'autorisation BCT (nécessaire pour le MVT dans les deux cas)
         BigDecimal currentMntAutoriseBct = operationsDeleguee.getMntAutoriseBct() != null ? operationsDeleguee.getMntAutoriseBct() : BigDecimal.ZERO;

@@ -58,9 +58,13 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
             throw new IllegalArgumentException("Le numero de dossier AVA est obligatoire");
         }
 
-        // Validation: numDossierAva doit exister dans OperationsDeleguee
-        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findById(dto.getNumDossierAva().intValue())
+        log.info("[createRapatriement] ⏳ Tentative d'acquisition du lock sur dossier {}", dto.getNumDossierAva());
+
+        // Validation: numDossierAva doit exister dans OperationsDeleguee AVEC LOCK PESSIMISTE
+        OperationsDeleguee operationsDeleguee = operationsDelegueeRepository.findByIdForUpdate(dto.getNumDossierAva().intValue())
                 .orElseThrow(() -> new ResourceNotFoundException("Operation deleguee non trouvee avec numDossier: " + dto.getNumDossierAva()));
+
+        log.info("[createRapatriement] ✅ Lock acquis sur dossier {}", dto.getNumDossierAva());
 
         // Set dateOperation from the corresponding delegated operation
         dto.setDateOperation(operationsDeleguee.getDateDossier());

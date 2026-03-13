@@ -77,11 +77,15 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
             throw new BusinessException("Le champ numDossier est obligatoire");
         }
 
-        // 1. Vérifier que l'opération déléguée existe
+        log.info("[createOrUpdateBeneficiaire] ⏳ Tentative d'acquisition du lock sur dossier {}", dto.getNumDossier());
+
+        // 1. Vérifier que l'opération déléguée existe AVEC LOCK PESSIMISTE
         OperationsDeleguee operationsDeleguee = operationsDelegueeRepository
-                .findById((dto.getNumDossier()))
+                .findByIdForUpdate(dto.getNumDossier())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Opération déléguée non trouvée pour le numéro de dossier: " + dto.getNumDossier()));
+
+        log.info("[createOrUpdateBeneficiaire] ✅ Lock acquis sur dossier {}", dto.getNumDossier());
 
         // ===== Contrôles de saisie (appliqués quel que soit finalize) =====
         validateInput(dto);
@@ -102,8 +106,10 @@ public class BeneficiaireServiceImpl implements BeneficiaireService {
             beneficiaireId.setTypePieceBenef(dto.getTypePieceBenef());
             beneficiaireId.setNoPieceBenef(dto.getNoPieceBenef());
 
-            // 4. Chercher si le bénéficiaire existe déjà
-            Optional<Beneficiaire> existingBeneficiaire = beneficiaireRepository.findById(beneficiaireId);
+            // 4. Chercher si le bénéficiaire existe déjà AVEC LOCK PESSIMISTE
+            log.info("[createOrUpdateBeneficiaire] ⏳ Tentative d'acquisition du lock sur bénéficiaire {}", beneficiaireId);
+            Optional<Beneficiaire> existingBeneficiaire = beneficiaireRepository.findByIdForUpdate(beneficiaireId);
+            log.info("[createOrUpdateBeneficiaire] ✅ Lock acquis sur bénéficiaire (s'il existe) {}", beneficiaireId);
 
             Beneficiaire beneficiaire;
             boolean isUpdate = false;

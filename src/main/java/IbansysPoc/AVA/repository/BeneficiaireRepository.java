@@ -1,18 +1,25 @@
 package IbansysPoc.AVA.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import IbansysPoc.AVA.entity.Beneficiaire;
 import IbansysPoc.AVA.entity.BeneficiaireId;
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface BeneficiaireRepository extends JpaRepository<Beneficiaire, BeneficiaireId> {
     List<Beneficiaire> findByIdNumDossier(Integer numDossier);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM Beneficiaire b WHERE b.id = :id")
+    Optional<Beneficiaire> findByIdForUpdate(@Param("id") BeneficiaireId id);
 
     /**
      * Vérifie l'existence d'un bénéficiaire par numéro de dossier, type de pièce et numéro de pièce.
