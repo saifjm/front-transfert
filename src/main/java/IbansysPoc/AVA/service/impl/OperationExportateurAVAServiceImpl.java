@@ -39,6 +39,7 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
     private final OperationExportateurAVAMapper operationExportateurAVAMapper;
     private final OperationsDelegueesMvtService operationsDelegueesMvtService;
     private final ApiExterneService apiExterneService;
+    private final IbansysPoc.AVA.service.BusinessRulesService businessRulesService;
 
     /**
      * Délègue à la version avec finalizeFlag = true (comportement par défaut / rétrocompatibilité).
@@ -194,6 +195,18 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
                     log.info("MntAutorise mis a jour: {} + {} = {} TND",
                              currentMntAutorise, mntMvtTnd, newMntAutorise);
                 }
+
+                // Recalcul du solde après modification de mntAutorise
+                BigDecimal nouveauSolde = businessRulesService.calculerSolde(
+                        operationsDeleguee.getMntAutorise(),
+                        operationsDeleguee.getMntAvance(),
+                        operationsDeleguee.getMntAutoriseBct(),
+                        operationsDeleguee.getMntUtilise(),
+                        operationsDeleguee.getMntReserve(),
+                        operationsDeleguee.getMntBlocage()
+                );
+                operationsDeleguee.setSolde(nouveauSolde);
+                log.info("Solde recalculé: {}", nouveauSolde);
             }
 
             operationsDelegueeRepository.save(operationsDeleguee);

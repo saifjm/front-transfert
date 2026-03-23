@@ -1316,8 +1316,19 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
             operationsDeleguee.setDateBct(dto.getDateBct());
             operationsDeleguee.setMntAutoriseBct(newMntAutoriseBct);
 
+            // Recalcul du solde après modification de mntAutoriseBct
+            BigDecimal nouveauSolde = businessRulesService.calculerSolde(
+                    operationsDeleguee.getMntAutorise(),
+                    operationsDeleguee.getMntAvance(),
+                    operationsDeleguee.getMntAutoriseBct(),
+                    operationsDeleguee.getMntUtilise(),
+                    operationsDeleguee.getMntReserve(),
+                    operationsDeleguee.getMntBlocage()
+            );
+            operationsDeleguee.setSolde(nouveauSolde);
+
             OperationsDeleguee savedOperationsDeleguee = operationsDelegueeRepository.save(operationsDeleguee);
-            log.debug("Opération déléguée mise à jour avec alimentation BCT - ID: {}", savedOperationsDeleguee.getNumDossier());
+            log.debug("Opération déléguée mise à jour avec alimentation BCT - ID: {}, nouveau solde: {}", savedOperationsDeleguee.getNumDossier(), savedOperationsDeleguee.getSolde());
 
             // 4) Création du mouvement avec status='A'
             createAlimentationBctMovement(savedOperationsDeleguee, dto, newMntAutoriseBct, STATUS_FINALIZED);
