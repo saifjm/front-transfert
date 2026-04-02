@@ -72,6 +72,14 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
     @Override
     @Transactional
     public OperationCreationResponseDTO create(ReservationOperationDTO dto, boolean finalize) {
+        
+        // ── UPDATE si refOperation est fourni ──
+        if (dto.getRefOperation() != null) {
+            log.info("refOperation={} fourni → UPDATE opération RESERVATION (269) finalize={}", dto.getRefOperation(), finalize);
+            return updateReservation(dto, finalize, CODE_OPERATION_RESERVATION);
+        }
+
+        // ── CREATE ──
         log.info("Création opération RESERVATION (269) dossier={} finalize={}", dto.getNumDossier(), finalize);
 
         LocalDate now = LocalDate.now();
@@ -91,24 +99,32 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
         // snapshot dossier
         fillSnapshotFromDossier(entity, dossier);
 
-        OperationsDelegueesMvt saved = mvtRepository.saveAndFlush(entity);
+        OperationsDelegueesMvt saved = mvtRepository.save(entity);
         log.info("Opération RESERVATION créée refOperation={}", refOperation);
 
         Integer numDossier = saved.getNumDossier();
 
         if (!finalize) {
             log.info("create(finalize=false) terminé. MVT refOperation={} en status I", refOperation);
-            return new OperationCreationResponseDTO(refOperation, numDossier, STATUS_INITIAL, null);
-        }
+            return new OperationCreationResponseDTO(refOperation, numDossier, STATUS_INITIAL, "Réservation créée avec succès ");        }
 
         // Phase 2 : Finalize → writeDossierReservation
         log.info("create(finalize=true) — début finalize pour refOperation={}", refOperation);
-        return writeDossierReservation(saved);
-    }
+  OperationCreationResponseDTO resp = writeDossierReservation(saved);
+        return resp;
+        }
 
     @Override
     @Transactional
     public OperationCreationResponseDTO createAnnulation(ReservationOperationDTO dto, boolean finalize) {
+
+        // ── UPDATE si refOperation est fourni ──
+        if (dto.getRefOperation() != null) {
+            log.info("refOperation={} fourni → UPDATE opération ANNULATION (231) finalize={}", dto.getRefOperation(), finalize);
+            return updateReservation(dto, finalize, CODE_OPERATION_RESERVATION_ANNULATION);
+        }
+
+        // ── CREATE ──
         log.info("Création opération ANNULATION (231) dossier={} referenceRes={} finalize={}",
                 dto.getNumDossier(), dto.getReference(), finalize);
 
@@ -129,20 +145,19 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
         // snapshot dossier
         fillSnapshotFromDossier(entity, dossier);
 
-        OperationsDelegueesMvt saved = mvtRepository.saveAndFlush(entity);
+        OperationsDelegueesMvt saved = mvtRepository.save(entity);
         log.info("Opération ANNULATION créée refOperation={}", refOperation);
 
         Integer numDossier = saved.getNumDossier();
 
         if (!finalize) {
             log.info("createAnnulation(finalize=false) terminé. MVT refOperation={} en status I", refOperation);
-            return new OperationCreationResponseDTO(refOperation, numDossier, STATUS_INITIAL, null);
-        }
+            return new OperationCreationResponseDTO(refOperation, numDossier, STATUS_INITIAL, "Annulation de réservation créée avec succès ");        }
 
         // Phase 2 : Finalize → writeDossierReservation
         log.info("createAnnulation(finalize=true) — début finalize pour refOperation={}", refOperation);
-        return writeDossierReservation(saved);
-    }
+   OperationCreationResponseDTO resp = writeDossierReservation(saved);
+        return resp;    }
 
     @Override
     @Transactional(readOnly = true)
@@ -341,6 +356,73 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
 
         log.debug("applyReservationToDossier: codeOperation non géré={}", codeOperation);
     }
+ // ----------------------------------------------------
+    // UPDATE RESERVATION (logique commune create-or-update)
+    // ----------------------------------------------------
+
+    /**
+     * Met à jour un MVT existant identifié par dto.refOperation.
+     * - Vérifie que le MVT existe → sinon 404
+     * - Vérifie que le MVT est en status I → sinon BusinessException
+     * - Met à jour les champs depuis le DTO
+     * - Si finalize → writeDossierReservation
+     */
+    private OperationCreationResponseDTO updateReservation(ReservationOperationDTO dto, boolean finalize, int codeOperation) {
+        Long refOp = dto.getRefOperation();
+
+        // 1) Charger le MVT existant (404 si introuvable)
+        OperationsDelegueesMvt existing = getMvtByRefOperationOrThrow(refOp);
+
+        // 2) Seul un MVT en status I peut être modifié
+        assertUpdatable(existing);
+
+        // 3) Valider les règles métier
+        if (codeOperation == CODE_OPERATION_RESERVATION) {
+            validateBusinessRules(dto, existing);
+        } else {
+            validateBusinessRulesAnnulation(dto);
+        }
+
+        // 4) Mapper les champs du DTO vers l'entité existante
+        mapper.updateEntityFromDto(dto, existing);
+        if (dto.getReference() != null) {
+            existing.setReferenceRes(dto.getReference());
+        }
+
+        // 5) Incrémenter NumMvtAva à chaque update
+        int currentNumMvt = existing.getNumMvtAva() != null ? existing.getNumMvtAva() : 1;
+        existing.setNumMvtAva(currentNumMvt + 1);
+
+        // 6) Sauvegarder
+        OperationsDelegueesMvt saved = mvtRepository.save(existing);
+        Integer numDossier = saved.getNumDossier();
+        log.info("MVT refOperation={} mis à jour (UPDATE)", refOp);
+
+        if (!finalize) {
+            return new OperationCreationResponseDTO(refOp, numDossier, STATUS_INITIAL, "Réservation mise à jour avec succées");
+        }
+
+        // Phase 2 : Finalize
+        log.info("updateReservation(finalize=true) — début finalize pour refOperation={}", refOp);
+        OperationCreationResponseDTO resp = writeDossierReservation(saved);
+        if (resp.getMessage() != null) {
+            resp.setMessage("Mouvement mis à jour. " + resp.getMessage());
+        }
+        return resp;
+    }
+
+    /**
+     * Vérifie qu'un MVT est encore modifiable (status = I).
+     * Un MVT en V/A/E ne peut plus être modifié.
+     */
+    private void assertUpdatable(OperationsDelegueesMvt mvt) {
+        if (!STATUS_INITIAL.equals(mvt.getStatus())) {
+            throw new BusinessException("MVT_NON_MODIFIABLE",
+                    "Le mouvement refOperation=" + mvt.getId().getRefOperation()
+                            + " est en status '" + mvt.getStatus()
+                            + "' et ne peut plus être modifié. Seul le status 'I' est modifiable.");
+        }
+    }
 
     // ----------------------------------------------------
     // Helpers / validations
@@ -349,6 +431,7 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
     private void fillSnapshotFromDossier(OperationsDelegueesMvt entity, OperationsDeleguee dossier) {
         entity.setNoPieceClient(dossier.getNoPieceClient());
         entity.setTypePieceClient(Integer.valueOf(dossier.getTypePieceClient()));
+        entity.setNumeroCompte(dossier.getNumeroCompte());
         entity.setMntReserve(defaultZero(dossier.getMntReserve()));
         entity.setSolde(defaultZero(dossier.getSolde()));
         entity.setMntAvance(defaultZero(dossier.getMntAvance()));
@@ -356,6 +439,7 @@ public class ReservationOperationServiceImpl implements ReservationOperationServ
         entity.setMntAutorise(defaultZero(dossier.getMntAutorise()));
         entity.setMntAutoriseBct(defaultZero(dossier.getMntAutoriseBct()));
         entity.setMntBlocage(defaultZero(dossier.getMntBlocage()));
+        entity.setNumMvtAva(1);
     }
 
     private OperationsDeleguee getDossierOrThrow(Integer numDossier) {

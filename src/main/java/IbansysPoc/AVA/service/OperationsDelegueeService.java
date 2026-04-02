@@ -24,6 +24,20 @@ public interface OperationsDelegueeService {
      */
     void applyMvtToDossier(Integer numDossier);
 
+     /**
+     * Applique TOUTES les opérations V/E d'un dossier dans l'ordre chronologique.
+     * Lock pessimiste sur le dossier → sérialisation garantie.
+     * Chaque MVT est appliqué via applyOne (idempotent).
+     */
+    void applyForDossier(Integer numDossier);
+
+    /**
+     * Applique UN mouvement au dossier. Idempotent : si déjà A → skip.
+     * Projette MVT → Dossier + relations + recalcul solde.
+     * Si succès → status A. Si erreur → status E.
+     */
+    void applyOne(Long refOperation);
+
     /**
      * Applique un mouvement FV (Frais de Voyage) au dossier.
      * Met à jour UNIQUEMENT mnt_utilise et solde.
@@ -48,9 +62,7 @@ public interface OperationsDelegueeService {
      * Lock pessimiste + idempotence + retry des erreurs.
      * Alias de applyMvtToDossier pour compatibilité avec le pattern finalize.
      */
-    default void applyForDossier(Integer numDossier) {
-        applyMvtToDossier(numDossier);
-    }
+   
 
     List<OuvertureDossierDTO> findAll();
 

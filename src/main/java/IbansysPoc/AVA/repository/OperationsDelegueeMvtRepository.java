@@ -49,8 +49,7 @@ public interface OperationsDelegueeMvtRepository extends JpaRepository<Operation
      */
     boolean existsByNoPieceClientAndEtatDossier(String noPieceClient,String etatDossier);
 
-    boolean existsByNoPieceClientAndCodeTypeDosAvaIn(String noPieceClient, List<Short> codeTypes);
-
+    boolean existsByNoPieceClientAndCodeOperationAndCodeTypeDosAvaIn(String noPieceClient,Integer codeOperation, List<Short> codeTypes);
     /**
      * Recherche une opération par codeProduitService, codeOperation et status (retourne un seul résultat).
      */
@@ -97,6 +96,22 @@ public interface OperationsDelegueeMvtRepository extends JpaRepository<Operation
             LocalDate startDate,
             LocalDate endDate
     );
+     /**
+     * Récupère tous les MVT en status V ou E (opérations en attente d'application).
+     * Utilisé par le scheduler de rattrapage MvtRecoveryWorker.
+     */
+    @Query("SELECT o FROM OperationsDelegueesMvt o WHERE o.status IN :statuses ORDER BY o.id.dateOperation ASC, o.id.refOperation ASC")
+    List<OperationsDelegueesMvt> findByStatusIn(@Param("statuses") List<String> statuses);
+
+    /**
+     * Récupère tous les MVT V ou E pour un dossier donné, triés par date chronologique.
+     * Utilisé par applyForDossier pour appliquer dans l'ordre.
+     */
+    @Query("SELECT o FROM OperationsDelegueesMvt o WHERE o.numDossier = :numDossier AND o.status IN :statuses ORDER BY o.id.dateOperation ASC, o.id.refOperation ASC")
+    List<OperationsDelegueesMvt> findByNumDossierAndStatusInOrderByDateOperation(
+            @Param("numDossier") Integer numDossier,
+            @Param("statuses") List<String> statuses);
+
 
 
 

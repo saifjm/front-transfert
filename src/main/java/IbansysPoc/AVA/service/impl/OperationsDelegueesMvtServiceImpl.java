@@ -143,8 +143,7 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         List<String> alertes = runValidations(dto);
         log.info("Tous les contrôles passés avec succès. Alertes: {}", alertes);
 
-        requireAvaMarcheIfType2(dto);
-
+        validateAvaMarcheByType(dto);
         computeAndSetEcheanceBeforeSavingMain(dto, now);
 
         calculateAndSetSolde(dto);
@@ -165,8 +164,7 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         if (!finalize) {
             // Pas de finalize → retourne en status I
             log.info("create(finalize=false) terminé. MVT refOperation={} en status I", refOp);
-            return new OperationCreationResponseDTO(refOp, numDossier, "I", null);
-        }
+            return new OperationCreationResponseDTO(refOp, numDossier, "I", "Mouvement créé avec succées");        }
 
         // ── Phase 2 : Finalize → délègue à writeDossier ──
         log.info("create(finalize=true) — début finalize pour refOperation={}", refOp);
@@ -256,21 +254,21 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
     @Override
     public InitiationOuvertureDTO updateoperation(Long refOperation, InitiationOuvertureDTO dto) {
 
-        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
-        id.setRefOperation(refOperation);
-
-        OperationsDelegueesMvt existing = operationsDelegueeMvtRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Mouvement opération déléguée non trouvé avec refOperation: " + refOperation ));
+        List<OperationsDelegueesMvt> results = operationsDelegueeMvtRepository.findByIdRefOperation(refOperation);
+        if (results.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "Mouvement opération déléguée non trouvé avec refOperation: " + refOperation);
+        }
+        OperationsDelegueesMvt existing = results.get(0);
 
         final LocalDate now = LocalDate.now();
 
         applyDefaultProductAndOperationIfMissing(dto);
 
-        List<String> alertes = runValidations(dto);
-        log.info("Tous les contrôles de mise à jour passés avec succès. Alertes: {}", alertes);
+        List<String> alertes = runValidations(dto, true);
+                log.info("Tous les contrôles de mise à jour passés avec succès. Alertes: {}", alertes);
 
-        requireAvaMarcheIfType2(dto);
+        validateAvaMarcheByType(dto);
 
         // Recalcul echeance AVANT de mapper/update
         computeAndSetEcheanceBeforeSavingMain(dto, now);
@@ -288,8 +286,8 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         List<BeneficiairesMvt> savedBenefs = replaceBeneficiaires(dto, savedMain, refOperation, now);
         List<Document> savedDocs = replaceDocuments(dto, savedMain, refOperation, now);
 
-        // 3) Upsert marche (sans recalcul echeance ici)
-        AvaMarcheMvt savedMarche = saveAvaMarcheAfterMainSaved(dto, savedMain);
+        // 3) Upsert marche (charge existant si présent → update, sinon → insert)
+                AvaMarcheMvt savedMarche = saveAvaMarcheAfterMainSaved(dto, savedMain);
 
         return buildResult(savedMain, savedBenefs, savedDocs, savedMarche);
     }
@@ -346,18 +344,107 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         }
 
         // Recharger l'entité pour finalize
-        OperationsDelegueesMvtId id = new OperationsDelegueesMvtId();
-        id.setRefOperation(refOp);
+        List<OperationsDelegueesMvt> mvtResults = operationsDelegueeMvtRepository.findByIdRefOperation(refOp);
+        if (mvtResults.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "Mouvement introuvable après update refOperation=" + refOp);
+        }
+        OperationsDelegueesMvt mvt = mvtResults.get(0);
 
-
-        OperationsDelegueesMvt mvt = operationsDelegueeMvtRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Mouvement introuvable après update refOperation=" + refOp));
 
         // Finalize → écrire le dossier
         return writeDossier(mvt);
     }
+ // ========================= UPDATE MVT FROM CREATE (Create or Update pattern) =========================
 
+    /**
+     * Met à jour un MVT existant quand refOperation est fourni dans create().
+     * - Vérifie que le MVT existe → sinon 404
+     * - Vérifie que le MVT est en status I → sinon BusinessException
+     * - Exécute les mêmes validations que create
+     * - Incrémente NumMvtAva
+     * - Si finalize → writeDossier
+     */
+    private OperationCreationResponseDTO updateMvtFromCreate(InitiationOuvertureDTO dto, boolean finalize) {
+        Long refOp = dto.getRefOperation();
+
+        // 1) Charger le MVT existant par refOperation (404 si introuvable)
+        //    On utilise findByIdRefOperation car l'EmbeddedId est (refOperation + dateOperation)
+        //    et le client ne fournit que refOperation dans le JSON.
+        List<OperationsDelegueesMvt> results = operationsDelegueeMvtRepository.findByIdRefOperation(refOp);
+        if (results.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "Mouvement opération déléguée non trouvé avec refOperation: " + refOp);
+        }
+        OperationsDelegueesMvt existing = results.get(0);
+
+        // 2) Seul un MVT en status I peut être modifié
+        assertUpdatable(existing);
+
+        final LocalDate now = LocalDate.now();
+
+        // 3) Validations métier (identiques au create, SAUF compatibilité type dossier)
+        applyDefaultProductAndOperationIfMissing(dto);
+
+        List<String> alertes = runValidations(dto, true);
+        log.info("Tous les contrôles de mise à jour passés avec succès. Alertes: {}", alertes);
+
+        validateAvaMarcheByType(dto);
+        computeAndSetEcheanceBeforeSavingMain(dto, now);
+        calculateAndSetSolde(dto);
+
+        // 4) Mapper les champs du DTO vers l'entité existante
+        normalizeAmountsToZero(dto);
+        operationsDelegueeMvtMapper.updateEntityFromDTO(dto, existing);
+
+        // 5) Incrémenter NumMvtAva à chaque update
+        int currentNumMvt = existing.getNumMvtAva() != null ? existing.getNumMvtAva() : 1;
+        existing.setNumMvtAva(currentNumMvt + 1);
+
+        // 6) Sauvegarder principal
+        OperationsDelegueesMvt savedMain = operationsDelegueeMvtRepository.save(existing);
+
+        // 7) Replace relations (delete anciens + insert nouveaux)
+        List<BeneficiairesMvt> savedBenefs = replaceBeneficiaires(dto, savedMain, refOp, now);
+        List<Document> savedDocs = replaceDocuments(dto, savedMain, refOp, now);
+
+        // Upsert AvaMarcheMvt (charge existant si présent → update, sinon → insert)
+        AvaMarcheMvt savedMarche = saveAvaMarcheAfterMainSaved(dto, savedMain);
+
+        Integer numDossier = savedMain.getNumDossier();
+        log.info("MVT refOperation={} mis à jour (UPDATE), NumMvtAva={}", refOp, savedMain.getNumMvtAva());
+
+        if (!finalize) {
+            return new OperationCreationResponseDTO(refOp, numDossier, "I", "Mouvement mis à jour avec succès");
+        }
+
+        // Phase 2 : Finalize
+        log.info("updateMvtFromCreate(finalize=true) — début finalize pour refOperation={}", refOp);
+        OperationCreationResponseDTO resp = writeDossier(savedMain);
+        // Préfixer le message pour indiquer que c'est un update
+        if (resp.getMessage() != null) {
+            resp.setMessage("Mouvement mis à jour. " + resp.getMessage());
+        }
+
+        // Enrichir le message avec les alertes éventuelles
+        if (!alertes.isEmpty() && resp.getMessage() != null) {
+            resp.setMessage(resp.getMessage() + ". Alertes: " + String.join("; ", alertes));
+        }
+        return resp;
+    }
+
+    /**
+     * Vérifie qu'un MVT est encore modifiable (status = I).
+     * Un MVT en V/A/E ne peut plus être modifié.
+     */
+    private void assertUpdatable(OperationsDelegueesMvt mvt) {
+        if (!"I".equals(mvt.getStatus())) {
+            throw new BusinessException("MVT_NON_MODIFIABLE",
+                    "Le mouvement refOperation=" + mvt.getId().getRefOperation()
+                            + " est en status '" + mvt.getStatus()
+                            + "' et ne peut plus être modifié. Seul le status 'I' est modifiable.");
+        }
+    }
     // ========================= WRITE DOSSIER (logique commune finalize) =========================
 
     /**
@@ -445,8 +532,10 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
 
         dto.setAnnee((short) now.getYear());
     }
-
-    private List<String> runValidations(InitiationOuvertureDTO dto) {
+ private List<String> runValidations(InitiationOuvertureDTO dto) {
+        return runValidations(dto, false);
+    }
+    private List<String> runValidations(InitiationOuvertureDTO dto,boolean isUpdate) {
 
         List<String> alertes = new ArrayList<>();
 
@@ -454,9 +543,11 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         businessRulesService.controlerMatriculeFiscal(dto.getNoPieceClient());
         businessRulesService.controlerPieceClientmatfisc(dto.getTypePieceClient(), dto.getNoPieceClient());
 
-        // Contrôle des dossiers incompatibles et si une operation de mvt existe déjà pour ce client et type de dossier
-        businessRulesService.controlerCompatibiliteTypeDossier(dto.getNoPieceClient(), dto.getCodeTypeDosAva());
-
+      // Contrôle des dossiers incompatibles — SAUTÉ en mode UPDATE
+        // car le MVT existe déjà en base, il serait détecté comme "incompatible avec lui-même"
+        if (!isUpdate) {
+            businessRulesService.controlerCompatibiliteTypeDossier(dto.getNoPieceClient(), dto.getCodeTypeDosAva());
+        }
         if (dto.getNumeroCompte() != null) {
             businessRulesService.controlerAgenceAVA(dto.getNumeroCompte(), dto);
             businessRulesService.controlerNumeroCompte(dto.getTypePieceClient(), dto.getNoPieceClient(), dto.getNumeroCompte());
@@ -523,11 +614,25 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         return alertes;
     }
 
-    private void requireAvaMarcheIfType2(InitiationOuvertureDTO dto) {
-        if (dto.getCodeTypeDosAva() != null && dto.getCodeTypeDosAva() == TYPE_DOSSIER_2) {
+        /**
+     * Valide la présence/absence du marché AVA selon le type de dossier :
+     * - Type 2 : avaMarcheMvt OBLIGATOIRE
+     * - Autres types (1, 3, 4, 5) : avaMarcheMvt INTERDIT
+     */
+    private void validateAvaMarcheByType(InitiationOuvertureDTO dto) {
+        Short type = dto.getCodeTypeDosAva();
+        if (type == null) return;
+
+        if (type == TYPE_DOSSIER_2) {
             if (dto.getAvaMarcheMvt() == null) {
                 throw new BusinessException("AVA_MARCHE_MVT_OBLIGATOIRE",
                         "Le marché AVA (avaMarcheMvt) est obligatoire pour le type de dossier 2");
+            }
+             } else {
+            if (dto.getAvaMarcheMvt() != null) {
+                throw new BusinessException("AVA_MARCHE_MVT_INTERDIT",
+                        "Le marché AVA (avaMarcheMvt) ne doit pas être fourni pour le type de dossier " + type
+                                + ". Il est autorisé uniquement pour le type 2.");
             }
         }
     }
@@ -810,19 +915,41 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
         }
 
         AvaMarcheMvtDTO avaDTO = dto.getAvaMarcheMvt();
-        AvaMarcheMvt marche = avaMarcheMvtMapper.toEntity(avaDTO);
+        Long refOp = savedMain.getId().getRefOperation();
 
-        AvaMarcheMvtId mid = marche.getId();
-        if (mid == null) mid = new AvaMarcheMvtId();
+        // Utiliser l'instance Hibernate déjà managée via le @OneToOne
+        AvaMarcheMvt marche = savedMain.getAvaMarcheMvt();
+        if (marche != null) {
+            // ── UPDATE de l'existant (instance déjà en session Hibernate) 
 
-        mid.setRefOperation(savedMain.getId().getRefOperation().intValue());
-        mid.setDateOperation(savedMain.getId().getDateOperation());
-        mid.setNumMarche(avaDTO.getNumMarche());
-        mid.setCodeProduitService(savedMain.getCodeProduitService());
-        mid.setCodeOperation(savedMain.getCodeOperation());
+        // Mettre à jour l'ID si numMarche change (partie de la PK composite)
+            if (avaDTO.getNumMarche() != null) {
+                marche.getId().setNumMarche(avaDTO.getNumMarche());
+            }
 
-        marche.setId(mid);
+            // Mettre à jour les champs
+            marche.setMontantMarche(avaDTO.getMontantMarche());
+            marche.setRefContrat(avaDTO.getRefContrat());
+            marche.setContractant(avaDTO.getContractant());
+            marche.setDateFin(avaDTO.getDateFin());
+            marche.setCodeDevise(avaDTO.getCodeDevise());
+        } else {
+            // ── INSERT nouveau ──
+            marche = avaMarcheMvtMapper.toEntity(avaDTO);
 
+ AvaMarcheMvtId mid = marche.getId();
+            if (mid == null) mid = new AvaMarcheMvtId();
+
+            mid.setRefOperation(refOp.intValue());
+            mid.setDateOperation(savedMain.getId().getDateOperation());
+            mid.setNumMarche(avaDTO.getNumMarche());
+            mid.setCodeProduitService(savedMain.getCodeProduitService());
+            mid.setCodeOperation(savedMain.getCodeOperation());
+
+            marche.setId(mid);
+        }
+
+        // Champs communs (create + update)
         marche.setNumDossier(Math.toIntExact(savedMain.getNumDossier()));
         marche.setDateDossier(savedMain.getDateDossier());
         marche.setCodeAgenceAva(savedMain.getCodeAgenceAva());

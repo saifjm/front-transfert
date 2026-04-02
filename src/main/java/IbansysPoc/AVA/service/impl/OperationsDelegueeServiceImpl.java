@@ -388,10 +388,31 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
 
         // ---------- AvaMarche (OneToOne) ----------
         if (marcheMvt != null) {
-            AvaMarche marche = avaMarcheMapper.fromMvt(marcheMvt);
-            marche.setOperationsDeleguee(savedDossier);
-            marche.setNumDossier(savedDossier.getNumDossier());
-            avaMarcheRepository.save(marche);
+                       AvaMarche existingMarche = avaMarcheRepository.findById(savedDossier.getNumDossier()).orElse(null);
+
+            if (existingMarche != null) {
+                // UPDATE existant
+                existingMarche.setNumMarche(marcheMvt.getId() != null ? marcheMvt.getId().getNumMarche() : null);
+                existingMarche.setMontantMarche(marcheMvt.getMontantMarche());
+                existingMarche.setRefContrat(marcheMvt.getRefContrat());
+                existingMarche.setContractant(marcheMvt.getContractant());
+                existingMarche.setDateFin(marcheMvt.getDateFin());
+                existingMarche.setCodeDevise(marcheMvt.getCodeDevise());
+                existingMarche.setDateDossier(savedDossier.getDateDossier());
+                existingMarche.setCodeAgenceAva(savedDossier.getCodeAgenceAva());
+                existingMarche.setStatus(savedDossier.getEtatDossier());
+                avaMarcheRepository.save(existingMarche);
+            } else {
+                // INSERT nouveau via persist (évite le merge qui cause null identifier sur @OneToOne)
+                AvaMarche marche = avaMarcheMapper.fromMvt(marcheMvt);
+                marche.setNumDossier(savedDossier.getNumDossier());
+                marche.setDateDossier(savedDossier.getDateDossier());
+                marche.setCodeAgenceAva(savedDossier.getCodeAgenceAva());
+                marche.setStatus(savedDossier.getEtatDossier());
+                marche.setOperationsDeleguee(savedDossier);
+                entityManager.persist(marche);
+                entityManager.flush();
+            }
         }
 
         log.info("applyMvtToDossier terminé avec succès pour numDossier={}", numDossier);
@@ -1447,6 +1468,34 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         mouvement.setMntReserve(operationsDeleguee.getMntReserve());
         mouvement.setMntAutorise(operationsDeleguee.getMntAutorise());
 
+        // Normalize BigDecimal scales and validate precision to avoid ORA-01438
+        BigDecimal max19 = new BigDecimal("9999999999999999.999"); // NUMBER(19,3)
+        BigDecimal max23 = new BigDecimal("99999999999999999999.999"); // NUMBER(23,3)
+
+        java.util.function.BiFunction<BigDecimal, BigDecimal, BigDecimal> normalizeAndValidate = (value, max) -> {
+            if (value == null) return null;
+            BigDecimal v = value.setScale(3, java.math.RoundingMode.HALF_UP);
+            if (v.abs().compareTo(max) > 0) {
+                log.error("Valeur hors limites détectée avant insert MVT: {} (max {})", v, max);
+                throw new BusinessException("Valeur hors limites pour colonne NUMERIC: " + v);
+            }
+            return v;
+        };
+
+        mouvement.setMntAvance(normalizeAndValidate.apply(mouvement.getMntAvance(), max19));
+        mouvement.setMntMvtAva(normalizeAndValidate.apply(mouvement.getMntMvtAva(), max23));
+        mouvement.setMntUtilise(normalizeAndValidate.apply(mouvement.getMntUtilise(), max19));
+        mouvement.setMntAutorise(normalizeAndValidate.apply(mouvement.getMntAutorise(), max19));
+        mouvement.setSolde(normalizeAndValidate.apply(mouvement.getSolde(), max19));
+        mouvement.setMntCa(normalizeAndValidate.apply(mouvement.getMntCa(), max19));
+        mouvement.setMntCaFiscal(normalizeAndValidate.apply(mouvement.getMntCaFiscal(), max19));
+        mouvement.setMntAutoriseBct(normalizeAndValidate.apply(mouvement.getMntAutoriseBct(), max23));
+        mouvement.setMntBlocage(normalizeAndValidate.apply(mouvement.getMntBlocage(), max23));
+        mouvement.setMntReserve(normalizeAndValidate.apply(mouvement.getMntReserve(), max23));
+
+        log.debug("About to save MVT (refOperation={}): mntMvtAva={}, solde={}, mntAutoriseBct={}, mntAvance={}", refOperation,
+                mouvement.getMntMvtAva(), mouvement.getSolde(), mouvement.getMntAutoriseBct(), mouvement.getMntAvance());
+
         // Sauvegarder le mouvement
         operationsDelegueeMvtRepository.save(mouvement);
         if ("A".equals(status) || "V".equals(status)) {
@@ -1645,4 +1694,204 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
      * @return Le motif descriptif
      */
 
+     // ==================== APPLY FOR DOSSIER + APPLY ONE ====================
+
+    /**
+     * Applique TOUTES les opérations V/E d'un dossier dans l'ordre chronologique.
+     * Lock pessimiste sur le dossier → sérialisation garantie.
+     * Chaque MVT est appliqué via applyOne (idempotent).
+     */
+    @Override
+    @Transactional
+    public void applyForDossier(Integer numDossier) {
+        log.info("[applyForDossier] Début pour numDossier={}", numDossier);
+
+        if (numDossier == null) {
+            throw new BusinessException("NUM_DOSSIER_REQUIS",
+                    "Le numéro de dossier est requis pour appliquer les opérations");
+        }
+
+        // 1) Lock pessimiste sur le dossier (si le dossier existe déjà)
+        //    Cela garantit qu'un seul thread travaille sur ce dossier à la fois
+        Optional<OperationsDeleguee> lockedDossier = operationsDelegueeRepository.findByIdForUpdate(numDossier);
+        if (lockedDossier.isPresent()) {
+            log.debug("[applyForDossier] Lock pessimiste acquis sur numDossier={}", numDossier);
+        } else {
+            log.debug("[applyForDossier] Dossier numDossier={} n'existe pas encore, il sera créé par applyOne", numDossier);
+        }
+
+        // 2) Récupérer tous les MVT en status V ou E pour ce dossier, triés chronologiquement
+        List<OperationsDelegueesMvt> pendingMvts = mvtRepository
+                .findByNumDossierAndStatusInOrderByDateOperation(numDossier, List.of("V", "E"));
+
+        if (pendingMvts.isEmpty()) {
+            log.info("[applyForDossier] Aucun MVT pending (V/E) pour numDossier={}", numDossier);
+            return;
+        }
+
+        log.info("[applyForDossier] {} MVT(s) pending à appliquer pour numDossier={}", pendingMvts.size(), numDossier);
+
+        // 3) Pour chaque MVT → applyOne (idempotent, ne propage pas l'exception)
+        for (OperationsDelegueesMvt mvt : pendingMvts) {
+            Long refOp = mvt.getId().getRefOperation();
+            try {
+                applyOne(refOp);
+            } catch (Exception e) {
+                log.error("[applyForDossier] Erreur lors de applyOne refOp={}: {}", refOp, e.getMessage(), e);
+                // Continue avec les MVT suivants — ne pas bloquer la chaîne
+            }
+        }
+
+        log.info("[applyForDossier] Fin pour numDossier={}", numDossier);
+    }
+
+    /**
+     * Applique UN mouvement au dossier. Idempotent : si déjà A → skip.
+     * Projette MVT → Dossier + relations + recalcul solde.
+     * Si succès → status A + etatDossier V.
+     * Si erreur → status E (ne lève PAS d'exception, log et continue).
+     */
+    @Override
+    @Transactional
+    public void applyOne(Long refOperation) {
+        log.info("[applyOne] Début pour refOperation={}", refOperation);
+
+        if (refOperation == null) {
+            log.warn("[applyOne] refOperation est null, skip");
+            return;
+        }
+
+        // 1) Charger le MVT
+        List<OperationsDelegueesMvt> mvtList = mvtRepository.findByIdRefOperation(refOperation);
+        if (mvtList == null || mvtList.isEmpty()) {
+            log.warn("[applyOne] MVT refOperation={} introuvable, skip", refOperation);
+            return;
+        }
+        OperationsDelegueesMvt mvt = mvtList.get(0);
+
+        // 2) IDEMPOTENCE : si déjà A → skip
+        if ("A".equals(mvt.getStatus())) {
+            log.info("[applyOne] MVT refOperation={} déjà en status A, skip (idempotent)", refOperation);
+            return;
+        }
+
+        // 3) Vérifier que le MVT est en V ou E (les seuls status éligibles pour apply)
+        if (!"V".equals(mvt.getStatus()) && !"E".equals(mvt.getStatus())) {
+            log.warn("[applyOne] MVT refOperation={} en status '{}', non éligible pour apply (attendu V ou E), skip",
+                    refOperation, mvt.getStatus());
+            return;
+        }
+
+        Integer numDossier = mvt.getNumDossier();
+
+        try {
+            // 4) Charger les relations MVT associées
+            List<BeneficiairesMvt> benefsMvt = beneficiaireMvtRepository.findByIdRefOperation(refOperation);
+            List<Document> docsMvt = documentRepository.findByRefOperation(refOperation);
+            List<AvaMarcheMvt> marcheList = avaMarcheMvtRepository.findByIdRefOperation(refOperation.intValue());
+            AvaMarcheMvt marcheMvt = (marcheList != null && !marcheList.isEmpty()) ? marcheList.get(0) : null;
+
+            // 5) Mapper MVT → Dossier
+            OperationsDeleguee dossier = operationsDelegueeMapper.fromMvt(mvt);
+            dossier.setDernierNumMvtAva(mvt.getNumMvtAva());
+
+            // 6) Calculer solde
+            dossier.setSolde(businessRulesService.calculerSolde(
+                    dossier.getMntAutorise(),
+                    dossier.getMntAvance(),
+                    dossier.getMntAutoriseBct(),
+                    dossier.getMntUtilise(),
+                    dossier.getMntReserve(),
+                    dossier.getMntBlocage()
+            ));
+            dossier.setEtatDossier("V");
+
+            // 7) Idempotence dossier : vérifier si dossier existe déjà
+            Optional<OperationsDeleguee> existingOpt = operationsDelegueeRepository.findById(numDossier);
+            OperationsDeleguee savedDossier;
+
+            if (existingOpt.isPresent()) {
+                // Dossier existe → UPDATE
+                log.info("[applyOne] Dossier numDossier={} existe déjà, mise à jour", numDossier);
+                OperationsDeleguee existing = existingOpt.get();
+                operationsDelegueeMapper.updateFromMvt(mvt, existing);
+                existing.setDernierNumMvtAva(mvt.getNumMvtAva());
+                existing.setSolde(dossier.getSolde());
+                existing.setEtatDossier("V");
+                savedDossier = operationsDelegueeRepository.save(existing);
+            } else {
+                // Dossier n'existe pas → INSERT
+                log.info("[applyOne] Dossier numDossier={} n'existe pas, création", numDossier);
+                entityManager.persist(dossier);
+                entityManager.flush();
+                savedDossier = dossier;
+            }
+
+            // 8) Projeter les relations
+
+            // Bénéficiaires
+            if (benefsMvt != null && !benefsMvt.isEmpty()) {
+                List<Beneficiaire> benefs = beneficiaireMapper.fromMvtList(benefsMvt);
+                for (Beneficiaire b : benefs) {
+                    if (b.getId() == null) {
+                        b.setId(new BeneficiaireId());
+                    }
+                    b.getId().setNumDossier(savedDossier.getNumDossier());
+                    b.getId().setDateDossier(savedDossier.getDateDossier());
+                    b.setOperationsDeleguee(savedDossier);
+                    b.setEtat("A");
+                }
+                beneficiaireRepository.saveAll(benefs);
+            }
+
+            // Documents
+            if (docsMvt != null && !docsMvt.isEmpty()) {
+                for (Document d : docsMvt) {
+                    d.setOperationsDeleguee(savedDossier);
+                    d.setNumDossier(savedDossier.getNumDossier());
+                }
+                documentRepository.saveAll(docsMvt);
+            }
+
+            // AvaMarche (OneToOne)
+            if (marcheMvt != null) {
+                AvaMarche existingMarche = avaMarcheRepository.findById(savedDossier.getNumDossier()).orElse(null);
+                if (existingMarche != null) {
+                    existingMarche.setNumMarche(marcheMvt.getId() != null ? marcheMvt.getId().getNumMarche() : null);
+                    existingMarche.setMontantMarche(marcheMvt.getMontantMarche());
+                    existingMarche.setRefContrat(marcheMvt.getRefContrat());
+                    existingMarche.setContractant(marcheMvt.getContractant());
+                    existingMarche.setDateFin(marcheMvt.getDateFin());
+                    existingMarche.setCodeDevise(marcheMvt.getCodeDevise());
+                    existingMarche.setDateDossier(savedDossier.getDateDossier());
+                    existingMarche.setCodeAgenceAva(savedDossier.getCodeAgenceAva());
+                    existingMarche.setStatus(savedDossier.getEtatDossier());
+                    avaMarcheRepository.save(existingMarche);
+                } else {
+                    AvaMarche marche = avaMarcheMapper.fromMvt(marcheMvt);
+                    marche.setNumDossier(savedDossier.getNumDossier());
+                    marche.setDateDossier(savedDossier.getDateDossier());
+                    marche.setCodeAgenceAva(savedDossier.getCodeAgenceAva());
+                    marche.setStatus(savedDossier.getEtatDossier());
+                    marche.setOperationsDeleguee(savedDossier);
+                    entityManager.persist(marche);
+                    entityManager.flush();
+                }
+            }
+
+            // 9) Succès → status A + etatDossier V
+            mvt.setStatus("A");
+            mvt.setEtatDossier("V");
+            mvtRepository.save(mvt);
+            log.info("[applyOne] MVT refOperation={} marqué status=A (succès)", refOperation);
+
+        } catch (Exception e) {
+            // 10) Erreur → status E (ne pas propager, log et continue)
+            log.error("[applyOne] Erreur lors de la projection du MVT refOperation={} vers numDossier={}: {}",
+                    refOperation, numDossier, e.getMessage(), e);
+            mvt.setStatus("E");
+            mvtRepository.save(mvt);
+            log.warn("[applyOne] MVT refOperation={} marqué status=E", refOperation);
+        }
+    }
 }

@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -20,6 +20,8 @@ public class ReservationOperationDTO {
 
 
 
+    @JsonProperty(required = false)
+    private Long refOperation;
     private String reference;
     private Integer numDossier;
     private BigDecimal mntMvtAva;

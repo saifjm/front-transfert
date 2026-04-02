@@ -52,8 +52,7 @@ public class ReservationOperationController {
             @RequestParam(name = "finalize", defaultValue = "false") boolean finalize) {
         log.info("POST /api/reservation-operations?finalize={}", finalize);
         OperationCreationResponseDTO resp = service.create(dto, finalize);
-        return new ResponseEntity<>(resp, HttpStatus.CREATED);
-    }
+        return ResponseEntity.ok(resp);    }
 
     @Operation(
             summary = "Créer une opération d'annulation de réservation",
@@ -75,7 +74,7 @@ public class ReservationOperationController {
             @RequestParam(name = "finalize", defaultValue = "false") boolean finalize) {
         log.info("POST /api/reservation-operations/annulation?finalize={}", finalize);
         OperationCreationResponseDTO resp = service.createAnnulation(dto, finalize);
-        return new ResponseEntity<>(resp, HttpStatus.CREATED);
+        return ResponseEntity.ok(resp);
     }
 
 

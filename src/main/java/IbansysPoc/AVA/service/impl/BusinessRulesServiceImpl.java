@@ -605,9 +605,10 @@ public class BusinessRulesServiceImpl implements BusinessRulesService {
 
         if (TYPES_DOSSIER_INCOMPATIBLES_1_3_4_5.contains(codeTypeDosAva)) {
 
-            boolean existe = operationsDelegueeRepository
-                    .existsByNoPieceClientAndCodeTypeDosAvaIn(
+            boolean existe = operationsDelegueeMvtRepository
+                    .existsByNoPieceClientAndCodeOperationAndCodeTypeDosAvaIn(
                             noPieceClient,
+                            200,
                             TYPES_DOSSIER_INCOMPATIBLES_1_3_4_5
                     );
 
@@ -652,8 +653,9 @@ public class BusinessRulesServiceImpl implements BusinessRulesService {
         if (TYPES_DOSSIER_INCOMPATIBLES_1_3_4_5.contains(codeTypeDosAva)) {
 
             boolean existeMvt = operationsDelegueeMvtRepository
-                    .existsByNoPieceClientAndCodeTypeDosAvaIn(
+                    .existsByNoPieceClientAndCodeOperationAndCodeTypeDosAvaIn(
                             noPieceClient,
+                            200,
                             TYPES_DOSSIER_INCOMPATIBLES_1_3_4_5
                     );
 
@@ -667,12 +669,12 @@ public class BusinessRulesServiceImpl implements BusinessRulesService {
 
         if (codeTypeDosAva == 2) {
 
-            boolean existeMvt = operationsDelegueeMvtRepository
-                    .existsByNoPieceClientAndCodeTypeDosAvaIn(
+           boolean existeMvt = operationsDelegueeMvtRepository
+                    .existsByNoPieceClientAndCodeOperationAndCodeTypeDosAvaIn(
                             noPieceClient,
+                            200,
                             TYPES_DOSSIER_INCOMPATIBLES_3_4_5
                     );
-
             if (existeMvt) {
                 throw new BusinessException(
                         "DOSSIER_INCOMPATIBLE_MVT",

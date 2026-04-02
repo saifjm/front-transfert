@@ -46,8 +46,7 @@ public class OperationsDelegueesMvtController {
             @RequestParam(name = "finalize", defaultValue = "false") boolean finalize) {
         log.info("POST /api/operations-deleguees-mvt/initialisation?finalize={}", finalize);
         OperationCreationResponseDTO resp = operationsDelegueesMvtService.create(dto, finalize);
-        return new ResponseEntity<>(resp, HttpStatus.CREATED);
-    }
+        return ResponseEntity.ok(resp);    }
 
     // ==================== CREATION PAR NUM_DOSSIER ====================
 
