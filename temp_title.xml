@@ -1,0 +1,34 @@
+    <title>
+        <band height="100" splitType="Stretch">
+            <!-- Annexe Titre centré -->
+            <staticText>
+                <reportElement x="0" y="0" width="555" height="30" uuid="55555555-5555-5555-5555-555555555555"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle">
+                    <font size="16" isBold="true" isUnderline="true"/>
+                </textElement>
+                <text><![CDATA[ANNEXE N° 5]]></text>
+            </staticText>
+
+            <!-- Demande de transfert centré -->
+            <staticText>
+                <reportElement x="0" y="35" width="555" height="30" uuid="66666666-6666-6666-6666-666666666666"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle">
+                    <font size="12" isBold="true"/>
+                </textElement>
+                <text><![CDATA[DEMANDE DE TRANSFERT]]></text>
+            </staticText>
+
+            <!-- Type d'allocation centré -->
+            <textField isBlankWhenNull="true">
+                <reportElement x="0" y="70" width="555" height="20" uuid="77777777-7777-7777-7777-777777777777"/>
+                <textElement textAlignment="Center" verticalAlignment="Middle">
+                    <font size="12" isBold="true"/>
+                </textElement>
+                <textFieldExpression><![CDATA["ALLOCATION " + ($P{typeAllocation} != null ? $P{typeAllocation}.toUpperCase() : "")]]></textFieldExpression>
+            </textField>
+        </band>
+    </title>
+
+    <!-- SECTION INFOS EXPORTATEUR EN COLONNES -->
+    <pageHeader>
+        <band height="150" splitType="Stretch">
