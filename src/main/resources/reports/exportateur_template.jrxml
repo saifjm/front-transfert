@@ -377,7 +377,7 @@ PRENOMS]]></text>
             <textField textAdjust="StretchHeight" isBlankWhenNull="true">
                 <reportElement stretchType="RelativeToBandHeight" x="31" y="0" width="53" height="20" uuid="40000000-0000-0000-0000-000000000002"/>
                 <textElement textAlignment="Center" verticalAlignment="Middle"><font size="6"/></textElement>
-                <textFieldExpression><![CDATA[$F{designation}]]></textFieldExpression>
+                  <textFieldExpression><![CDATA[$F{designation}]]></textFieldExpression>
             </textField>
             <textField textAdjust="StretchHeight" pattern="#,##0.000" isBlankWhenNull="true">
                 <reportElement stretchType="RelativeToBandHeight" x="86" y="0" width="38" height="20" uuid="40000000-0000-0000-0000-000000000003"/>

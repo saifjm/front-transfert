@@ -3,6 +3,9 @@ package IbansysPoc.AVA.service.impl;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,11 +17,13 @@ import IbansysPoc.AVA.entity.OperationsDeleguee;
 import IbansysPoc.AVA.exception.BusinessException;
 import IbansysPoc.AVA.exception.ResourceNotFoundException;
 import IbansysPoc.AVA.mapper.OperationExportateurAVAMapper;
+import IbansysPoc.AVA.repository.BeneficiaireRepository;
 import IbansysPoc.AVA.repository.OperationExportateurAVARepository;
 import IbansysPoc.AVA.repository.OperationsDelegueeRepository;
 import IbansysPoc.AVA.service.ApiExterneService;
 import IbansysPoc.AVA.service.OperationExportateurAVAService;
 import IbansysPoc.AVA.service.OperationsDelegueesMvtService;
+import IbansysPoc.AVA.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,10 +41,12 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
 
     private final OperationExportateurAVARepository operationExportateurAVARepository;
     private final OperationsDelegueeRepository operationsDelegueeRepository;
+    private final BeneficiaireRepository beneficiaireRepository;
     private final OperationExportateurAVAMapper operationExportateurAVAMapper;
     private final OperationsDelegueesMvtService operationsDelegueesMvtService;
     private final ApiExterneService apiExterneService;
     private final IbansysPoc.AVA.service.BusinessRulesService businessRulesService;
+    private final ReportService reportService;
 
     /**
      * Délègue à la version avec finalizeFlag = true (comportement par défaut / rétrocompatibilité).
@@ -215,7 +222,167 @@ public class OperationExportateurAVAServiceImpl implements OperationExportateurA
 
             log.info("=== FIN createRapatriement (finalize=true) === numDossierAva: {}, thread: {}",
                     dto.getNumDossierAva(), Thread.currentThread().getName());
-            return operationExportateurAVAMapper.toDTO(savedEntity);
+            
+            OperationExportateurAVADTO resultDto = operationExportateurAVAMapper.toDTO(savedEntity);
+            
+            // Génération du rapport PDF
+            try {
+                Map<String, Object> parameters = new HashMap<>();
+                parameters.put("typeAllocation", "1");
+                  parameters.put("titulaireAllocation", String.valueOf(dto.getNumDossierAva()));
+                  parameters.put("codeIdentification", "C");
+
+                  // Récupération de la banque via l'API REF
+                  String codeBanqueStr = "";
+                  String libelleBanque = "";
+                  
+                  if (operationsDeleguee.getCodeBanqueProvenance() != null) {
+                      codeBanqueStr = String.valueOf(operationsDeleguee.getCodeBanqueProvenance());
+                      
+                      try {
+                          IbansysPoc.AVA.DTO.BanqueDTO banque = apiExterneService.getBanqueByCode(
+                                  operationsDeleguee.getCodeBanqueProvenance().shortValue()
+                          );
+                          if (banque != null && banque.getLibBanque() != null) {
+                              libelleBanque = banque.getLibBanque();
+                          }
+                      } catch (Exception e) {
+                           log.warn("Impossible de récupérer le libellé de la banque via API REF", e);
+                      }
+                  }
+                  
+                  parameters.put("codeBanque", codeBanqueStr);
+                  parameters.put("intermediaire", libelleBanque);
+
+                  // Code d'agence à partir du dossier (operationsDeleguee)
+                  String codeAgenceStr = "";
+                  String libelleAgence = "";
+                  
+                  if (operationsDeleguee.getCodeAgenceAva() != null) {
+                      codeAgenceStr = String.valueOf(operationsDeleguee.getCodeAgenceAva());
+                      
+                      // Utiliser l'API externe (via table banque) pour récupérer le libellé de l'agence
+                      try {
+                          IbansysPoc.AVA.DTO.BanqueDTO agenceBank = apiExterneService.getBanqueByCode(
+                                  operationsDeleguee.getCodeAgenceAva()
+                          );
+                          if (agenceBank != null && agenceBank.getLibBanque() != null) {
+                              libelleAgence = agenceBank.getLibBanque();
+                          }
+                      } catch (Exception e) {
+                           log.warn("Impossible de récupérer le libellé de l'agence via API REF (Banque)", e);
+                      }
+                  }
+                  
+                  parameters.put("codeAgence", codeAgenceStr);
+                  parameters.put("agence", libelleAgence);
+
+                // Récupération de l'adresse et du nom complet via l'API REF, et du nom direct depuis la BD locale (table beneficiaire)
+                String adresseBenef = ""; 
+                String nomTitulaire = dto.getNoPieceBenef() != null ? dto.getNoPieceBenef() : "";
+                String nomBeneficiaireSeul = "";
+                
+                try {
+                    if (dto.getNumDossierAva() != null) {
+                        java.util.List<IbansysPoc.AVA.entity.Beneficiaire> benefs = beneficiaireRepository.findByIdNumDossier(dto.getNumDossierAva().intValue());
+                        if (benefs != null && !benefs.isEmpty()) {
+                            // On cherche le bénéficiaire qui correspond à noPieceBenef
+                            nomBeneficiaireSeul = benefs.stream()
+                                    .filter(b -> b.getId().getNoPieceBenef().trim().equals(dto.getNoPieceBenef().trim()))
+                                    .map(IbansysPoc.AVA.entity.Beneficiaire::getNomBenef)
+                                    .findFirst()
+                                    .orElse("");
+                        }
+                    }
+                } catch (Exception e) {
+                     log.warn("Impossible de récupérer le nom du bénéficiaire depuis la BD locale", e);
+                }
+
+                try {
+                    Integer typePiece = dto.getTypePieceBenef() != null ? dto.getTypePieceBenef() : 1;
+                    String noPiece = dto.getNoPieceBenef() != null ? dto.getNoPieceBenef() : "";
+
+                    IbansysPoc.AVA.DTO.PersonneDTO pers = apiExterneService.getPersonneInfo(typePiece, noPiece);
+                    
+                    if (pers != null) {
+                        // Construction du nom (Nom + Prénom) pour le bénéficiaire pour l'affichage général
+                        String nom = pers.getNom() != null ? pers.getNom() : "";
+                        String prenom = pers.getPrenom() != null ? pers.getPrenom() : "";
+                        String fullName = (nom + " " + prenom).trim();
+                        if (!fullName.isEmpty()) {
+                            nomTitulaire = fullName;
+                        }
+
+                        // Construction de l'adresse
+                        String adr1 = pers.getAdrRes1() != null ? pers.getAdrRes1() : "";
+                        String adr2 = pers.getAdrRes2() != null ? pers.getAdrRes2() : "";
+                        String adr3 = pers.getAdrRes3() != null ? pers.getAdrRes3() : "";
+                        adresseBenef = (adr1 + " " + adr2 + " " + adr3).trim();
+                    }
+                } catch (Exception e) {
+                     log.warn("Impossible de récupérer les informations du bénéficiaire via API REF", e);
+                }
+                
+                parameters.put("adresse", adresseBenef);
+                parameters.put("nomOuDenomination", nomTitulaire);
+
+                // --- Récupération optionnelle du pays et de la devise ---
+                String libellePaysDevise = "";
+                String libelleDeviseStr = dto.getCodeDevise() != null ? String.valueOf(dto.getCodeDevise()) : "";
+
+                if (dto.getCodeDevise() != null) {
+                    try {
+                        java.util.List<Object> devises = apiExterneService.getDevises();
+                        java.util.Map<?, ?> targetDevise = devises.stream()
+                            .filter(d -> d instanceof java.util.Map)
+                            .map(d -> (java.util.Map<?, ?>) d)
+                            .filter(map -> dto.getCodeDevise().equals(map.get("codeDevise"))) // On trouve la devise
+                            .findFirst()
+                            .orElse(null);
+
+                        if (targetDevise != null) {
+                            Object libPays = targetDevise.get("libellePays");
+                            if (libPays != null) libellePaysDevise = libPays.toString();
+
+                            Object libDev = targetDevise.get("libelleDevise"); // essayer libelleDevise
+                            if (libDev == null) {
+                                libDev = targetDevise.get("libDevise"); // essayer libDevise
+                            }
+                            if (libDev != null) libelleDeviseStr = libDev.toString();
+                        }
+                    } catch (Exception e) {
+                        log.warn("Impossible de récupérer la devise via API REF", e);
+                    }
+                }
+
+                // Variables issues du JSON d'entrée d'exportateur
+                parameters.put("mntRap", dto.getMntRap());
+                parameters.put("codeDevise", libelleDeviseStr);
+                parameters.put("codeBanqueProvenance", dto.getCodeBanqueProvenance());
+                parameters.put("numeroCompte", dto.getNumeroCompte());
+
+                // Creer les lignes du tableau avec designation = "RAP" et origineFonds = "1"
+                java.util.List<IbansysPoc.AVA.DTO.ExportateurReportRowDTO> reportRows = new java.util.ArrayList<>();
+                IbansysPoc.AVA.DTO.ExportateurReportRowDTO row = new IbansysPoc.AVA.DTO.ExportateurReportRowDTO();
+                row.setDate(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+                row.setDesignation("RAP");
+                row.setCreditOrigineFonds("1");
+                row.setDebitPays(!libellePaysDevise.isEmpty() ? libellePaysDevise : String.valueOf(dto.getCodeDevise()));
+                row.setDroitsTransfertCumules(dto.getMntMvtTnd());
+                row.setMontantsTransfertsCumules(operationsDeleguee.getMntAutorise());
+                row.setBeneficiaireCodeType("C");
+                row.setBeneficiaireCodeNumero(dto.getNoPieceBenef());
+                row.setBeneficiaireNomsPrenoms(!nomBeneficiaireSeul.isEmpty() ? nomBeneficiaireSeul : nomTitulaire);
+                reportRows.add(row);
+
+                byte[] pdfBytes = reportService.generatePdfReport("classpath:reports/exportateur_template.jrxml", parameters, reportRows);
+                resultDto.setPdfBase64(Base64.getEncoder().encodeToString(pdfBytes));
+                log.info("Rapport PDF exportateur généré avec succès et encodé en Base64");
+            } catch (Exception e) {
+                log.error("Échec de la génération du rapport PDF exportateur", e);
+            }
+
+            return resultDto;
 
         } else {
             // ===================== FINALIZE == FALSE =====================

@@ -35,4 +35,5 @@ public class OperationExportateurAVADTO {
     private String noPieceBenef;
     private Long numDossierAva;
     private BigDecimal mntRap;
+    private String pdfBase64;
 }

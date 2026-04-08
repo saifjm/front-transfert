@@ -3,6 +3,7 @@ package IbansysPoc.AVA.service;
 import java.util.Optional;
 
 import IbansysPoc.AVA.DTO.AgenceDTO;
+import IbansysPoc.AVA.DTO.BanqueDTO;
 import IbansysPoc.AVA.DTO.DeclarationCAFHTDTO;
 import IbansysPoc.AVA.DTO.DeclarationFiscaleDTO;
 import IbansysPoc.AVA.DTO.EmailQueueDTO;
@@ -200,5 +201,15 @@ public interface ApiExterneService {
      * @return la liste de tous les pays
      */
     java.util.List<Object> getPays();
+
+    /**
+     * Récupérer les informations d'une banque par son code.
+     * Endpoint: GET /api/ref/banques/search/byCode/{codeBanque}
+     * Microservice: REF (port 8090)
+     *
+     * @param codeBanque Code de la banque
+     * @return DTO contenant le code, le libellé et le sigle de la banque
+     */
+    BanqueDTO getBanqueByCode(Short codeBanque);
 
 }

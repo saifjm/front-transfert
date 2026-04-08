@@ -564,20 +564,25 @@ public class ApiExterneServiceImpl implements ApiExterneService {
 
     @Override
     public IbansysPoc.AVA.DTO.PersonneDTO getPersonneInfo(Integer typePiecePersonne, String noPiecePersonne) {
-        log.info("Appel API externe: /search/{}/{}", typePiecePersonne, noPiecePersonne);
+        log.info("Appel API externe: /by-nopiececlient/{}", noPiecePersonne);
 
         try {
-            IbansysPoc.AVA.DTO.PersonneDTO response = refRestClient
+            // L'API /api/ref/personnes/by-nopiececlient/{noPiecePersonne} retourne une List<Personne>
+            IbansysPoc.AVA.DTO.PersonneDTO[] responseList = refRestClient
                     .get()
-                    .uri("/api/ref/personnes/search/{typePiecePersonne}/{noPiecePersonne}", typePiecePersonne, noPiecePersonne)
+                    .uri("/api/ref/personnes/by-nopiececlient/{noPiecePersonne}", noPiecePersonne)
                     .retrieve()
-                    .body(IbansysPoc.AVA.DTO.PersonneDTO.class);
+                    .body(IbansysPoc.AVA.DTO.PersonneDTO[].class);
 
-            log.debug("Réponse API /search: {}", response);
-            return response;
+            if (responseList != null && responseList.length > 0) {
+                log.debug("Réponse API /by-nopiececlient: Trouvé {} personnes", responseList.length);
+                return responseList[0]; // On prend la première personne de la liste
+            }
+            log.debug("Réponse API /by-nopiececlient: Aucune personne trouvée");
+            return null;
 
         } catch (Exception e) {
-            log.error("Erreur API /search/{}/{}: {}", typePiecePersonne, noPiecePersonne, e.getMessage(), e);
+            log.error("Erreur API /by-nopiececlient/{}: {}", noPiecePersonne, e.getMessage(), e);
             return null;
         }
     }
@@ -687,6 +692,26 @@ public class ApiExterneServiceImpl implements ApiExterneService {
         } catch (Exception e) {
             log.error("Erreur API REF getPays: {}", e.getMessage(), e);
             return java.util.Collections.emptyList();
+        }
+    }
+
+    @Override
+    public IbansysPoc.AVA.DTO.BanqueDTO getBanqueByCode(Short codeBanque) {
+        log.info("Appel API externe: /api/ref/banques/search/byCode/{}", codeBanque);
+
+        try {
+            IbansysPoc.AVA.DTO.BanqueDTO response = refRestClient
+                    .get()
+                    .uri("/api/ref/banques/search/byCode/{codeBanque}", codeBanque)
+                    .retrieve()
+                    .body(IbansysPoc.AVA.DTO.BanqueDTO.class);
+
+            log.debug("Réponse API /banques/search/byCode/{}: {}", codeBanque, response);
+            return response;
+
+        } catch (Exception e) {
+            log.error("Erreur API REF /banques/search/byCode/{}: {}", codeBanque, e.getMessage(), e);
+            return null;
         }
     }
 }
