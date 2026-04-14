@@ -144,6 +144,7 @@ interface DocumentScanneFVDTO {
 // ============= COMPOSANT PRINCIPAL =============
 
 export function AVAFraisVoyage() {
+  const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
   const [etape, setEtape] = useState<'recherche' | 'frais'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
@@ -187,6 +188,8 @@ export function AVAFraisVoyage() {
     id: string;
     typeDocument?: number;
     nomImage?: string;
+    pathAnnee?: string;
+    pathMois?: string;
     cheminFichier?: string;
     fichier?: File | null;
   }>>([]);
@@ -208,7 +211,6 @@ export function AVAFraisVoyage() {
   
   useEffect(() => {
     fetchDossiers();
-    fetchAgences();
     fetchDevises();
   }, []);
 
@@ -223,15 +225,6 @@ export function AVAFraisVoyage() {
       3: 'AUTRES ACTIVITES (ANNEXE N.2)',
       4: 'AUTRES ACTIVITES (BANQUES)',
       5: 'A. ACT. (PROM.-NOUV. PROJ.)'
-    };
-
-    const agenceLabels: { [key: number]: string } = {
-      17: 'Agence Tunis Centre',
-      104: 'Agence Sfax',
-      100: 'Agence Tunis Centre',
-      200: 'Agence Sfax',
-      300: 'Agence Sousse',
-      400: 'Agence Monastir'
     };
 
     const mockDossiers: DossierAVA[] = [
@@ -333,6 +326,49 @@ export function AVAFraisVoyage() {
       if (!data || !Array.isArray(data)) {
         throw new Error('JSON_PARSE_ERROR');
       }
+
+      let agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch('/api/ref/donnees-generales');
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales = await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse);
+          const codeBanque =
+            Array.isArray(donneesGenerales) && donneesGenerales.length > 0
+              ? Number(donneesGenerales[0]?.codeBanque)
+              : NaN;
+          if (Number.isFinite(codeBanque)) {
+            const uniqueCodes = Array.from(
+              new Set(
+                data
+                  .map((dto) => Number(dto.codeAgence))
+                  .filter((code) => Number.isFinite(code)),
+              ),
+            ) as number[];
+            const agencesResolved = await Promise.all(
+              uniqueCodes.map(async (codeAgence) => {
+                try {
+                  const agenceResponse = await fetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
+                  if (!agenceResponse.ok) return null;
+                  const agence = await safeJsonParse<{ libAgence?: string }>(agenceResponse);
+                  return {
+                    codeAgence,
+                    libelleAgence: agence?.libAgence || `Agence ${codeAgence}`,
+                  };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            agenceNameByCode = new Map(
+              agencesResolved
+                .filter((item): item is { codeAgence: number; libelleAgence: string } => Boolean(item))
+                .map((item) => [item.codeAgence, item.libelleAgence]),
+            );
+          }
+        }
+      } catch {
+        agenceNameByCode = new Map();
+      }
       
       const dossiersTransformes: DossierAVA[] = data.map(dto => {
         const nomComplet = dto.nomClient?.trim() || '';
@@ -342,7 +378,7 @@ export function AVAFraisVoyage() {
 
         return {
           codeAgence: dto.codeAgence,
-          libelleAgence: agenceLabels[dto.codeAgence] || `Agence ${dto.codeAgence}`,
+          libelleAgence: agenceNameByCode.get(dto.codeAgence) || `Agence ${dto.codeAgence}`,
           typeDossier: dto.typeDossierAva,
           codeTypeDossier: dto.typeDossierAva,
           libelleTypeDossier: typeDossierLabels[dto.typeDossierAva] || `Type ${dto.typeDossierAva}`,
@@ -368,6 +404,16 @@ export function AVAFraisVoyage() {
 
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
+      setAgences(
+        Array.from(
+          new Map(
+            dossiersTransformes.map((d) => [
+              String(d.codeAgence),
+              { codeAgence: String(d.codeAgence), libelleAgence: d.libelleAgence },
+            ]),
+          ).values(),
+        ),
+      );
       
       console.log('✅ API: Dossiers AVA chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
@@ -379,29 +425,6 @@ export function AVAFraisVoyage() {
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchAgences = async () => {
-    const mockAgences: Agence[] = [
-      { codeAgence: '100', libelleAgence: 'Agence Tunis Centre' },
-      { codeAgence: '200', libelleAgence: 'Agence Sfax' },
-      { codeAgence: '300', libelleAgence: 'Agence Sousse' },
-      { codeAgence: '400', libelleAgence: 'Agence Monastir' }
-    ];
-
-    try {
-      const response = await fetch('/api/ref/agences');
-      if (response.ok) {
-        const data = await safeJsonParse<Agence[]>(response);
-        if (data) {
-          setAgences(data);
-          return;
-        }
-      }
-      throw new Error('API_ERROR');
-    } catch (error) {
-      setAgences(mockAgences);
     }
   };
 
@@ -710,10 +733,14 @@ export function AVAFraisVoyage() {
       },
       documentsScannes: documents.map((doc, index) => {
         // Utiliser le nom du fichier original (nomImage) au lieu d'extraire depuis cheminFichier
+        const finalPath = doc.cheminFichier ||
+          (doc.nomImage && doc.pathAnnee && doc.pathMois
+            ? `${documentsBasePath.replace(/[\\/]+$/, '')}/${doc.pathAnnee}/${doc.pathMois}/${doc.nomImage}`
+            : '');
         return {
           ligne: index + 1,
           nomImage: doc.nomImage || '',
-          cheminFichier: doc.cheminFichier || '',
+          cheminFichier: finalPath,
           typeDocument: doc.typeDocument || 0
         };
       })
@@ -778,8 +805,13 @@ export function AVAFraisVoyage() {
     if (file) {
       // Nom original du fichier
       const nomImage = file.name;
-      // Chemin avec timestamp pour éviter les collisions
-      const cheminFichier = `uploads/${Date.now()}_${file.name}`;
+      const now = new Date();
+      const pathAnnee = String(now.getFullYear());
+      const pathMois = String(now.getMonth() + 1).padStart(2, '0');
+      const cleanBasePath = documentsBasePath.replace(/[\\/]+$/, '');
+      const cheminFichier = cleanBasePath
+        ? `${cleanBasePath}/${pathAnnee}/${pathMois}/${nomImage}`
+        : `${pathAnnee}/${pathMois}/${nomImage}`;
       
       // Mettre à jour tous les champs en une seule fois
       setDocuments(documents.map(d => 
@@ -787,6 +819,8 @@ export function AVAFraisVoyage() {
           ...d, 
           fichier: file,
           nomImage: nomImage,
+          pathAnnee,
+          pathMois,
           cheminFichier: cheminFichier 
         } : d
       ));
@@ -1415,7 +1449,7 @@ export function AVAFraisVoyage() {
                   <div className="space-y-2 col-span-2">
                     <Label>Type de Document</Label>
                     <Select
-                      value={document.typeDocument?.toString()}
+                      value={document.typeDocument?.toString() || ''}
                       onValueChange={(value) => updateDocument(document.id, 'typeDocument', Number(value))}
                     >
                       <SelectTrigger>
@@ -1450,6 +1484,33 @@ export function AVAFraisVoyage() {
                     <p className="text-xs text-muted-foreground">
                       Formats acceptés : PDF, JPG, PNG (Max 5 Mo)
                     </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Path Année</Label>
+                    <Input
+                      value={document.pathAnnee || ''}
+                      onChange={(e) => updateDocument(document.id, 'pathAnnee', e.target.value)}
+                      placeholder="YYYY"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Path Mois</Label>
+                    <Input
+                      value={document.pathMois || ''}
+                      onChange={(e) => updateDocument(document.id, 'pathMois', e.target.value)}
+                      placeholder="MM"
+                    />
+                  </div>
+
+                  <div className="space-y-2 col-span-2">
+                    <Label>Chemin document</Label>
+                    <Input
+                      readOnly
+                      value={document.cheminFichier || ''}
+                      placeholder="Le chemin est généré automatiquement"
+                    />
                   </div>
                 </div>
               </div>
@@ -1488,21 +1549,54 @@ export function AVAFraisVoyage() {
 
       {/* Dialog de succès */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-xl border border-slate-200 p-0">
+          <div className="bg-slate-50 border-b border-slate-200 p-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-emerald-100 p-2">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Frais de voyage validé</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Opération enregistrée avec succès pour le dossier{' '}
+                  <span className="font-semibold text-slate-800">{dossierSelectionne?.numeroDossier || '-'}</span>.
+                </p>
+              </div>
+            </div>
+          </div>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-              Opération réussie
-            </DialogTitle>
-            <DialogDescription>
-              L'opération Frais de Voyage a été enregistrée avec succès pour le dossier {dossierSelectionne?.numeroDossier}.
+            <DialogTitle className="sr-only">Succès</DialogTitle>
+            <DialogDescription className="sr-only">
+              Opération FV validée
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button onClick={handleSuccessDialogClose}>
-              OK
-            </Button>
-          </DialogFooter>
+          <div className="bg-white p-5">
+            <div className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Dossier</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{dossierSelectionne?.numeroDossier || '-'}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Client</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {`${dossierSelectionne?.prenomClient || ''} ${dossierSelectionne?.nomClient || ''}`.trim() || '-'}
+                </p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">Agence</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{dossierSelectionne?.libelleAgence || '-'}</p>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button
+                onClick={handleSuccessDialogClose}
+                className="h-10 rounded-md bg-slate-800 px-5 font-medium text-white hover:bg-slate-900"
+              >
+                Continue
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

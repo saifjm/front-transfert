@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Bell, X, CheckCheck, Trash2, FolderOpen, Shield, Settings2,
   FileBarChart, AlertOctagon, ChevronRight, Clock, CheckCircle2,
-  AlertTriangle, Info, XCircle, Filter, BellOff
+  AlertTriangle, Info, XCircle, Filter, BellOff, RefreshCw
 } from 'lucide-react';
 import { useNotifications, Notification, NotifType, NotifCategory } from './NotificationContext';
 
@@ -150,7 +150,7 @@ function SectionLabel({ label }: { label: string }) {
 type TabType = 'all' | 'unread' | 'alerte';
 
 function NotificationPanel({ onClose }: { onClose: () => void }) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, dismiss, clearAll } = useNotifications();
+  const { notifications, unreadCount, loading, error, refresh, markAsRead, markAllAsRead, dismiss, clearAll } = useNotifications();
   const [tab, setTab] = useState<TabType>('all');
 
   const filtered = notifications.filter(n => {
@@ -194,6 +194,10 @@ function NotificationPanel({ onClose }: { onClose: () => void }) {
                 <CheckCheck style={{ width: 13, height: 13 }} /> Tout lire
               </button>
             )}
+            <button onClick={() => { void refresh(); }} title="Actualiser"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B8CAE', background: 'none', border: 'none', borderRadius: 7, padding: '5px 8px', cursor: 'pointer' }}>
+              <RefreshCw style={{ width: 13, height: 13, animation: loading ? 'spin-slow 0.8s linear infinite' : 'none' }} />
+            </button>
             <button onClick={clearAll} title="Supprimer les lues"
               style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B8CAE', background: 'none', border: 'none', borderRadius: 7, padding: '5px 8px', cursor: 'pointer' }}>
               <Trash2 style={{ width: 13, height: 13 }} />
@@ -234,7 +238,23 @@ function NotificationPanel({ onClose }: { onClose: () => void }) {
 
       {/* Scrollable list */}
       <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', scrollbarColor: 'rgba(107,140,174,0.3) transparent' }}>
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', color: '#A8C0D9' }}>
+            <RefreshCw style={{ width: 30, height: 30, marginBottom: 12, opacity: 0.8, animation: 'spin-slow 0.8s linear infinite' }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#6B8CAE', margin: 0 }}>Chargement des notifications...</p>
+          </div>
+        ) : error ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', color: '#A8C0D9' }}>
+            <XCircle style={{ width: 32, height: 32, marginBottom: 12, color: '#dc2626' }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#b91c1c', margin: 0 }}>{error}</p>
+            <button
+              onClick={() => { void refresh(); }}
+              style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: '#435B7B', background: '#EEF3F7', border: '1px solid #D6E4F0', borderRadius: 7, padding: '6px 10px', cursor: 'pointer' }}
+            >
+              Réessayer
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', color: '#A8C0D9' }}>
             <BellOff style={{ width: 36, height: 36, marginBottom: 12, opacity: 0.5 }} />
             <p style={{ fontSize: 14, fontWeight: 600, color: '#6B8CAE', margin: 0 }}>Aucune notification</p>
