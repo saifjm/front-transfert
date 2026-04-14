@@ -100,3 +100,38 @@ export async function apiCall<T = any>(
     return { data: null, error: true };
   }
 }
+
+function sanitizePathPart(value: string): string {
+  return value.replace(/[\\]+/g, '/').replace(/^\/+|\/+$/g, '');
+}
+
+export function getCurrentDocumentPathParts() {
+  const now = new Date();
+  return {
+    pathAnnee: String(now.getFullYear()),
+    pathMois: String(now.getMonth() + 1).padStart(2, '0'),
+  };
+}
+
+export function buildDocumentPath(options: {
+  fileName: string;
+  basePath?: string;
+  pathAnnee?: string;
+  pathMois?: string;
+}) {
+  const fileName = (options.fileName || '').trim();
+  const fallback = getCurrentDocumentPathParts();
+  const pathAnnee = sanitizePathPart(options.pathAnnee || fallback.pathAnnee);
+  const pathMois = sanitizePathPart(options.pathMois || fallback.pathMois);
+  const cleanBase = sanitizePathPart((options.basePath || '').trim());
+
+  const relativePath = `/${pathAnnee}/${pathMois}/${fileName}`;
+  const fullPath = cleanBase ? `/${cleanBase}${relativePath}` : relativePath;
+
+  return {
+    pathAnnee,
+    pathMois,
+    relativePath,
+    fullPath,
+  };
+}

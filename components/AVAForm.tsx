@@ -1,28 +1,30 @@
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Eye,
-  FileText,
-  PlusCircle,
-  Search,
-  Send,
-  Trash2,
-  Upload
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
-import { controleRne } from '../utils/controleRne';
-import { DossierValidatedModal } from './DossierValidatedModal';
-import { Alert, AlertDescription } from './ui/alert';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Textarea } from './ui/textarea';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { 
+  PlusCircle, 
+  Trash2, 
+  Upload, 
+  FileText,
+  AlertTriangle,
+  CheckCircle2,
+  Save,
+  Send,
+  Search,
+  Eye
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { DossierValidatedModal } from './DossierValidatedModal';
+import { controleRne } from '../utils/controleRne';
+import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -202,6 +204,9 @@ export function AVAForm() {
   // État pour la prévisualisation des documents
   const [previewDocument, setPreviewDocument] = useState<{ file: File | null; url: string | null; name: string } | null>(null);
   const [localStorageDirHandle, setLocalStorageDirHandle] = useState<any>(null);
+  const skipDraftCleanupRef = useRef(false);
+  const persistedFilePathsRef = useRef<Set<string>>(new Set());
+  const documentsRef = useRef<DocumentDTO[]>([]);
   
   // États pour les données de référence
   const [banques, setBanques] = useState<Banque[]>([]);
@@ -250,6 +255,27 @@ export function AVAForm() {
   const [emailError, setEmailError] = useState<string>('');
   const [rneError, setRneError] = useState<string>('');
   const [clientNotFound, setClientNotFound] = useState<boolean>(false);
+
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  useEffect(() => {
+    return () => {
+      if (!skipDraftCleanupRef.current) {
+        const paths = Array.from(
+          new Set(
+            documentsRef.current
+              .map((d) => d.cheminFichier || '')
+              .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+          ),
+        );
+        if (paths.length > 0) {
+          void Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
+        }
+      }
+    };
+  }, []);
 
   // Constantes métier
   const CODE_ACTIVITE_TYPE4_OBLIGATOIRE = 26;
@@ -815,27 +841,48 @@ export function AVAForm() {
 
   // Suppression d'un document
   const removeDocument = (id: string) => {
+    const toDelete = documents.find((d) => d.id === id)?.cheminFichier;
+    if (toDelete && !persistedFilePathsRef.current.has(toDelete)) {
+      void deleteLocalFileByPath(toDelete);
+    }
     setDocuments(documents.filter(d => d.id !== id));
   };
 
   // Mise à jour d'un document
   const updateDocument = (id: string, field: keyof DocumentDTO, value: any) => {
-    setDocuments(documents.map(d => 
-      d.id === id ? { ...d, [field]: value } : d
-    ));
+    setDocuments(
+      documents.map((d) => {
+        if (d.id !== id) return d;
+        const next = { ...d, [field]: value } as DocumentDTO;
+        const fileName = next.referenceFichierJoint || '';
+        if (fileName) {
+          const built = buildDocumentPath({
+            fileName,
+            basePath: documentStorageBasePath,
+            pathAnnee: next.pathAnnee,
+            pathMois: next.pathMois,
+          });
+          next.pathAnnee = built.pathAnnee;
+          next.pathMois = built.pathMois;
+          next.cheminFichier = built.fullPath;
+        }
+        return next;
+      }),
+    );
   };
 
   // Gestion du changement de fichier
   const handleFileChange = (id: string, file: File | null) => {
     if (file) {
+      const previousPath = documents.find((d) => d.id === id)?.cheminFichier;
       const extension = file.name.split('.').pop() || '';
-      const now = new Date();
-      const pathAnnee = String(now.getFullYear());
-      const pathMois = String(now.getMonth() + 1).padStart(2, '0');
-      const cleanBasePath = documentStorageBasePath.replace(/[\\/]+$/, '');
-      const cheminFichier = cleanBasePath
-        ? `${cleanBasePath}/${pathAnnee}/${pathMois}/${file.name}`
-        : `${pathAnnee}/${pathMois}/${file.name}`;
+      const defaultParts = getCurrentDocumentPathParts();
+      const builtForSave = buildDocumentPath({
+        fileName: file.name,
+        basePath: documentStorageBasePath,
+        pathAnnee: defaultParts.pathAnnee,
+        pathMois: defaultParts.pathMois,
+      });
       setDocuments(documents.map(d => 
         d.id === id
           ? {
@@ -843,13 +890,30 @@ export function AVAForm() {
               fichier: file,
               referenceFichierJoint: file.name,
               extention: extension,
-              pathAnnee: d.pathAnnee || pathAnnee,
-              pathMois: d.pathMois || pathMois,
-              cheminFichier,
+              ...(() => {
+                const built = buildDocumentPath({
+                  fileName: file.name,
+                  basePath: documentStorageBasePath,
+                  pathAnnee: d.pathAnnee || defaultParts.pathAnnee,
+                  pathMois: d.pathMois || defaultParts.pathMois,
+                });
+                return {
+                  pathAnnee: built.pathAnnee,
+                  pathMois: built.pathMois,
+                  cheminFichier: built.fullPath,
+                };
+              })(),
             }
           : d
       ));
-      void saveFileToLocalPath(file, pathAnnee, pathMois);
+      if (
+        previousPath &&
+        previousPath !== builtForSave.fullPath &&
+        !persistedFilePathsRef.current.has(previousPath)
+      ) {
+        void deleteLocalFileByPath(previousPath);
+      }
+      void saveFileToLocalPath(file, builtForSave.pathAnnee, builtForSave.pathMois, builtForSave.fullPath);
     }
   };
 
@@ -868,14 +932,43 @@ export function AVAForm() {
     }
   };
 
-  const saveFileToLocalPath = async (file: File, pathAnnee: string, pathMois: string) => {
+  const saveFileToLocalPath = async (
+    file: File,
+    pathAnnee: string,
+    pathMois: string,
+    fullPath: string,
+  ) => {
+    const writeThroughDevServer = async () => {
+      const fileBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(fileBuffer);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const contentBase64 = btoa(binary);
+      const response = await fetch('/__localfs/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetPath: fullPath,
+          contentBase64,
+        }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; error?: string }>(response);
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP_${response.status}`);
+    };
+
     try {
       if (!documentStorageBasePath) return;
       const isLocalPath = /^[a-zA-Z]:[\\/]/.test(documentStorageBasePath) || documentStorageBasePath.startsWith('/');
       if (!isLocalPath) return;
 
       const picker = (window as any).showDirectoryPicker;
-      if (!picker) return;
+      if (!picker) {
+        await writeThroughDevServer();
+        return;
+      }
 
       let root = localStorageDirHandle;
       if (!root) {
@@ -896,6 +989,41 @@ export function AVAForm() {
     } catch (error) {
       console.warn('Échec sauvegarde locale document:', error);
     }
+  };
+
+  const deleteLocalFileByPath = async (targetPath: string) => {
+    try {
+      if (!targetPath) return;
+      const response = await fetch('/__localfs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPath }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; error?: string }>(response);
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP_${response.status}`);
+      console.log('🧹 [OUVERTURE] Fichier supprimé (draft cleanup):', targetPath);
+    } catch (error) {
+      console.warn('⚠️ [OUVERTURE] Suppression locale ignorée:', targetPath, error);
+    }
+  };
+
+  const cleanupDraftDocuments = async () => {
+    const paths = Array.from(
+      new Set(
+        documents
+          .map((d) => d.cheminFichier || '')
+          .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+      ),
+    );
+    if (paths.length === 0) return;
+    await Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
+  };
+
+  const markCurrentFilesAsPersisted = () => {
+    documents.forEach((d) => {
+      if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+    });
+    skipDraftCleanupRef.current = true;
   };
 
   // Prévisualiser un document
@@ -1180,7 +1308,22 @@ export function AVAForm() {
       
       // Préparation du DTO complet - Nettoyage des champs id temporaires
       const cleanBeneficiaires = beneficiaires.map(({ id, ...rest }) => rest);
-      const cleanDocuments = documents.map(({ id, fichier, ...rest }) => rest);
+      const cleanDocuments = documents.map(({ id, fichier, ...rest }) => {
+        const fileName = rest.referenceFichierJoint || '';
+        if (!fileName) return rest;
+        const built = buildDocumentPath({
+          fileName,
+          basePath: documentStorageBasePath,
+          pathAnnee: rest.pathAnnee,
+          pathMois: rest.pathMois,
+        });
+        return {
+          ...rest,
+          pathAnnee: built.pathAnnee,
+          pathMois: built.pathMois,
+          cheminFichier: built.fullPath,
+        };
+      });
       const cleanMarches = avaMarcheMvtListe.map(({ id, ...rest }) => rest);
 
       const dto: InitiationOuvertureDTO = {
@@ -1237,14 +1380,8 @@ export function AVAForm() {
       if (!creationResponse) {
         // Mode démonstration - simuler une réponse valide
         const mockResponse: OperationCreationResponseDTO = {
-          refOperation: 'MOCK-REF-' + Date.now(),
+          refOperation: Date.now(),
           numDossier: Math.floor(Math.random() * 10000) + 1000,
-          codeAgenceAva: formData.codeAgenceAva,
-          codeTypeDosAva: formData.codeTypeDosAva,
-          dateDossier: formData.dateDossier || new Date().toISOString().split('T')[0],
-          noPieceClient: formData.noPieceClient,
-          nomClient: clientInfo?.nom,
-          prenomClient: clientInfo?.prenom
         };
         
         // Utiliser la réponse mock et continuer en mode démonstration
@@ -1276,36 +1413,115 @@ export function AVAForm() {
       // SUCCÈS - Afficher le popup de dossier ouvert
       // ═══════════════════════════════════════════════════════════════════════
 
-      // Mapper la réponse vers OuvertureDossierDTO pour le modal
-      const dossierOuvertResponse: OuvertureDossierDTO = {
-        numDossier: creationResponse.numDossier,
-        codeTypeDosAva: creationResponse.codeTypeDosAva || formData.codeTypeDosAva,
-        dateDossier: creationResponse.dateDossier || formData.dateDossier || new Date().toISOString().split('T')[0],
-        codeAgenceAva: creationResponse.codeAgenceAva || formData.codeAgenceAva,
+      console.log(`📤 [ÉTAPE 2/2] Validation du dossier ${creationResponse.numDossier}...`);
+      
+      toast.info('Validation du dossier en cours...', {
+        description: `Étape 2/2 : Création de l'opération déléguée finale`,
+      });
+
+      const validationResponse = await fetch(`/api/operations-deleguees/validation/${creationResponse.numDossier}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Vérifier le statut de la réponse
+      if (!validationResponse.ok) {
+        let errorMessage = 'Erreur lors de la validation du dossier';
+        let errorDetails = '';
+        
+        const errorData = await safeJsonParse<any>(validationResponse);
+        if (errorData) {
+          errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
+        } else {
+          errorDetails = `Code HTTP ${validationResponse.status} : ${validationResponse.statusText}`;
+        }
+
+        if (validationResponse.status === 404) {
+          errorMessage = 'Numéro de dossier introuvable';
+          errorDetails = `Le dossier ${creationResponse.numDossier} n'a pas été trouvé`;
+        } else if (validationResponse.status === 422) {
+          errorMessage = 'Contrôles métier non satisfaits';
+          errorDetails = errorDetails || 'Les contrôles métier (RIB, matricule, montants) ont échoué';
+        }
+
+        toast.error(errorMessage, {
+          description: errorDetails,
+        });
+        
+        console.error('❌ [ÉTAPE 2/2] Erreur de validation:', errorDetails);
+        return;
+      }
+
+      // Récupérer le dossier validé complet
+      const validationApiResponse = await safeJsonParse<any>(validationResponse);
+      if (!validationApiResponse) {
+        // En mode démonstration, utiliser les données de l'étape 1
+        const mockValidatedResponse: OuvertureDossierDTO = {
+          ...creationResponse,
+          // Ajouter les données manquantes
+          mntAutorise: banqueProvenance.mntAutorise,
+          mntAvance: banqueProvenance.mntAvance,
+        } as OuvertureDossierDTO;
+        
+        // Afficher le modal de succès avec les données mock
+        markCurrentFilesAsPersisted();
+        setDossierValide(mockValidatedResponse);
+        setShowDossierModal(true);
+        return;
+      }
+      
+      // Mapper la réponse de l'API vers le format OuvertureDossierDTO
+      // L'API retourne: { codeActivite, codeAgence, dateDossier, declarationFiscale, 
+      //                  mntAutorise, mntAutoriseBct, mntAvance, mntBlocage, mntReserve, 
+      //                  mntUtilise, noPieceClient, numDossier, numeroCompte, solde, typeDossierAva }
+      const dossierValideResponse: OuvertureDossierDTO = {
+        numDossier: validationApiResponse.numDossier,
+        codeTypeDosAva: validationApiResponse.typeDossierAva, // API: typeDossierAva -> DTO: codeTypeDosAva
+        dateDossier: validationApiResponse.dateDossier,
+        codeAgenceAva: validationApiResponse.codeAgence, // API: codeAgence -> DTO: codeAgenceAva
         typePieceClient: formData.typePieceClient,
         noPieceClient: formData.noPieceClient,
-        numeroCompte: formData.compteClient, // Utiliser le compte sélectionné
+        numeroCompte: formData.compteClient ? String(formData.compteClient) : undefined, // Utiliser le compte sélectionné
         tel: formData.tel,
         codeActivite: formData.codeActivite,
         codeSousActivite: formData.codeSousActivite,
-        declarationFiscale: formData.declarationFiscale,
-        dateUltDeclCaf: formData.dateUltDeclCaf,
-        mntAvance: formData.mntAvance || 0,
-        mntUtilise: 0,
-        mntAutorise: formData.mntAutorise || 0,
-        mntAutoriseBct: formData.mntAutoriseBct || 0,
-        mntReserve: 0,
-        mntBlocage: 0,
-        solde: (formData.mntAutorise || 0) + (formData.mntAvance || 0),
-        beneficiaires: formData.beneficiairesMvtListe as BeneficiaireDTO[],
-        documents: formData.documents,
+        declarationFiscale: validationApiResponse.declarationFiscale,
+        dateUltDeclCaf: (formData as any).dateUltDeclCaf,
+        mntAvance: validationApiResponse.mntAvance,
+        mntUtilise: validationApiResponse.mntUtilise,
+        mntAutorise: validationApiResponse.mntAutorise,
+        mntAutoriseBct: validationApiResponse.mntAutoriseBct,
+        mntReserve: validationApiResponse.mntReserve,
+        mntBlocage: validationApiResponse.mntBlocage,
+        solde: validationApiResponse.solde,
+        beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
+        documents: cleanDocuments as DocumentDTO[],
         avaMarche: formData.avaMarcheMvtListe?.[0] as AvaMarcheDTO
       };
 
-      console.log('✅ Dossier ouvert - Détails:', dossierOuvertResponse);
+      toast.success('🎉 Dossier AVA créé et validé avec succès !', {
+        description: `Numéro de dossier: ${dossierValideResponse.numDossier} | Date: ${dossierValideResponse.dateDossier || 'N/A'} | Bénéficiaires: ${dossierValideResponse.beneficiaires?.length || 0}`,
+        duration: 5000,
+      });
 
-      // Ouvrir le modal avec les détails du dossier ouvert
-      setDossierValide(dossierOuvertResponse);
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ SUCCÈS COMPLET - Détails du dossier validé:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Numéro dossier:', dossierValideResponse.numDossier);
+      console.log('Type dossier:', dossierValideResponse.codeTypeDosAva);
+      console.log('Date dossier:', dossierValideResponse.dateDossier);
+      console.log('Client RNE:', dossierValideResponse.noPieceClient);
+      console.log('Compte:', dossierValideResponse.numeroCompte);
+      console.log('Activité:', dossierValideResponse.codeActivite);
+      console.log('Bénéficiaires:', dossierValideResponse.beneficiaires?.length || 0);
+      console.log('Documents:', dossierValideResponse.documents?.length || 0);
+      console.log('Montant Autorisé:', dossierValideResponse.mntAutorise);
+      console.log('Solde:', dossierValideResponse.solde);
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Ouvrir le modal avec les détails du dossier validé
+      markCurrentFilesAsPersisted();
+      setDossierValide(dossierValideResponse);
       setShowDossierModal(true);
     } catch (error) {
       toast.error('Erreur lors de l\'enregistrement', {
@@ -1319,6 +1535,10 @@ export function AVAForm() {
 
   // Réinitialisation du formulaire
   const resetForm = () => {
+    if (!skipDraftCleanupRef.current) {
+      void cleanupDraftDocuments();
+    }
+    skipDraftCleanupRef.current = false;
     setFormData({ beneficiairesMvtListe: [], documents: [], avaMarcheMvtListe: [], typePieceClient: 3 });
     setBeneficiaires([]);
     setDocuments([]);
@@ -1333,6 +1553,7 @@ export function AVAForm() {
   const handleCloseModal = () => {
     setShowDossierModal(false);
     setDossierValide(null);
+    skipDraftCleanupRef.current = true;
     resetForm();
   };
 
@@ -1793,7 +2014,7 @@ export function AVAForm() {
                       clearFieldError('mntAvance');
                     }}
                     placeholder="0.00"
-                    disabled={isMontantAvanceReadonly}
+                    disabled={Boolean(isMontantAvanceReadonly)}
                     className={`${isMontantAvanceReadonly ? 'bg-muted cursor-not-allowed' : ''} ${fieldErrors.mntAvance ? 'border-red-500' : ''}`}
                   />
                   {fieldErrors.mntAvance && (

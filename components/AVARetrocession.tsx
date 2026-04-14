@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DocumentsManager } from './DocumentsManager';
-import { safeJsonParse } from '../utils';
+import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -66,6 +66,7 @@ interface Agence {
 }
 
 export function AVARetrocession() {
+  const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
   const [etape, setEtape] = useState<'recherche' | 'retrocession'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
@@ -95,6 +96,8 @@ export function AVARetrocession() {
     id: string;
     typeDocument?: number;
     nomImage?: string;
+    pathAnnee?: string;
+    pathMois?: string;
     cheminFichier?: string;
     fichier?: File | null;
   }>>([]);
@@ -104,11 +107,36 @@ export function AVARetrocession() {
   const [loadingOperations, setLoadingOperations] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [operationSelectionnee, setOperationSelectionnee] = useState<OperationMouvement | null>(null);
+  const localStorageDirHandleRef = useRef<any>(null);
+  const skipDraftCleanupRef = useRef(false);
+  const persistedFilePathsRef = useRef<Set<string>>(new Set());
+  const documentsRef = useRef<typeof documents>([]);
 
   // Charger les dossiers et agences au montage
   useEffect(() => {
     fetchDossiers();
     fetchAgences();
+  }, []);
+
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  useEffect(() => {
+    return () => {
+      if (!skipDraftCleanupRef.current) {
+        const paths = Array.from(
+          new Set(
+            documentsRef.current
+              .map((d) => d.cheminFichier || '')
+              .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+          ),
+        );
+        if (paths.length > 0) {
+          void Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
+        }
+      }
+    };
   }, []);
 
   // Charger les dossiers AVA
@@ -266,6 +294,10 @@ export function AVARetrocession() {
 
   // Retour à la recherche
   const handleRetourRecherche = () => {
+    if (!skipDraftCleanupRef.current) {
+      void cleanupDraftDocuments();
+    }
+    skipDraftCleanupRef.current = false;
     setEtape('recherche');
     setDossierSelectionne(null);
     setRetrocession({
@@ -274,6 +306,82 @@ export function AVARetrocession() {
     setErrors({});
     setDocuments([]);
     setOperations([]); // Réinitialiser les opérations
+  };
+
+  const deleteLocalFileByPath = async (targetPath: string) => {
+    try {
+      if (!targetPath) return;
+      const response = await fetch('/__localfs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPath }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; error?: string }>(response);
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP_${response.status}`);
+      console.log('🧹 [RC] Fichier supprimé (draft cleanup):', targetPath);
+    } catch (error) {
+      console.warn('⚠️ [RC] Suppression locale ignorée:', targetPath, error);
+    }
+  };
+
+  const cleanupDraftDocuments = async () => {
+    const paths = Array.from(
+      new Set(
+        documents
+          .map((d) => d.cheminFichier || '')
+          .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+      ),
+    );
+    if (paths.length === 0) return;
+    await Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
+  };
+
+  const saveFileToLocalPath = async (file: File, fullPath: string, pathAnnee: string, pathMois: string) => {
+    const writeThroughDevServer = async () => {
+      const fileBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(fileBuffer);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const contentBase64 = btoa(binary);
+      const response = await fetch('/__localfs/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPath: fullPath, contentBase64 }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; error?: string }>(response);
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP_${response.status}`);
+    };
+
+    try {
+      if (!documentsBasePath) return;
+      const isLocalPath = /^[a-zA-Z]:[\\/]/.test(documentsBasePath) || documentsBasePath.startsWith('/');
+      if (!isLocalPath) return;
+
+      const picker = (window as any).showDirectoryPicker;
+      if (!picker) {
+        await writeThroughDevServer();
+        return;
+      }
+
+      let root = localStorageDirHandleRef.current;
+      if (!root) {
+        root = await picker({ mode: 'readwrite' });
+        localStorageDirHandleRef.current = root;
+      }
+      if (!root) return;
+
+      const yearDir = await root.getDirectoryHandle(pathAnnee, { create: true });
+      const monthDir = await yearDir.getDirectoryHandle(pathMois, { create: true });
+      const fileHandle = await monthDir.getFileHandle(file.name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+    } catch (error) {
+      console.warn('⚠️ [RC] Échec sauvegarde locale document:', error);
+    }
   };
 
   // Charger les opérations associées au dossier
@@ -425,9 +533,16 @@ export function AVARetrocession() {
       // Ajouter les documents scannés s'ils sont présents (pour RAV et RRV)
       if (documents.length > 0) {
         payload.documentsScannes = documents.map((doc, index) => ({
+          cheminFichier: doc.nomImage
+            ? buildDocumentPath({
+                fileName: doc.nomImage,
+                basePath: documentsBasePath,
+                pathAnnee: doc.pathAnnee,
+                pathMois: doc.pathMois,
+              }).fullPath
+            : '',
           ligne: index + 1,
           nomImage: doc.nomImage || '',
-          cheminFichier: doc.cheminFichier || '',
           typeDocument: doc.typeDocument || 1
         }));
       }
@@ -439,6 +554,10 @@ export function AVARetrocession() {
       });
 
       if (response.ok) {
+        documents.forEach((d) => {
+          if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+        });
+        skipDraftCleanupRef.current = true;
         toast.success('Rétrocession enregistrée avec succès', {
           description: `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
         });
@@ -469,6 +588,10 @@ export function AVARetrocession() {
         return;
       }
     } catch (error: any) {
+      documents.forEach((d) => {
+        if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+      });
+      skipDraftCleanupRef.current = true;
       console.info('ℹ️ Mode démonstration', error);
       toast.success(`✓ Rétrocession ${retrocession.typeMouvement} enregistrée (mode démo)`, {
         description: `Dossier ${dossierSelectionne.numeroDossier}`
@@ -488,23 +611,56 @@ export function AVARetrocession() {
   };
 
   const removeDocument = (id: string) => {
+    const toDelete = documents.find((d) => d.id === id)?.cheminFichier;
+    if (toDelete && !persistedFilePathsRef.current.has(toDelete)) {
+      void deleteLocalFileByPath(toDelete);
+    }
     setDocuments(documents.filter(d => d.id !== id));
   };
 
   const updateDocument = (id: string, field: string, value: any) => {
-    setDocuments(documents.map(d => 
-      d.id === id ? { ...d, [field]: value } : d
-    ));
+    setDocuments(
+      documents.map((d) => {
+        if (d.id !== id) return d;
+        const next = { ...d, [field]: value };
+        const fileName = next.nomImage || '';
+        if (fileName) {
+          const built = buildDocumentPath({
+            fileName,
+            basePath: documentsBasePath,
+            pathAnnee: next.pathAnnee,
+            pathMois: next.pathMois,
+          });
+          next.pathAnnee = built.pathAnnee;
+          next.pathMois = built.pathMois;
+          next.cheminFichier = built.fullPath;
+        }
+        return next;
+      }),
+    );
   };
 
   const handleFileChange = (id: string, file: File | null) => {
     if (file) {
+      const previousPath = documents.find((d) => d.id === id)?.cheminFichier;
       const nomImage = file.name;
-      const cheminFichier = `/documents/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${file.name}`;
+      const defaultParts = getCurrentDocumentPathParts();
+      const built = buildDocumentPath({
+        fileName: file.name,
+        basePath: documentsBasePath,
+        pathAnnee: defaultParts.pathAnnee,
+        pathMois: defaultParts.pathMois,
+      });
       
       updateDocument(id, 'fichier', file);
       updateDocument(id, 'nomImage', nomImage);
-      updateDocument(id, 'cheminFichier', cheminFichier);
+      updateDocument(id, 'pathAnnee', built.pathAnnee);
+      updateDocument(id, 'pathMois', built.pathMois);
+      updateDocument(id, 'cheminFichier', built.fullPath);
+      if (previousPath && previousPath !== built.fullPath && !persistedFilePathsRef.current.has(previousPath)) {
+        void deleteLocalFileByPath(previousPath);
+      }
+      void saveFileToLocalPath(file, built.fullPath, built.pathAnnee, built.pathMois);
     }
   };
 
@@ -523,6 +679,10 @@ export function AVARetrocession() {
 
   // Fermer le dialog et réinitialiser
   const handleCloseDialog = () => {
+    if (!skipDraftCleanupRef.current) {
+      void cleanupDraftDocuments();
+    }
+    skipDraftCleanupRef.current = false;
     setOpenDialog(false);
     setOperationSelectionnee(null);
     setRetrocession({
@@ -568,9 +728,16 @@ export function AVARetrocession() {
       // Ajouter les documents scannés s'ils sont présents (pour RAV et RRV)
       if (documents.length > 0) {
         payload.documentsScannes = documents.map((doc, index) => ({
+          cheminFichier: doc.nomImage
+            ? buildDocumentPath({
+                fileName: doc.nomImage,
+                basePath: documentsBasePath,
+                pathAnnee: doc.pathAnnee,
+                pathMois: doc.pathMois,
+              }).fullPath
+            : '',
           ligne: index + 1,
           nomImage: doc.nomImage || '',
-          cheminFichier: doc.cheminFichier || '',
           typeDocument: doc.typeDocument || 1
         }));
       }
@@ -582,6 +749,10 @@ export function AVARetrocession() {
       });
 
       if (response.ok) {
+        documents.forEach((d) => {
+          if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+        });
+        skipDraftCleanupRef.current = true;
         toast.success('Rétrocession enregistrée avec succès', {
           description: `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
         });
@@ -612,6 +783,10 @@ export function AVARetrocession() {
         return;
       }
     } catch (error: any) {
+      documents.forEach((d) => {
+        if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+      });
+      skipDraftCleanupRef.current = true;
       console.info('ℹ️ Mode démonstration', error);
       toast.success(`✓ Rétrocession ${retrocession.typeMouvement} enregistrée (mode démo)`, {
         description: `Dossier ${dossierSelectionne.numeroDossier}`

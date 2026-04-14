@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
-import { Textarea } from './ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +25,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
+import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 
 // ============= INTERFACES =============
 
@@ -75,43 +74,11 @@ interface BeneficiaireSummaryDTO {
   typePieceBenef: number;
 }
 
-// Interfaces pour l'API business-rules-fv
-interface OperationFVDTO {
-  codeTypeDosAva?: number;
-  dossier: DossierFVDTO;
-  montants: MontantsFVDTO;
-  mouvement: MouvementFVDTO;
-  documentsScannes: DocumentScanneFVDTO[];
-}
-
 interface ValidationErrorResponse {
   nombreErreurs: number;
   erreurs: string[];
   valide: boolean;
   message: string;
-}
-
-interface DossierFVDTO {
-  agence: { code: string; libelle: string };
-  numeroDossier: string;
-  dateDossier: string; // dd/MM/yyyy
-  echeance?: string; // dd/MM/yyyy
-  typeDossier: string;
-  pieceClient: { typePiece: string; numeroPiece: string };
-  compteRib?: { banque: string; agence: string; racineCompte: string; cleRib: string };
-  nomClientBanque?: string;
-  nomClientPassager?: string;
-}
-
-interface MontantsFVDTO {
-  baseCalcul?: number;
-  caFiscalHT?: number;
-  totalAutorise?: number;
-  totalUtilise?: number;
-  avance?: number;
-  solde?: number;
-  netAutorise?: number;
-  devise?: number;
 }
 
 interface MouvementFVDTO {
@@ -134,17 +101,11 @@ interface BeneficiaireFVDTO {
   nom: string;
 }
 
-interface DocumentScanneFVDTO {
-  ligne: number;
-  nomImage: string;
-  cheminFichier: string;
-  typeDocument: number;
-}
-
 // ============= COMPOSANT PRINCIPAL =============
 
 export function AVAFraisVoyage() {
   const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
+  const [localStorageDirHandle, setLocalStorageDirHandle] = useState<any>(null);
   const [etape, setEtape] = useState<'recherche' | 'frais'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
@@ -206,12 +167,37 @@ export function AVAFraisVoyage() {
 
   // États de validation
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const skipDraftCleanupRef = useRef(false);
+  const persistedFilePathsRef = useRef<Set<string>>(new Set());
+  const documentsRef = useRef<typeof documents>([]);
 
   // ============= EFFET DE CHARGEMENT INITIAL =============
   
   useEffect(() => {
     fetchDossiers();
     fetchDevises();
+  }, []);
+
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  useEffect(() => {
+    return () => {
+      if (!skipDraftCleanupRef.current) {
+        const paths = Array.from(
+          new Set(
+            documentsRef.current
+              .map((d) => d.cheminFichier || '')
+              .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+          ),
+        );
+        if (paths.length > 0) {
+          console.log('🧹 [FV] Nettoyage à la fermeture (non enregistré):', paths);
+          void Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
+        }
+      }
+    };
   }, []);
 
   // ============= FONCTIONS API =============
@@ -605,6 +591,10 @@ export function AVAFraisVoyage() {
   };
 
   const handleRetourRecherche = () => {
+    if (!skipDraftCleanupRef.current) {
+      void cleanupDraftDocuments();
+    }
+    skipDraftCleanupRef.current = false;
     setEtape('recherche');
     setDossierSelectionne(null);
     const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -623,6 +613,38 @@ export function AVAFraisVoyage() {
       }
     });
     setErrors({});
+    setDocuments([]);
+  };
+
+  const deleteLocalFileByPath = async (targetPath: string) => {
+    try {
+      if (!targetPath) return;
+      const response = await fetch('/__localfs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPath }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; path?: string; error?: string }>(response);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || `HTTP_${response.status}`);
+      }
+      console.log('🧹 [FV] Fichier supprimé (draft cleanup):', payload.path || targetPath);
+    } catch (error) {
+      console.warn('⚠️ [FV] Suppression locale ignorée:', targetPath, error);
+    }
+  };
+
+  const cleanupDraftDocuments = async () => {
+    const paths = Array.from(
+      new Set(
+        documents
+          .map((d) => d.cheminFichier || '')
+          .filter((p) => Boolean(p) && !persistedFilePathsRef.current.has(p)),
+      ),
+    );
+    if (paths.length === 0) return;
+    console.log('🧹 [FV] Nettoyage des pièces jointes non enregistrées...', paths);
+    await Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
   };
 
   // ============= VALIDATION ET SOUMISSION =============
@@ -732,15 +754,16 @@ export function AVAFraisVoyage() {
         dateRetour: mouvement.dateRetour || ''
       },
       documentsScannes: documents.map((doc, index) => {
-        // Utiliser le nom du fichier original (nomImage) au lieu d'extraire depuis cheminFichier
-        const finalPath = doc.cheminFichier ||
-          (doc.nomImage && doc.pathAnnee && doc.pathMois
-            ? `${documentsBasePath.replace(/[\\/]+$/, '')}/${doc.pathAnnee}/${doc.pathMois}/${doc.nomImage}`
-            : '');
+        const built = buildDocumentPath({
+          fileName: doc.nomImage || '',
+          basePath: documentsBasePath,
+          pathAnnee: doc.pathAnnee,
+          pathMois: doc.pathMois,
+        });
         return {
           ligne: index + 1,
           nomImage: doc.nomImage || '',
-          cheminFichier: finalPath,
+          cheminFichier: doc.nomImage ? built.fullPath : '',
           typeDocument: doc.typeDocument || 0
         };
       })
@@ -757,6 +780,10 @@ export function AVAFraisVoyage() {
       console.log('✅ API operations-fv - Réponse:', result);
       
       if (response.ok) {
+        documents.forEach((d) => {
+          if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+        });
+        skipDraftCleanupRef.current = true;
         setShowSuccessDialog(true);
       } else {
         // Fallback when backend returns structured errors
@@ -768,7 +795,10 @@ export function AVAFraisVoyage() {
     } catch (error: any) {
       console.info('ℹ️ Mode démonstration - Simulation de succès (business-rules-fv/valider)');
       console.log('📦 DTO envoyé:', JSON.stringify(operationFV, null, 2));
-      
+      documents.forEach((d) => {
+        if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+      });
+      skipDraftCleanupRef.current = true;
       setShowSuccessDialog(true);
     } finally {
       setIsSubmitting(false);
@@ -792,26 +822,47 @@ export function AVAFraisVoyage() {
   };
 
   const removeDocument = (id: string) => {
+    const toDelete = documents.find((d) => d.id === id)?.cheminFichier;
+    if (toDelete && !persistedFilePathsRef.current.has(toDelete)) {
+      void deleteLocalFileByPath(toDelete);
+    }
     setDocuments(documents.filter(d => d.id !== id));
   };
 
   const updateDocument = (id: string, field: string, value: any) => {
-    setDocuments(documents.map(d => 
-      d.id === id ? { ...d, [field]: value } : d
-    ));
+    setDocuments(
+      documents.map((d) => {
+        if (d.id !== id) return d;
+        const next = { ...d, [field]: value };
+        const fileName = next.nomImage || '';
+        if (fileName) {
+          const built = buildDocumentPath({
+            fileName,
+            basePath: documentsBasePath,
+            pathAnnee: next.pathAnnee,
+            pathMois: next.pathMois,
+          });
+          next.pathAnnee = built.pathAnnee;
+          next.pathMois = built.pathMois;
+          next.cheminFichier = built.fullPath;
+        }
+        return next;
+      }),
+    );
   };
 
   const handleFileChange = (id: string, file: File | null) => {
     if (file) {
+      const previousPath = documents.find((d) => d.id === id)?.cheminFichier;
       // Nom original du fichier
       const nomImage = file.name;
-      const now = new Date();
-      const pathAnnee = String(now.getFullYear());
-      const pathMois = String(now.getMonth() + 1).padStart(2, '0');
-      const cleanBasePath = documentsBasePath.replace(/[\\/]+$/, '');
-      const cheminFichier = cleanBasePath
-        ? `${cleanBasePath}/${pathAnnee}/${pathMois}/${nomImage}`
-        : `${pathAnnee}/${pathMois}/${nomImage}`;
+      const defaultParts = getCurrentDocumentPathParts();
+      console.log('📎 [FV] Document sélectionné:', {
+        id,
+        nomImage,
+        size: file.size,
+        type: file.type || 'unknown',
+      });
       
       // Mettre à jour tous les champs en une seule fois
       setDocuments(documents.map(d => 
@@ -819,11 +870,113 @@ export function AVAFraisVoyage() {
           ...d, 
           fichier: file,
           nomImage: nomImage,
-          pathAnnee,
-          pathMois,
-          cheminFichier: cheminFichier 
+          ...(() => {
+            const built = buildDocumentPath({
+              fileName: nomImage,
+              basePath: documentsBasePath,
+              pathAnnee: d.pathAnnee || defaultParts.pathAnnee,
+              pathMois: d.pathMois || defaultParts.pathMois,
+            });
+            return {
+              pathAnnee: built.pathAnnee,
+              pathMois: built.pathMois,
+              cheminFichier: built.fullPath,
+            };
+          })(),
         } : d
       ));
+
+      const builtForSave = buildDocumentPath({
+        fileName: nomImage,
+        basePath: documentsBasePath,
+        pathAnnee: defaultParts.pathAnnee,
+        pathMois: defaultParts.pathMois,
+      });
+      console.log('🗂️ [FV] Chemin cible calculé:', builtForSave.fullPath);
+      if (
+        previousPath &&
+        previousPath !== builtForSave.fullPath &&
+        !persistedFilePathsRef.current.has(previousPath)
+      ) {
+        void deleteLocalFileByPath(previousPath);
+      }
+      void saveFileToLocalPath(file, builtForSave.pathAnnee, builtForSave.pathMois, builtForSave.fullPath);
+    }
+  };
+
+  const saveFileToLocalPath = async (
+    file: File,
+    pathAnnee: string,
+    pathMois: string,
+    fullPath: string,
+  ) => {
+    const writeThroughDevServer = async () => {
+      const fileBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(fileBuffer);
+      let binary = '';
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const contentBase64 = btoa(binary);
+      const response = await fetch('/__localfs/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetPath: fullPath,
+          contentBase64,
+        }),
+      });
+      const payload = await safeJsonParse<{ ok?: boolean; error?: string; path?: string }>(response);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || `HTTP_${response.status}`);
+      }
+      return payload.path || fullPath;
+    };
+
+    try {
+      if (!documentsBasePath) {
+        console.warn('⚠️ [FV] VITE_DOCUMENTS_BASE_PATH non défini, sauvegarde locale ignorée.');
+        return;
+      }
+
+      const isLocalPath = /^[a-zA-Z]:[\\/]/.test(documentsBasePath) || documentsBasePath.startsWith('/');
+      if (!isLocalPath) {
+        console.warn('⚠️ [FV] Base path non locale, sauvegarde physique navigateur ignorée:', documentsBasePath);
+        return;
+      }
+
+      const picker = (window as any).showDirectoryPicker;
+      if (!picker) {
+        console.warn('⚠️ [FV] showDirectoryPicker non supporté, fallback via /__localfs/write...');
+        const writtenPath = await writeThroughDevServer();
+        console.log('✅ [FV] Document enregistré via serveur local Vite:', writtenPath);
+        toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
+        return;
+      }
+
+      let root = localStorageDirHandle;
+      if (!root) {
+        console.log('📂 [FV] Demande de sélection du dossier local...');
+        root = await picker({ mode: 'readwrite' });
+        setLocalStorageDirHandle(root);
+        console.log('✅ [FV] Dossier local autorisé:', root?.name || '(inconnu)');
+      }
+      if (!root) return;
+
+      console.log('💾 [FV] Début écriture locale:', { pathAnnee, pathMois, file: file.name });
+      const yearDir = await root.getDirectoryHandle(pathAnnee, { create: true });
+      const monthDir = await yearDir.getDirectoryHandle(pathMois, { create: true });
+      const fileHandle = await monthDir.getFileHandle(file.name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+
+      console.log('✅ [FV] Document enregistré localement:', fullPath);
+      toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
+    } catch (error) {
+      console.error('❌ [FV] Échec sauvegarde locale document:', error);
+      toast.error('Échec de sauvegarde locale du document');
     }
   };
 
