@@ -13,7 +13,16 @@ import IbansysPoc.AVA.entity.Beneficiaire;
 @Mapper(componentModel = "spring")
 public interface BeneficiaireMapper {
 
+    @Mapping(source = "id.numDossier", target = "numDossier")
+    @Mapping(source = "id.dateDossier", target = "dateDossier")
+    @Mapping(source = "id.typePieceBenef", target = "typePieceBenef")
+    @Mapping(source = "id.noPieceBenef", target = "noPieceBenef")
     BeneficiaireDTO toDTO(Beneficiaire entity);
+
+    @Mapping(source = "numDossier", target = "id.numDossier")
+    @Mapping(source = "dateDossier", target = "id.dateDossier")
+    @Mapping(source = "typePieceBenef", target = "id.typePieceBenef")
+    @Mapping(source = "noPieceBenef", target = "id.noPieceBenef")
     Beneficiaire toEntity(BeneficiaireDTO dto);
     List<BeneficiaireDTO> toDTOList(List<Beneficiaire> entities);
     List<Beneficiaire> toEntityList(List<BeneficiaireDTO> dtos);
