@@ -1,30 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { 
-  PlusCircle, 
-  Trash2, 
-  Upload, 
-  FileText, 
+import {
   AlertTriangle,
   CheckCircle2,
-  Save,
-  Send,
+  Eye,
+  FileText,
+  PlusCircle,
   Search,
-  Eye
+  Send,
+  Trash2,
+  Upload
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { DossierValidatedModal } from './DossierValidatedModal';
-import { controleRne } from '../utils/controleRne';
 import { safeJsonParse } from '../utils';
+import { controleRne } from '../utils/controleRne';
+import { DossierValidatedModal } from './DossierValidatedModal';
+import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -158,7 +156,7 @@ interface OuvertureDossierDTO {
   avaMarche?: AvaMarcheDTO;
 }
 
-interface InitiationOuvertureDTO {
+interface   InitiationOuvertureDTO {
   codeTypeDosAva?: number;
   typePieceClient?: number;
   noPieceClient?: string;
@@ -202,7 +200,6 @@ export function AVAForm() {
   const [banques, setBanques] = useState<Banque[]>([]);
   const [typesPiece, setTypesPiece] = useState<TypePiece[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
-  const [sousActivites, setSousActivites] = useState<Activite[]>([]);
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [devises, setDevises] = useState<Devise[]>([]);
   
@@ -210,7 +207,6 @@ export function AVAForm() {
   const [loadingBanques, setLoadingBanques] = useState(false);
   const [loadingTypesPiece, setLoadingTypesPiece] = useState(false);
   const [loadingActivites, setLoadingActivites] = useState(false);
-  const [loadingSousActivites, setLoadingSousActivites] = useState(false);
   const [loadingPieces, setLoadingPieces] = useState(false);
   const [loadingDevises, setLoadingDevises] = useState(false);
   
@@ -298,19 +294,8 @@ export function AVAForm() {
       { codeTypePiece: 4, libelleTypePiece: "Carte de séjour" },
       { codeTypePiece: 7, libelleTypePiece: "Passeport" }
     ];
-    try {
-      const response = await fetch('/api/ref/tpieces');
-      const data = await safeJsonParse<TypePiece[]>(response);
-      if (data) {
-        setTypesPiece(data);
-      } else {
-        throw new Error('NO_DATA');
-      }
-    } catch (error) {
       setTypesPiece(mockTypesPiece);
-    } finally {
-      setLoadingTypesPiece(false);
-    }
+    setLoadingTypesPiece(false);
   };
 
   // Charger les banques
@@ -357,29 +342,6 @@ export function AVAForm() {
       setActivites(mockActivites);
     } finally {
       setLoadingActivites(false);
-    }
-  };
-
-  // Charger les sous-activités (depuis /api/ref/activites)
-  const fetchSousActivites = async () => {
-    setLoadingSousActivites(true);
-    try {
-      const response = await fetch('/api/ref/activites');
-      const data = await safeJsonParse<Activite[]>(response);
-      if (data) {
-        setSousActivites(data);
-      } else {
-        throw new Error('NO_DATA');
-      }
-    } catch (error) {
-      const mockSousActivites: Activite[] = [
-        { codeActivite: 1, libActivite: "Sous-activité 1" },
-        { codeActivite: 2, libActivite: "Sous-activité 2" },
-        { codeActivite: 3, libActivite: "Sous-activité 3" }
-      ];
-      setSousActivites(mockSousActivites);
-    } finally {
-      setLoadingSousActivites(false);
     }
   };
 
@@ -434,7 +396,6 @@ export function AVAForm() {
     fetchTypesPiece();
     fetchBanques();
     fetchActivites();
-    fetchSousActivites();
     fetchPieces();
     fetchDevises();
   }, []);
@@ -452,45 +413,36 @@ export function AVAForm() {
     setClientInfo(null);
     
     try {
-      const response = await fetch(`/api/ref/clients/search/byPiece?typePiece=${typePiece}&noPiece=${encodeURIComponent(noPiece)}`);
+      // Récupérer les informations de la personne
+      const personneResponse = await fetch(`/api/ref/personnes/by-nopiececlient/${encodeURIComponent(noPiece)}`);
+      const personneData = await safeJsonParse<any>(personneResponse);
       
-      const data = await safeJsonParse<ClientInfo>(response);
-      if (data) {
-        setClientInfo(data);
-        setClientNotFound(false);
-        console.log('✅ API: Client trouvé:', data);
-      } else if (response.status === 404) {
-        setClientInfo(null);
-        setClientNotFound(true);
-        toast.warning('Client non trouvé', {
-          description: 'Aucun client ne correspond à ce numéro de pièce.'
+      if (!personneResponse.ok || !personneData || !personneData.nom) {
+        throw new Error('Personne not found');
+      }
+      
+      // Récupérer les comptes
+      const comptesResponse = await fetch(`/api/ref/comptes/by-piece-client/${encodeURIComponent(noPiece)}`);
+      const comptesData = await safeJsonParse<CompteSummary[]>(comptesResponse);
+      
+      if (comptesData && Array.isArray(comptesData)) {
+        setClientInfo({
+          nom: personneData.nom,
+          prenom: personneData.prenom || '',
+          comptes: comptesData
         });
+        setClientNotFound(false);
+        console.log('✅ API: Client trouvé:', { nom: personneData.nom, prenom: personneData.prenom, comptes: comptesData });
       } else {
-        throw new Error('NO_DATA');
+        throw new Error('Comptes not found');
       }
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Client');
-      // Fallback sur données mock
-      const mockClientInfo: ClientInfo = {
-        nom: 'Dupont',
-        prenom: 'Jean',
-        comptes: [
-          {
-            codeAgenceBct: 10,
-            racineCompte: '0001',
-            cleRib: 12,
-            codeDevise: 1
-          },
-          {
-            codeAgenceBct: 10,
-            racineCompte: '0002',
-            cleRib: 34,
-            codeDevise: 2
-          }
-        ]
-      };
-      setClientInfo(mockClientInfo);
-      setClientNotFound(false);
+      console.error('❌ Erreur API - Recherche client:', error);
+      setClientInfo(null);
+      setClientNotFound(true);
+      toast.error('Erreur', {
+        description: 'Impossible de récupérer les informations du client.'
+      });
     } finally {
       setSearchingClient(false);
     }
@@ -1176,7 +1128,7 @@ export function AVAForm() {
         description: 'Étape 1/2 : Création du mouvement',
       });
 
-      const initialisationResponse = await fetch('/api/operations-deleguees-mvt/initialisation', {
+      const initialisationResponse = await fetch('/api/operations-deleguees-mvt/initialisation?finalize=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto)
@@ -1246,129 +1198,44 @@ export function AVAForm() {
         return;
       }
 
-      toast.success('Initialisation réussie', {
-        description: `Référence opération: ${creationResponse.refOperation}, Numéro dossier: ${creationResponse.numDossier}`,
+      toast.success('Dossier ouvert avec succès', {
+        description: `Numéro de dossier: ${creationResponse.numDossier}`,
       });
 
       // ═══════════════════════════════════════════════════════════════════════
-      // ÉTAPE 2 : VALIDATION (POST /api/operations-deleguees/validation/{numDossier})
+      // SUCCÈS - Afficher le popup de dossier ouvert
       // ═══════════════════════════════════════════════════════════════════════
 
-      console.log(`📤 [ÉTAPE 2/2] Validation du dossier ${creationResponse.numDossier}...`);
-      
-      toast.info('Validation du dossier en cours...', {
-        description: `Étape 2/2 : Création de l'opération déléguée finale`,
-      });
-
-      const validationResponse = await fetch(`/api/operations-deleguees/validation/${creationResponse.numDossier}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      // Vérifier le statut de la réponse
-      if (!validationResponse.ok) {
-        let errorMessage = 'Erreur lors de la validation du dossier';
-        let errorDetails = '';
-        
-        const errorData = await safeJsonParse<any>(validationResponse);
-        if (errorData) {
-          errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
-        } else {
-          errorDetails = `Code HTTP ${validationResponse.status} : ${validationResponse.statusText}`;
-        }
-
-        if (validationResponse.status === 404) {
-          errorMessage = 'Numéro de dossier introuvable';
-          errorDetails = `Le dossier ${creationResponse.numDossier} n'a pas été trouvé`;
-        } else if (validationResponse.status === 422) {
-          errorMessage = 'Contrôles métier non satisfaits';
-          errorDetails = errorDetails || 'Les contrôles métier (RIB, matricule, montants) ont échoué';
-        }
-
-        toast.error(errorMessage, {
-          description: errorDetails,
-        });
-        
-        console.error('❌ [ÉTAPE 2/2] Erreur de validation:', errorDetails);
-        return;
-      }
-
-      // Récupérer le dossier validé complet
-      const validationApiResponse = await safeJsonParse<any>(validationResponse);
-      if (!validationApiResponse) {
-        // En mode démonstration, utiliser les données de l'étape 1
-        const mockValidatedResponse: OuvertureDossierDTO = {
-          ...creationResponse,
-          // Ajouter les données manquantes
-          codeDevise: formData.codeDevise,
-          mntAutorise: formData.mntAutorise,
-          mntAvance: formData.mntAvance
-        } as OuvertureDossierDTO;
-        
-        // Afficher le modal de succès avec les données mock
-        setDossierValide(mockValidatedResponse);
-        setShowDossierModal(true);
-        return;
-      }
-      
-      // Mapper la réponse de l'API vers le format OuvertureDossierDTO
-      // L'API retourne: { codeActivite, codeAgence, dateDossier, declarationFiscale, 
-      //                  mntAutorise, mntAutoriseBct, mntAvance, mntBlocage, mntReserve, 
-      //                  mntUtilise, noPieceClient, numDossier, numeroCompte, solde, typeDossierAva }
-      const dossierValideResponse: OuvertureDossierDTO = {
-        numDossier: validationApiResponse.numDossier,
-        codeTypeDosAva: validationApiResponse.typeDossierAva, // API: typeDossierAva -> DTO: codeTypeDosAva
-        dateDossier: validationApiResponse.dateDossier,
-        codeAgenceAva: validationApiResponse.codeAgence, // API: codeAgence -> DTO: codeAgenceAva
+      // Mapper la réponse vers OuvertureDossierDTO pour le modal
+      const dossierOuvertResponse: OuvertureDossierDTO = {
+        numDossier: creationResponse.numDossier,
+        codeTypeDosAva: creationResponse.codeTypeDosAva || formData.codeTypeDosAva,
+        dateDossier: creationResponse.dateDossier || formData.dateDossier || new Date().toISOString().split('T')[0],
+        codeAgenceAva: creationResponse.codeAgenceAva || formData.codeAgenceAva,
         typePieceClient: formData.typePieceClient,
-        noPieceClient: validationApiResponse.noPieceClient,
-        numeroCompte: validationApiResponse.numeroCompte,
+        noPieceClient: formData.noPieceClient,
+        numeroCompte: formData.compteClient, // Utiliser le compte sélectionné
         tel: formData.tel,
-        codeActivite: validationApiResponse.codeActivite,
+        codeActivite: formData.codeActivite,
         codeSousActivite: formData.codeSousActivite,
-        declarationFiscale: validationApiResponse.declarationFiscale,
+        declarationFiscale: formData.declarationFiscale,
         dateUltDeclCaf: formData.dateUltDeclCaf,
-        mntAvance: validationApiResponse.mntAvance,
-        mntUtilise: validationApiResponse.mntUtilise,
-        mntAutorise: validationApiResponse.mntAutorise,
-        mntAutoriseBct: validationApiResponse.mntAutoriseBct,
-        mntReserve: validationApiResponse.mntReserve,
-        mntBlocage: validationApiResponse.mntBlocage,
-        solde: validationApiResponse.solde,
+        mntAvance: formData.mntAvance || 0,
+        mntUtilise: 0,
+        mntAutorise: formData.mntAutorise || 0,
+        mntAutoriseBct: formData.mntAutoriseBct || 0,
+        mntReserve: 0,
+        mntBlocage: 0,
+        solde: (formData.mntAutorise || 0) + (formData.mntAvance || 0),
         beneficiaires: formData.beneficiairesMvtListe as BeneficiaireDTO[],
         documents: formData.documents,
         avaMarche: formData.avaMarcheMvtListe?.[0] as AvaMarcheDTO
       };
-      
-      console.log('✅ [ÉTAPE 2/2] Validation réussie - Réponse API:', validationApiResponse);
-      console.log('✅ [ÉTAPE 2/2] Dossier mappé:', dossierValideResponse);
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // SUCCÈS COMPLET
-      // ═══════════════════════════════════════════════════════════════════════
+      console.log('✅ Dossier ouvert - Détails:', dossierOuvertResponse);
 
-      toast.success('🎉 Dossier AVA créé et validé avec succès !', {
-        description: `Numéro de dossier: ${dossierValideResponse.numDossier} | Date: ${dossierValideResponse.dateDossier || 'N/A'} | Bénéficiaires: ${dossierValideResponse.beneficiaires?.length || 0}`,
-        duration: 5000,
-      });
-
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('✅ SUCCÈS COMPLET - Détails du dossier validé:');
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('Numéro dossier:', dossierValideResponse.numDossier);
-      console.log('Type dossier:', dossierValideResponse.codeTypeDosAva);
-      console.log('Date dossier:', dossierValideResponse.dateDossier);
-      console.log('Client RNE:', dossierValideResponse.noPieceClient);
-      console.log('Compte:', dossierValideResponse.numeroCompte);
-      console.log('Activité:', dossierValideResponse.codeActivite);
-      console.log('Bénéficiaires:', dossierValideResponse.beneficiaires?.length || 0);
-      console.log('Documents:', dossierValideResponse.documents?.length || 0);
-      console.log('Montant Autorisé:', dossierValideResponse.mntAutorise);
-      console.log('Solde:', dossierValideResponse.solde);
-      console.log('═══════════════════════════════════════════════════════════════');
-
-      // Ouvrir le modal avec les détails du dossier validé
-      setDossierValide(dossierValideResponse);
+      // Ouvrir le modal avec les détails du dossier ouvert
+      setDossierValide(dossierOuvertResponse);
       setShowDossierModal(true);
     } catch (error) {
       toast.error('Erreur lors de l\'enregistrement', {
@@ -1400,7 +1267,7 @@ export function AVAForm() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
@@ -1764,31 +1631,18 @@ export function AVAForm() {
                     <Label htmlFor="codeSousActivite">
                       Code Sous-Activité {isSousActiviteRequired && <span className="text-red-500">*</span>}
                     </Label>
-                    <Select
-                      value={formData.codeSousActivite?.toString()}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, codeSousActivite: Number(value) || undefined });
+                    <Input
+                      id="codeSousActivite"
+                      type="number"
+                      value={formData.codeSousActivite || ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData({ ...formData, codeSousActivite: value ? Number(value) : undefined });
                         clearFieldError('codeSousActivite');
                       }}
-                      disabled={loadingSousActivites}
-                    >
-                      <SelectTrigger className={fieldErrors.codeSousActivite || (isSousActiviteRequired && !formData.codeSousActivite) ? 'border-red-500' : ''}>
-                        <SelectValue placeholder={loadingSousActivites ? "Chargement..." : "Sélectionner"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {loadingSousActivites ? (
-                          <div className="p-2 text-sm text-muted-foreground">Chargement...</div>
-                        ) : sousActivites.length > 0 ? (
-                          sousActivites.map(sousActivite => (
-                            <SelectItem key={sousActivite.codeActivite} value={sousActivite.codeActivite.toString()}>
-                              {sousActivite.codeActivite} - {sousActivite.libActivite}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="p-2 text-sm text-muted-foreground">Aucune donnée</div>
-                        )}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Ex: 1"
+                      className={fieldErrors.codeSousActivite || (isSousActiviteRequired && !formData.codeSousActivite) ? 'border-red-500' : ''}
+                    />
                     {fieldErrors.codeSousActivite && (
                       <span className="text-sm text-red-500">{fieldErrors.codeSousActivite}</span>
                     )}

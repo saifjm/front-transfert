@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, CheckCircle, FileText, Users, DollarSign, Calendar, Building2 } from 'lucide-react';
+import { Dialog, DialogContent } from './ui/dialog';
 
 interface BeneficiaireDTO {
   numDossier?: number;
@@ -93,10 +94,10 @@ export function DossierValidatedModal({ isOpen, dossier, onClose }: DossierValid
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#435B7B] to-[#2D3E54] text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#435B7B] to-[#2D3E54] text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
           <div className="flex items-center gap-3">
             <div className="bg-white/20 rounded-full p-2">
               <CheckCircle className="w-6 h-6" />
@@ -342,7 +343,7 @@ export function DossierValidatedModal({ isOpen, dossier, onClose }: DossierValid
             Fermer et Nouveau Dossier
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

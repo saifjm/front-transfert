@@ -1,25 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import {
+  ArrowLeft,
+  FileText,
+  PlusCircle,
+  RotateCcw,
+  Save,
+  Trash2
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { safeJsonParse } from '../utils';
+import { AVATableauRecherche } from './AVATableauRecherche';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
-import { AVATableauRecherche, DossierAVARecherche } from './AVATableauRecherche';
-import { 
-  Search, 
-  ArrowLeft, 
-  FileText, 
-  AlertTriangle,
-  PlusCircle,
-  Trash2,
-  Save,
-  CheckCircle2,
-  RotateCcw
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
 
 interface DossierAVA {
   codeAgence?: number;
@@ -81,6 +77,22 @@ interface BeneficiaireExistant {
   datePiece?: string;
   etat?: 'AA' | 'AD' | 'A' | 'N'; // AA: A activer, AD: A désactiver, A: Actif, N: Inactif
   isNew?: boolean; // Pour distinguer les nouveaux bénéficiaires
+}
+
+interface BeneficiaireDTO {
+  numDossier: number;
+  dateDossier: string;
+  typePieceBenef: number;
+  noPieceBenef: string;
+  codeTypeDos: number;
+  nomBenef: string;
+  adresseBenef: string;
+  qualite: string;
+  datePiece: string;
+  etat: string;
+  codeAgenceAva?: number;
+  dateCreation?: string;
+  dateSuppression?: string;
 }
 
 interface Agence {
@@ -358,11 +370,91 @@ export function AVAMiseAJourBeneficiaires() {
     setDossiersFiltres(resultats);
   }, [searchNumeroDossier, searchTypeDossier, searchClient, searchAgence, dossiers]);
 
+  const fetchBeneficiaires = async (numDossier: number) => {
+    try {
+      const response = await fetch(`/api/beneficiaires/${numDossier}`);
+      if (!response.ok) {
+        throw new Error(`HTTP_ERROR_${response.status}`);
+      }
+      
+      const data = await safeJsonParse<BeneficiaireDTO[]>(response);
+      if (!data) {
+        throw new Error('NO_DATA');
+      }
+      
+      const beneficiairesTransformes: BeneficiaireExistant[] = data.map((benef, index) => {
+        // Formater la date en YYYY-MM-DD pour l'input type="date"
+        let dateFormatee = benef.datePiece;
+        if (dateFormatee && dateFormatee.includes('T')) {
+          dateFormatee = dateFormatee.split('T')[0];
+        }
+
+        // Normaliser la qualité pour le Select
+        let qualiteNormalisee = benef.qualite || (benef as any).qualite_benef;
+        if (qualiteNormalisee?.toLowerCase() === 'dirigeant') qualiteNormalisee = 'Dirigeant';
+        if (qualiteNormalisee?.toLowerCase().includes('conseil')) qualiteNormalisee = "Conseil d'administration";
+        if (qualiteNormalisee?.toLowerCase().includes('employ')) qualiteNormalisee = 'Employé';
+
+        // Capture robuste des valeurs de pièce (gère toutes les variations possibles d'API)
+        const typePieceFix = 
+          benef.typePieceBenef ?? 
+          (benef as any).type_piece_benef ?? 
+          (benef as any).typePieceClient ?? 
+          (benef as any).type_piece_client ?? 
+          (benef as any).codeTypePiece ?? 
+          (benef as any).code_type_piece ?? 
+          (benef as any).typePiece ?? 
+          (benef as any).type_piece ?? 
+          (benef as any).code ?? 
+          undefined;
+
+        const noPieceFix = 
+          benef.noPieceBenef ?? 
+          (benef as any).no_piece_benef ?? 
+          (benef as any).noPieceClient ?? 
+          (benef as any).no_piece_client ?? 
+          (benef as any).numeroPiece ?? 
+          (benef as any).numero_piece ?? 
+          (benef as any).noPiece ?? 
+          (benef as any).no_piece ?? 
+          (benef as any).numero ??
+          '';
+
+        const nomBenefFix = benef.nomBenef || (benef as any).nom_benef || '';
+        const adresseBenefFix = benef.adresseBenef || (benef as any).adresse_benef || '';
+
+        // DEBUG : Afficher les données reçues de l'API pour comprendre les clés manquantes
+        console.log(`Données API brutes pour le bénéficiaire ${index + 1}:`, JSON.stringify(benef));
+        console.log(`Valeurs extraites -> Pièce: ${typePieceFix}, Numéro: ${noPieceFix}`);
+
+        // L'ID doit être UNIQUE même si on reçoit les mêmes informations pour 2 bénéficiaires
+        const uniqueId = `api-${benef.numDossier}-${noPieceFix}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+
+        return {
+          id: uniqueId,
+          typePieceBenef: typePieceFix,
+          noPieceBenef: noPieceFix,
+          nomBenef: nomBenefFix,
+          adresseBenef: adresseBenefFix,
+          qualite: qualiteNormalisee,
+          datePiece: dateFormatee,
+          etat: benef.etat as 'AA' | 'AD' | 'A' | 'N',
+          isNew: false
+        };
+      });
+      
+      return beneficiairesTransformes;
+    } catch (error) {
+      console.error('Erreur chargement bénéficiaires:', error);
+      return [];
+    }
+  };
+
   // Sélectionner un dossier et charger ses bénéficiaires
   const selectionnerDossier = async (dossier: DossierAVA) => {
     setLoading(true);
     
-    // Bénéficiaires mock par défaut
+    // Bénéficiaire mock par défaut
     const mockBeneficiaires: BeneficiaireExistant[] = [
       {
         id: '1',
@@ -370,20 +462,9 @@ export function AVAMiseAJourBeneficiaires() {
         noPieceBenef: '12345678',
         nomBenef: 'Dupont Jean',
         adresseBenef: '12 Avenue Bourguiba, Tunis',
-        qualite: 'dirigeant',
+        qualite: 'Dirigeant',
         datePiece: '2020-05-15',
         etat: 'A',
-        isNew: false
-      },
-      {
-        id: '2',
-        typePieceBenef: 7,
-        noPieceBenef: 'P9876543',
-        nomBenef: 'Martin Sophie',
-        adresseBenef: '45 Rue de la République, Tunis',
-        qualite: 'employé',
-        datePiece: '2019-08-22',
-        etat: 'N',
         isNew: false
       }
     ];
@@ -430,18 +511,17 @@ export function AVAMiseAJourBeneficiaires() {
       setDossierSelectionne(dossierComplet);
       console.log('✅ API: Résumé du dossier chargé avec succès');
 
-      // 3. Charger les bénéficiaires (opération_deleguee_mvt)
-      // TODO: Remplacer par l'appel API réel pour charger les bénéficiaires
-      // GET /api/operations-deleguees/{numDossier}/beneficiaires
-      setBeneficiaires(mockBeneficiaires);
-      setBeneficiairesInitiaux(mockBeneficiaires);
+      // 3. Charger les bénéficiaires via l'API
+      const beneficiairesCharges = await fetchBeneficiaires(dossierComplet.numDossier!);
+      setBeneficiaires(beneficiairesCharges);
+      setBeneficiairesInitiaux(beneficiairesCharges);
       setEtape('mise-a-jour');
     } catch (error: any) {
       // Mode démonstration silencieux
       // En cas d'erreur, utiliser les données partielles disponibles (qui contiennent déjà les montants mock)
       setDossierSelectionne(dossier);
-      setBeneficiaires(mockBeneficiaires);
-      setBeneficiairesInitiaux(mockBeneficiaires);
+      setBeneficiaires([]);
+      setBeneficiairesInitiaux([]);
       setEtape('mise-a-jour');
       
       // Log discret uniquement si ce n'est pas une erreur réseau classique
@@ -464,7 +544,7 @@ export function AVAMiseAJourBeneficiaires() {
   // Ajouter un bénéficiaire
   const addBeneficiaire = () => {
     setBeneficiaires([...beneficiaires, { 
-      id: Date.now().toString(),
+      id: `new-${Date.now().toString()}-${Math.random().toString(36).substr(2, 9)}`,
       typePieceBenef: undefined,
       noPieceBenef: '',
       nomBenef: '',
@@ -480,26 +560,44 @@ export function AVAMiseAJourBeneficiaires() {
   const getAvailableStates = (beneficiaire: BeneficiaireExistant): { value: 'AA' | 'AD' | 'A' | 'N', label: string }[] => {
     // Si nouveau bénéficiaire => uniquement AA
     if (beneficiaire.isNew) {
-      return [{ value: 'AA', label: 'A activer' }];
+      return [{ value: 'AA', label: 'À activer' }];
     }
 
-    // Si bénéficiaire existant et actif => uniquement AD
+    // Le select doit toujours inclure l'état actuel et ses transitions
     if (beneficiaire.etat === 'A') {
       return [
-        { value: 'AD', label: 'A désactiver' }
+        { value: 'A', label: 'Actif (État actuel)' },
+        { value: 'AD', label: 'À désactiver' }
       ];
     }
 
-    // Si bénéficiaire existant et inactif => uniquement AA
     if (beneficiaire.etat === 'N') {
       return [
-        { value: 'AA', label: 'A activer' }
+        { value: 'N', label: 'Inactif (État actuel)' },
+        { value: 'AA', label: 'À activer' }
       ];
     }
 
-    // Par défaut (ne devrait pas arriver)
+    if (beneficiaire.etat === 'AD') {
+      return [
+        { value: 'A', label: 'Actif' },
+        { value: 'AD', label: 'À désactiver (En cours)' }
+      ];
+    }
+
+    if (beneficiaire.etat === 'AA') {
+      return [
+        { value: 'N', label: 'Inactif' },
+        { value: 'AA', label: 'À activer (En cours)' }
+      ];
+    }
+
+    // Fallback avec tous les états au cas où
     return [
-      { value: 'AA', label: 'A activer' }
+      { value: 'A', label: 'Actif' },
+      { value: 'N', label: 'Inactif' },
+      { value: 'AA', label: 'À activer' },
+      { value: 'AD', label: 'À désactiver' }
     ];
   };
 
@@ -520,14 +618,14 @@ export function AVAMiseAJourBeneficiaires() {
   };
 
   // Supprimer un bénéficiaire
-  const removeBeneficiaire = (id: string) => {
-    setBeneficiaires(beneficiaires.filter(b => b.id !== id));
+  const removeBeneficiaire = (idToRemove: string) => {
+    setBeneficiaires(prev => prev.filter(b => b.id !== idToRemove));
   };
 
   // Mettre à jour un bénéficiaire
-  const updateBeneficiaire = (id: string, field: keyof BeneficiaireExistant, value: any) => {
-    setBeneficiaires(beneficiaires.map(b => 
-      b.id === id ? { ...b, [field]: value } : b
+  const updateBeneficiaire = (idToUpdate: string, field: keyof BeneficiaireExistant, value: any) => {
+    setBeneficiaires(prev => prev.map(b => 
+      b.id === idToUpdate ? { ...b, [field]: value } : b
     ));
   };
 
@@ -583,21 +681,44 @@ export function AVAMiseAJourBeneficiaires() {
     setIsSubmitting(true);
 
     try {
-      // Préparation des données
-      const dto = {
-        numeroDossier: dossierSelectionne?.numeroDossier,
-        beneficiaires: beneficiaires.map(({ id, ...rest }) => rest)
-      };
+      // Préparation des données pour l'API
+      const beneficiairesAPayload = beneficiaires.map(benef => ({
+        numDossier: dossierSelectionne?.numDossier,
+        dateDossier: dossierSelectionne?.dateDossier,
+        typePieceBenef: benef.typePieceBenef,
+        noPieceBenef: benef.noPieceBenef,
+        codeTypeDos: dossierSelectionne?.codeTypeDossier,
+        nomBenef: benef.nomBenef,
+        adresseBenef: benef.adresseBenef,
+        qualite: benef.qualite,
+        datePiece: benef.datePiece,
+        etat: benef.etat
+      }));
 
-      console.log('Mise à jour bénéficiaires:', JSON.stringify(dto, null, 2));
-      
-      // Simulation d'appel API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('Envoi bénéficiaires API:', beneficiairesAPayload);
+
+      // Envoyer chaque bénéficiaire à l'API
+      for (const benefPayload of beneficiairesAPayload) {
+        const response = await fetch('/api/beneficiaires/true', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(benefPayload),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `Erreur API: ${response.status}`);
+        }
+      }
 
       toast.success('Bénéficiaires mis à jour avec succès');
       retourListe();
-    } catch (error) {
-      toast.error('Erreur lors de la mise à jour');
+    } catch (error: any) {
+      toast.error('Erreur lors de la mise à jour', {
+        description: error.message || 'Une erreur inconnue est survenue'
+      });
       console.error('Erreur:', error);
     } finally {
       setIsSubmitting(false);
@@ -853,7 +974,9 @@ export function AVAMiseAJourBeneficiaires() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Numéro de Pièce *</Label>
+                      <Label>Numéro de Pièce * 
+                        {/* Temporaire DEBUG : {JSON.stringify(beneficiaire.noPieceBenef)}  */}
+                      </Label>
                       <Input
                         value={beneficiaire.noPieceBenef || ''}
                         onChange={(e) => updateBeneficiaire(beneficiaire.id!, 'noPieceBenef', e.target.value)}
@@ -889,9 +1012,9 @@ export function AVAMiseAJourBeneficiaires() {
                           <SelectValue placeholder="Sélectionner" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="dirigeant">Dirigeant</SelectItem>
-                          <SelectItem value="conseil d'administration">Conseil d'Administration</SelectItem>
-                          <SelectItem value="employé">Employé</SelectItem>
+                          <SelectItem value="Dirigeant">Dirigeant</SelectItem>
+                          <SelectItem value="Conseil d'administration">Conseil d'Administration</SelectItem>
+                          <SelectItem value="Employé">Employé</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
