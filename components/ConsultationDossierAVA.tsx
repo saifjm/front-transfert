@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -55,18 +55,6 @@ interface Beneficiaire {
   nomBenef: string;
   qualite: string;
   typePieceBenef: number;
-}
-
-interface MarcheRealisable {
-  numeroMarche: string;
-  dateMarche: string;
-  objetMarche: string;
-  montantMarche: number;
-  devise: string;
-  paysDestination: string;
-  dateDebutExecution?: string;
-  dateFinExecution?: string;
-  observations?: string;
 }
 
 interface DossierAVAConsultation {
@@ -143,9 +131,6 @@ export function ConsultationDossierAVA() {
   const [beneficiaires, setBeneficiaires] = useState<
     Beneficiaire[]
   >([]);
-  const [marche, setMarche] = useState<MarcheRealisable | null>(
-    null,
-  );
   const [documents, setDocuments] = useState<DocumentJoint[]>(
     [],
   );
@@ -160,9 +145,10 @@ export function ConsultationDossierAVA() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "/api/operations-deleguees/dossiers-valides-avec-nom",
-      );
+      const [response, operationsResponse] = await Promise.all([
+        fetch("/api/operations-deleguees/dossiers-valides-avec-nom"),
+        fetch("/api/operations-deleguees"),
+      ]);
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -200,6 +186,19 @@ export function ConsultationDossierAVA() {
 
       if (!data || !Array.isArray(data)) {
         throw new Error("JSON_PARSE_ERROR");
+      }
+
+      const operationsData = operationsResponse.ok
+        ? await safeJsonParse<OperationsDelegueeDTO[]>(operationsResponse)
+        : null;
+      const operationsByNumDossier = new Map<number, OperationsDelegueeDTO>();
+      if (Array.isArray(operationsData)) {
+        for (const op of operationsData) {
+          const dossierNum = Number(op?.numDossier);
+          if (Number.isFinite(dossierNum)) {
+            operationsByNumDossier.set(dossierNum, op);
+          }
+        }
       }
 
       let agenceNameByCode = new Map<number, string>();
@@ -277,6 +276,8 @@ export function ConsultationDossierAVA() {
 
       const dossiersTransformes: DossierAVAConsultation[] =
         data.map((dto) => {
+          const operationDetail =
+            operationsByNumDossier.get(Number(dto.numDossier));
           const nomComplet = (dto.nomClient || "").trim();
           const nomParts = nomComplet.split(" ");
           const prenom = nomParts.length > 1 ? nomParts[0] : "";
@@ -300,31 +301,50 @@ export function ConsultationDossierAVA() {
             noPieceClient: dto.noPieceClient,
             nomClient: nom,
             prenomClient: prenom,
-            montantAutorise: dto.mntAutorise || 0,
-            mntAutorise: dto.mntAutorise || 0,
-            montantUtilise: dto.mntUtilise || 0,
-            mntUtilise: dto.mntUtilise || 0,
-            mntAvance: dto.mntAvance || 0,
-            mntAutorisationBct: dto.mntAutoriseBct || 0,
-            mntReserve: dto.mntReserve || 0,
-            mntBlocage: dto.mntBlocage || 0,
-            solde: dto.solde !== undefined ? dto.solde : 0,
+            montantAutorise:
+              operationDetail?.mntAutorise ?? dto.mntAutorise ?? 0,
+            mntAutorise:
+              operationDetail?.mntAutorise ?? dto.mntAutorise ?? 0,
+            montantUtilise:
+              operationDetail?.mntUtilise ?? dto.mntUtilise ?? 0,
+            mntUtilise:
+              operationDetail?.mntUtilise ?? dto.mntUtilise ?? 0,
+            mntAvance:
+              operationDetail?.mntAvance ?? dto.mntAvance ?? 0,
+            mntAutorisationBct:
+              operationDetail?.mntAutoriseBct ??
+              dto.mntAutoriseBct ??
+              0,
+            mntReserve:
+              operationDetail?.mntReserve ?? dto.mntReserve ?? 0,
+            mntBlocage:
+              operationDetail?.mntBlocage ?? dto.mntBlocage ?? 0,
+            solde:
+              operationDetail?.solde ?? dto.solde ?? 0,
             devise: "TND",
             statut:
-              dto.etatDossier === "V"
+              (operationDetail?.etatDossier ?? dto.etatDossier) ===
+              "V"
                 ? "ACTIF"
-                : dto.etatDossier === "C"
+                : (operationDetail?.etatDossier ??
+                      dto.etatDossier) === "C"
                   ? "CLOTURE"
-                  : dto.etatDossier === "B"
+                  : (operationDetail?.etatDossier ??
+                        dto.etatDossier) === "B"
                     ? "SUSPENDU"
                     : "ACTIF",
-            declarationFiscale: dto.declarationFiscale,
-            numeroCompte: dto.numeroCompte,
-            echeance: dto.echeance,
-            tel: dto.tel,
-            codeActivite: dto.codeActivite,
-            numeroBct: dto.numeroBct,
-            dateBct: dto.dateBct,
+            declarationFiscale:
+              operationDetail?.declarationFiscale ??
+              dto.declarationFiscale,
+            numeroCompte:
+              operationDetail?.numeroCompte ?? dto.numeroCompte,
+            echeance: operationDetail?.echeance ?? dto.echeance,
+            tel: operationDetail?.tel ?? dto.tel,
+            codeActivite:
+              operationDetail?.codeActivite ?? dto.codeActivite,
+            numeroBct:
+              operationDetail?.numeroBct ?? dto.numeroBct,
+            dateBct: operationDetail?.dateBct ?? dto.dateBct,
             beneficiaires: dto.beneficiaires || [],
             documents: dto.documents || [],
           };
@@ -451,7 +471,6 @@ export function ConsultationDossierAVA() {
       setBeneficiaires(dossierComplet.beneficiaires || []);
       setDocuments(dossierComplet.documents || []);
       setDossierSelectionne(dossierComplet);
-      setMarche(null);
     } catch (error) {
       console.info(
         "ℹ️ Mode démonstration - Détails dossier (fallback)",
@@ -459,7 +478,6 @@ export function ConsultationDossierAVA() {
       setDossierSelectionne(dossier);
       setBeneficiaires(dossier.beneficiaires || []);
       setDocuments(dossier.documents || []);
-      setMarche(null);
     } finally {
       setLoading(false);
     }
@@ -547,7 +565,6 @@ export function ConsultationDossierAVA() {
     setEtape("liste");
     setDossierSelectionne(null);
     setBeneficiaires([]);
-    setMarche(null);
     setDocuments([]);
   };
 
