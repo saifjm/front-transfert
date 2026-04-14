@@ -1,0 +1,339 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║               VALIDATION MULTI-VALEURS - TÉLÉPHONE & EMAIL                   ║
+║                    Formulaire Ouverture Dossier AVA                          ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 FONCTIONNALITÉ                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Les champs "Téléphone" et "Email" dans l'onglet "Informations Générales"
+  du formulaire d'ouverture AVA acceptent maintenant PLUSIEURS VALEURS séparées
+  par des points-virgules (;).
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📞 TÉLÉPHONE - Validation Multi-Numéros                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ FORMATS ACCEPTÉS (par numéro)
+  ─────────────────────────────────
+  
+  Format 1 : 8 chiffres
+    Exemple : 12345678
+  
+  Format 2 : +216 suivi de 8 chiffres
+    Exemple : +21612345678
+  
+  Format 3 : 00216 suivi de 8 chiffres
+    Exemple : 0021612345678
+
+  ✅ SAISIE MULTIPLE
+  ─────────────────
+  
+  Séparez les numéros par un point-virgule (;)
+  Les espaces avant/après sont automatiquement supprimés
+  
+  📝 EXEMPLES VALIDES
+  ────────────────────
+  
+  ✓ 12345678
+  ✓ +21612345678
+  ✓ 12345678;98765432
+  ✓ +21612345678;+21687654321
+  ✓ 12345678; +21687654321; 0021611223344
+  ✓ 12345678 ; 98765432 ; +21611223344
+  
+  ❌ EXEMPLES INVALIDES
+  ──────────────────────
+  
+  ✗ 1234567              (7 chiffres seulement)
+  ✗ +215123456789        (indicatif incorrect)
+  ✗ 12345678;abc         (deuxième valeur non numérique)
+  ✗ +216123456;98765432  (premier numéro incomplet)
+
+  🎯 VALIDATION
+  ─────────────
+  
+  • Chaque numéro est validé individuellement
+  • Message d'erreur précise quel numéro est invalide
+  • Exemple : "Numéro 2 invalide ("+215123456"). Format attendu : ..."
+  • Compteur affiche : "✓ 3 numéro(s) valide(s)"
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📧 EMAIL - Validation Multi-Adresses                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ FORMAT ACCEPTÉ (par email)
+  ────────────────────────────
+  
+  Format standard : utilisateur@domaine.extension
+  
+  ✅ SAISIE MULTIPLE
+  ─────────────────
+  
+  Séparez les emails par un point-virgule (;)
+  Les espaces avant/après sont automatiquement supprimés
+  
+  📝 EXEMPLES VALIDES
+  ────────────────────
+  
+  ✓ contact@exemple.com
+  ✓ mohamedaniszemni@gmail.com
+  ✓ contact@exemple.com;admin@exemple.com
+  ✓ mohamedaniszemni@gmail.com;zemni.manis@societe.com
+  ✓ user1@email.com; user2@email.com; user3@email.com
+  ✓ contact@exemple.com ; admin@exemple.tn ; support@test.fr
+  
+  ❌ EXEMPLES INVALIDES
+  ──────────────────────
+  
+  ✗ contact               (pas de @)
+  ✗ contact@              (pas de domaine)
+  ✗ @exemple.com          (pas d'utilisateur)
+  ✗ contact@exemple       (pas d'extension)
+  ✗ contact@.com          (pas de nom de domaine)
+  ✗ contact exemple.com   (pas de @)
+  ✗ valid@email.com;invalid@   (deuxième email invalide)
+
+  🎯 VALIDATION
+  ─────────────
+  
+  • Chaque email est validé individuellement
+  • Message d'erreur précise quel email est invalide
+  • Exemple : "Email 2 invalide ("contact@")"
+  • Compteur affiche : "✓ 2 email(s) valide(s)"
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 💻 IMPLÉMENTATION TECHNIQUE                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  📁 Fichier : /components/AVAForm.tsx
+  
+  🔧 FONCTION : validateTelephoneTunisien(tel: string): string
+  ──────────────────────────────────────────────────────────────
+  
+  const validateTelephoneTunisien = (tel: string): string => {
+    if (!tel) return '';
+    
+    // Séparer et nettoyer
+    const numeros = tel.split(';')
+                       .map(num => num.trim())
+                       .filter(num => num !== '');
+    
+    if (numeros.length === 0) return '';
+    
+    // Regex pour chaque format
+    const regex8Digits = /^\d{8}$/;
+    const regexPlus216 = /^\+216\d{8}$/;
+    const regex00216 = /^00216\d{8}$/;
+    
+    // Valider chaque numéro
+    for (let i = 0; i < numeros.length; i++) {
+      const numero = numeros[i];
+      if (!regex8Digits.test(numero) && 
+          !regexPlus216.test(numero) && 
+          !regex00216.test(numero)) {
+        return `Numéro ${i + 1} invalide ("${numero}"). ` +
+               `Format attendu : 8 chiffres, +216XXXXXXXX ou 00216XXXXXXXX`;
+      }
+    }
+    
+    return '';
+  };
+  
+  🔧 FONCTION : validateEmail(email: string): string
+  ──────────────────────────────────────────────────
+  
+  const validateEmail = (email: string): string => {
+    if (!email) return '';
+    
+    // Séparer et nettoyer
+    const emails = email.split(';')
+                        .map(em => em.trim())
+                        .filter(em => em !== '');
+    
+    if (emails.length === 0) return '';
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    // Valider chaque email
+    for (let i = 0; i < emails.length; i++) {
+      const em = emails[i];
+      if (!emailRegex.test(em)) {
+        return `Email ${i + 1} invalide ("${em}")`;
+      }
+    }
+    
+    return '';
+  };
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎨 INTERFACE UTILISATEUR                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  📞 CHAMP TÉLÉPHONE
+  ─────────────────
+  
+  Label : "Téléphone"
+  Placeholder : "12345678 ou +21612345678;+21687654321"
+  Aide : "Séparez plusieurs numéros par un point-virgule (;)"
+  
+  États :
+  • Vide → Pas de message
+  • Valide → "✓ 3 numéro(s) valide(s)" (vert)
+  • Invalide → "Numéro 2 invalide (...)" (rouge)
+
+  📧 CHAMP EMAIL
+  ─────────────
+  
+  Label : "Email"
+  Placeholder : "exemple@email.com;autre@email.com"
+  Aide : "Séparez plusieurs emails par un point-virgule (;)"
+  
+  États :
+  • Vide → Pas de message
+  • Valide → "✓ 2 email(s) valide(s)" (vert)
+  • Invalide → "Email 2 invalide (...)" (rouge)
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🧪 TESTS & SCÉNARIOS                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  TEST 1 : Un seul numéro
+  ──────────────────────
+  Saisie : 12345678
+  Résultat : ✓ 1 numéro(s) valide(s)
+  
+  TEST 2 : Deux numéros valides
+  ─────────────────────────────
+  Saisie : 12345678;98765432
+  Résultat : ✓ 2 numéro(s) valide(s)
+  
+  TEST 3 : Trois numéros avec espaces
+  ───────────────────────────────────
+  Saisie : 12345678 ; +21687654321 ; 0021611223344
+  Résultat : ✓ 3 numéro(s) valide(s)
+  
+  TEST 4 : Deuxième numéro invalide
+  ─────────────────────────────────
+  Saisie : 12345678;+215abc
+  Résultat : ✗ Numéro 2 invalide ("+215abc"). Format attendu : ...
+  
+  TEST 5 : Un seul email
+  ─────────────────────
+  Saisie : mohamedaniszemni@gmail.com
+  Résultat : ✓ 1 email(s) valide(s)
+  
+  TEST 6 : Deux emails valides
+  ────────────────────────────
+  Saisie : mohamedaniszemni@gmail.com;zemni.manis@societe.com
+  Résultat : ✓ 2 email(s) valide(s)
+  
+  TEST 7 : Premier email invalide
+  ───────────────────────────────
+  Saisie : invalidemail;valid@email.com
+  Résultat : ✗ Email 1 invalide ("invalidemail")
+  
+  TEST 8 : Valeurs avec espaces excessifs
+  ───────────────────────────────────────
+  Saisie : email1@test.com  ;  ;  email2@test.com
+  Résultat : ✓ 2 email(s) valide(s) (les entrées vides sont ignorées)
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚙️ COMPORTEMENT                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ Validation en temps réel
+     • À chaque frappe, la validation s'exécute
+     • Les messages d'erreur/succès s'affichent instantanément
+  
+  ✅ Compteur dynamique
+     • Affiche le nombre de valeurs valides détectées
+     • Mise à jour automatique lors de la saisie
+  
+  ✅ Nettoyage automatique
+     • Les espaces avant/après chaque valeur sont supprimés
+     • Les entrées vides (;;) sont ignorées
+  
+  ✅ Messages d'erreur précis
+     • Indique exactement quelle valeur est invalide
+     • Affiche la valeur problématique entre guillemets
+     • Suggère le format attendu
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 CAS D'USAGE MÉTIER                                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  📌 Entreprise avec plusieurs contacts
+  ─────────────────────────────────────
+  Une société peut avoir :
+  • Un téléphone fixe principal : 71123456
+  • Un téléphone mobile du responsable : +21698765432
+  • Un téléphone de secours : 0021620111222
+  
+  Saisie : 71123456;+21698765432;0021620111222
+  
+  📌 Contacts multiples pour un client
+  ────────────────────────────────────
+  Un bénéficiaire peut avoir :
+  • Email personnel : mohamedanis@gmail.com
+  • Email professionnel : m.anis@entreprise.tn
+  • Email de l'assistant : assistant@entreprise.tn
+  
+  Saisie : mohamedanis@gmail.com;m.anis@entreprise.tn;assistant@entreprise.tn
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔄 INTÉGRATION AVEC L'API                                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Interface DTO : InitiationOuvertureDTO
+  ──────────────────────────────────────
+  
+  interface InitiationOuvertureDTO {
+    // ... autres champs
+    tel?: string;      // Exemple : "12345678;+21687654321;0021611223344"
+    email?: string;    // Exemple : "contact@test.com;admin@test.com"
+  }
+  
+  📤 Envoi à l'API
+  ────────────────
+  Les valeurs sont envoyées telles quelles dans le DTO.
+  C'est le backend qui sera responsable de parser les valeurs
+  séparées par point-virgule si nécessaire.
+  
+  Exemple JSON :
+  {
+    "tel": "12345678;+21687654321",
+    "email": "contact@exemple.com;admin@exemple.com",
+    ...
+  }
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📝 NOTES IMPORTANTES                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ⚠️  Séparateur UNIQUEMENT le point-virgule (;)
+      Les virgules (,) ou autres caractères ne sont pas supportés
+  
+  ⚠️  Validation stricte
+      Tous les numéros/emails doivent être valides
+      Un seul invalide bloque la soumission
+  
+  ⚠️  Type du champ email changé
+      Le type HTML est passé de "email" à "text" pour permettre
+      la saisie de plusieurs emails avec point-virgule
+  
+  ✅  Rétrocompatibilité
+      Les anciennes saisies avec une seule valeur fonctionnent toujours
+      Aucune migration de données nécessaire
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  Document créé le 15 février 2026
+  Projet : IBANSYS v1.0
+  Module : Ouverture Dossier AVA - Multi-valeurs Téléphone/Email
+  Société le Monde Informatique
+
+═══════════════════════════════════════════════════════════════════════════════

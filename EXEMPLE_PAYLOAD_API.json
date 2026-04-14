@@ -1,0 +1,136 @@
+{
+  "description": "Exemple de payload JSON envoyé à l'API /api/business-rules-fv/valider",
+  "date": "2026-02-16",
+  "component": "/components/AVAFraisVoyage.tsx",
+  
+  "payload_exemple": {
+    "dossier": {
+      "numeroDossier": 5340226,
+      "dateDossier": "15/02/2026",
+      "typeDossier": 1
+    },
+    "mouvement": {
+      "devise": 840,
+      "montantDvs": 350.5,
+      "beneficiaire": {
+        "code": 1,
+        "numero": "1695881M"
+      },
+      "mode": "BB",
+      "pays": 250,
+      "type": "FV",
+      "montant": 1050.25,
+      "dateDepart": "20/02/2026",
+      "dateRetour": "28/02/2026"
+    },
+    "documentsScannes": [
+      {
+        "ligne": 1,
+        "nomImage": "passeport_123456.jpg",
+        "cheminFichier": "/uploads/2026/02/passeport_123456.jpg",
+        "typeDocument": 1
+      },
+      {
+        "ligne": 2,
+        "nomImage": "billet_avion.pdf",
+        "cheminFichier": "/uploads/2026/02/billet_avion.pdf",
+        "typeDocument": 2
+      }
+    ]
+  },
+
+  "reponse_succes": {
+    "valide": true,
+    "message": "L'opération FV a été validée avec succès",
+    "nombreErreurs": 0,
+    "erreurs": []
+  },
+
+  "reponse_erreur": {
+    "valide": false,
+    "message": "L'opération FV contient des erreurs",
+    "nombreErreurs": 7,
+    "erreurs": [
+      "NUMERO_DOSSIER_NUMERIQUE : Le numéro de dossier doit être uniquement numérique (chiffres seulement)",
+      "COMPTE_RIB_OBLIGATOIRE : Le compte RIB est obligatoire",
+      "NET_AUTORISE_OBLIGATOIRE : Le net autorisé est obligatoire",
+      "NUMERO_MOUVEMENT_OBLIGATOIRE : Le numéro de mouvement est obligatoire",
+      "BENEFICIAIRE_INVALIDE : Impossible d'utiliser le numéro de dossier pour la recherche du bénéficiaire",
+      "MODE_INVALIDE : Le code mode paiement 'VIR' n'existe pas",
+      "DOCUMENT[1] : LIGNE_INVALIDE : Le numéro de ligne doit être positif"
+    ]
+  },
+
+  "notes_importantes": {
+    "numeroDossier": "Doit être un Number (entier), pas une string. Le préfixe 'AVA-' est supprimé avant l'envoi",
+    "dateDossier": "Format français dd/MM/yyyy",
+    "beneficiaire_code": "Doit être un Number (pas une string)",
+    "mode": "Utilise 'BB' au lieu de 'BBA'",
+    "documentsScannes_ligne": "Commence à 1 (pas 0), correspond à l'index + 1",
+    "champs_supprimes": [
+      "codeTypeDosAva (au niveau racine)",
+      "dossier.agence",
+      "dossier.echeance",
+      "dossier.pieceClient",
+      "dossier.compteRib",
+      "dossier.nomClientBanque",
+      "dossier.nomClientPassager",
+      "Section montants complète"
+    ]
+  },
+
+  "mapping_codes": {
+    "modes_paiement": {
+      "BB": "BILLETS DE BANQUE",
+      "VIR": "VIREMENT",
+      "CAP": "CARTE DE PAIEMENT INTER."
+    },
+    "types_documents": {
+      "1": "Passeport",
+      "2": "Billet d'avion",
+      "3": "Facture hébergement",
+      "4": "Justificatif de frais",
+      "5": "Autorisation BCT",
+      "6": "Autre document"
+    },
+    "types_dossier": {
+      "1": "EXPORTATEUR",
+      "2": "MARCHE REALISABLE A L'ETRANGER",
+      "3": "AUTRES ACTIVITES (ANNEXE N.2)",
+      "4": "AUTRES ACTIVITES (BANQUES)",
+      "5": "A. ACT. (PROM.-NOUV. PROJ.)"
+    },
+    "devises": {
+      "788": "TND - Dinar tunisien",
+      "978": "EUR - Euro",
+      "840": "USD - Dollar américain"
+    }
+  },
+
+  "exemple_transformation": {
+    "avant_envoi": {
+      "dossierSelectionne": {
+        "numeroDossier": "AVA-5340226",
+        "codeTypeDossier": 1
+      },
+      "mouvement": {
+        "beneficiaire": {
+          "code": "1",
+          "numero": "1695881M"
+        }
+      }
+    },
+    "apres_transformation": {
+      "dossier": {
+        "numeroDossier": 5340226,
+        "typeDossier": 1
+      },
+      "mouvement": {
+        "beneficiaire": {
+          "code": 1,
+          "numero": "1695881M"
+        }
+      }
+    }
+  }
+}
