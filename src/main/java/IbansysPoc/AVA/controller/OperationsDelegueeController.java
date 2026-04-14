@@ -333,4 +333,29 @@ public class OperationsDelegueeController {
         List<OperationsDeleguee> result = operationsDelegueeService.findByMatriculeFiscaleValide(noPieceClient);
         return ResponseEntity.ok(result);
     }
+
+    // ==================== API SIMPLE POUR LES SOLDES ====================
+
+    @Operation(
+        summary = "Récupérations des différents montants et soldes du dossier",
+        description = "Retourne uniquement le solde disponible, le montant autorisé, l'avance, autorisé BCT, le montant utilisé et réservé"
+    )
+    @GetMapping("/{numDossier}/soldes")
+    public ResponseEntity<java.util.Map<String, java.math.BigDecimal>> getDossierSoldes(
+            @Parameter(description = "Numéro de dossier", required = true)
+            @PathVariable Integer numDossier) {
+        log.info("GET /api/operations-deleguees/{}/soldes", numDossier);
+        
+        return operationsDelegueeService.findById(numDossier).map(dossier -> {
+            java.util.Map<String, java.math.BigDecimal> soldes = new java.util.HashMap<>();
+            soldes.put("montantAutorise", dossier.getMntAutorise());
+            soldes.put("montantAvance", dossier.getMntAvance());
+            soldes.put("montantAutorisationBct", dossier.getMntAutoriseBct());
+            soldes.put("montantUtilise", dossier.getMntUtilise());
+            soldes.put("montantReserve", dossier.getMntReserve());
+            soldes.put("soldeDisponible", dossier.getSolde());
+            return ResponseEntity.ok(soldes);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
 }
