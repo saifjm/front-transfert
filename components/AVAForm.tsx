@@ -41,6 +41,9 @@ interface DocumentDTO {
   typeDocument?: number;
   referenceFichierJoint?: string;
   extention?: string;
+  pathAnnee?: string;
+  pathMois?: string;
+  cheminFichier?: string;
   fichier?: File | null;
 }
 
@@ -180,6 +183,9 @@ interface InitiationOuvertureDTO {
 }
 
 export function AVAForm() {
+  const documentStorageBasePath = String(
+    import.meta.env.VITE_DOCUMENTS_BASE_PATH || '',
+  ).trim();
   const [formData, setFormData] = useState<InitiationOuvertureDTO>({
     beneficiairesMvtListe: [],
     documents: [],
@@ -197,6 +203,7 @@ export function AVAForm() {
   
   // État pour la prévisualisation des documents
   const [previewDocument, setPreviewDocument] = useState<{ file: File | null; url: string | null; name: string } | null>(null);
+  const [localStorageDirHandle, setLocalStorageDirHandle] = useState<any>(null);
   
   // États pour les données de référence
   const [banques, setBanques] = useState<Banque[]>([]);
@@ -870,9 +877,72 @@ export function AVAForm() {
   const handleFileChange = (id: string, file: File | null) => {
     if (file) {
       const extension = file.name.split('.').pop() || '';
+      const now = new Date();
+      const pathAnnee = String(now.getFullYear());
+      const pathMois = String(now.getMonth() + 1).padStart(2, '0');
+      const cleanBasePath = documentStorageBasePath.replace(/[\\/]+$/, '');
+      const cheminFichier = cleanBasePath
+        ? `${cleanBasePath}/${pathAnnee}/${pathMois}/${file.name}`
+        : `${pathAnnee}/${pathMois}/${file.name}`;
       setDocuments(documents.map(d => 
-        d.id === id ? { ...d, fichier: file, referenceFichierJoint: file.name, extention: extension } : d
+        d.id === id
+          ? {
+              ...d,
+              fichier: file,
+              referenceFichierJoint: file.name,
+              extention: extension,
+              pathAnnee: d.pathAnnee || pathAnnee,
+              pathMois: d.pathMois || pathMois,
+              cheminFichier,
+            }
+          : d
       ));
+      void saveFileToLocalPath(file, pathAnnee, pathMois);
+    }
+  };
+
+  const chooseLocalStorageFolder = async () => {
+    try {
+      const picker = (window as any).showDirectoryPicker;
+      if (!picker) {
+        toast.error('Sélection du dossier non supportée par ce navigateur');
+        return;
+      }
+      const handle = await picker({ mode: 'readwrite' });
+      setLocalStorageDirHandle(handle);
+      toast.success(`Dossier de stockage sélectionné: ${handle?.name || 'local'}`);
+    } catch {
+      // User may cancel folder selection.
+    }
+  };
+
+  const saveFileToLocalPath = async (file: File, pathAnnee: string, pathMois: string) => {
+    try {
+      if (!documentStorageBasePath) return;
+      const isLocalPath = /^[a-zA-Z]:[\\/]/.test(documentStorageBasePath) || documentStorageBasePath.startsWith('/');
+      if (!isLocalPath) return;
+
+      const picker = (window as any).showDirectoryPicker;
+      if (!picker) return;
+
+      let root = localStorageDirHandle;
+      if (!root) {
+        // First time: ask user once for the base folder.
+        root = await picker({ mode: 'readwrite' });
+        setLocalStorageDirHandle(root);
+      }
+      if (!root) return;
+
+      const yearDir = await root.getDirectoryHandle(pathAnnee, { create: true });
+      const monthDir = await yearDir.getDirectoryHandle(pathMois, { create: true });
+      const fileHandle = await monthDir.getFileHandle(file.name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(file);
+      await writable.close();
+
+      toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
+    } catch (error) {
+      console.warn('Échec sauvegarde locale document:', error);
     }
   };
 
@@ -1335,8 +1405,8 @@ export function AVAForm() {
         mntReserve: validationApiResponse.mntReserve,
         mntBlocage: validationApiResponse.mntBlocage,
         solde: validationApiResponse.solde,
-        beneficiaires: formData.beneficiairesMvtListe as BeneficiaireDTO[],
-        documents: formData.documents,
+        beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
+        documents: cleanDocuments as DocumentDTO[],
         avaMarche: formData.avaMarcheMvtListe?.[0] as AvaMarcheDTO
       };
       
@@ -2393,10 +2463,15 @@ export function AVAForm() {
                     Pièces justificatives requises pour le dossier AVA
                   </CardDescription>
                 </div>
-                <Button onClick={addDocument} size="sm">
-                  <PlusCircle className="w-4 h-4 mr-2" />
-                  Ajouter
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={chooseLocalStorageFolder}>
+                    Dossier local
+                  </Button>
+                  <Button onClick={addDocument} size="sm">
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Ajouter
+                  </Button>
+                </div>
               </div>
               {fieldErrors.documents && (
                 <Alert variant="destructive" className="mt-4">
@@ -2433,7 +2508,7 @@ export function AVAForm() {
                       <div className="space-y-2 col-span-2">
                         <Label>Type de Document</Label>
                         <Select
-                          value={document.typeDocument?.toString()}
+                          value={document.typeDocument?.toString() || ''}
                           onValueChange={(value) => updateDocument(document.id!, 'typeDocument', Number(value))}
                         >
                           <SelectTrigger>
@@ -2485,6 +2560,41 @@ export function AVAForm() {
                         <p className="text-xs text-muted-foreground">
                           La référence du fichier sera générée automatiquement
                         </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Path Année</Label>
+                        <Input
+                          value={document.pathAnnee || ''}
+                          onChange={(e) => updateDocument(document.id!, 'pathAnnee' as keyof DocumentDTO, e.target.value)}
+                          placeholder="YYYY"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Path Mois</Label>
+                        <Input
+                          value={document.pathMois || ''}
+                          onChange={(e) => updateDocument(document.id!, 'pathMois' as keyof DocumentDTO, e.target.value)}
+                          placeholder="MM"
+                        />
+                      </div>
+
+                      <div className="space-y-2 col-span-2">
+                        <Label>Chemin de stockage/preview</Label>
+                        <Input
+                          readOnly
+                          value={
+                            document.referenceFichierJoint && document.pathAnnee && document.pathMois
+                              ? `${documentStorageBasePath.replace(/[\\/]+$/, '')}/${document.pathAnnee}/${document.pathMois}/${document.referenceFichierJoint}`
+                              : ''
+                          }
+                          placeholder={
+                            documentStorageBasePath
+                              ? 'Sélectionnez un fichier pour générer le chemin'
+                              : 'Renseignez VITE_DOCUMENTS_BASE_PATH dans .env'
+                          }
+                        />
                       </div>
                     </div>
                   </div>
@@ -2593,7 +2703,7 @@ export function AVAForm() {
 
       {/* Dialog de prévisualisation des documents */}
       <Dialog open={!!previewDocument} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="!w-[98vw] !max-w-[98vw] h-[96vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Prévisualisation du document</DialogTitle>
             <DialogDescription>
@@ -2608,7 +2718,7 @@ export function AVAForm() {
                   <img
                     src={previewDocument.url || ''}
                     alt={previewDocument.name}
-                    className="w-full h-auto rounded-lg border"
+                    className="w-full max-h-[80vh] object-contain rounded-lg border"
                   />
                 )}
 
@@ -2617,7 +2727,7 @@ export function AVAForm() {
                   <iframe
                     src={previewDocument.url || ''}
                     title={previewDocument.name}
-                    className="w-full h-[70vh] border rounded-lg"
+                    className="w-full h-[80vh] border rounded-lg"
                   />
                 )}
 
@@ -2626,7 +2736,7 @@ export function AVAForm() {
                   <iframe
                     src={previewDocument.url || ''}
                     title={previewDocument.name}
-                    className="w-full h-[70vh] border rounded-lg bg-white"
+                    className="w-full h-[80vh] border rounded-lg bg-white"
                   />
                 )}
 

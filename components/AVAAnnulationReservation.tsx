@@ -78,6 +78,17 @@ interface Agence {
   libelleAgence: string;
 }
 
+interface DonneesGeneralesRefDTO {
+  codeBanque?: number;
+}
+
+interface RefAgenceDTO {
+  id?: {
+    codeAgenceBct?: number;
+  };
+  libAgence?: string;
+}
+
 interface Reservation {
   dateResa: string;
   mntAnnulation: number;
@@ -218,17 +229,8 @@ export function AVAAnnulationReservation() {
       5: "INVESTISSEMENT",
     };
 
-    const agenceLabels: Record<number, string> = {
-      17: "Agence Principale",
-      100: "Agence Tunis Centre",
-      200: "Agence Sfax",
-      300: "Agence Sousse",
-    };
-
     try {
-      const response = await fetch(
-        "/api/operations-deleguees/dossiers-valides-avec-nom",
-      );
+      const response = await fetch("/api/operations-deleguees/dossiers-valides-avec-nom");
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -250,6 +252,51 @@ export function AVAAnnulationReservation() {
         throw new Error("JSON_PARSE_ERROR");
       }
 
+      const agenceCodes = Array.from(
+        new Set(
+          data
+            .map((dto) => dto.codeAgence)
+            .filter((code) => Number.isFinite(code)),
+        ),
+      );
+
+      const agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch("/api/ref/donnees-generales");
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales = await safeJsonParse<DonneesGeneralesRefDTO[]>(donneesGeneralesResponse);
+          const codeBanque = Array.isArray(donneesGenerales)
+            ? donneesGenerales.find((item) => typeof item?.codeBanque === "number")?.codeBanque
+            : undefined;
+
+          if (typeof codeBanque === "number") {
+            const agenceResults = await Promise.all(
+              agenceCodes.map(async (codeAgence) => {
+                try {
+                  const refAgenceResponse = await fetch(
+                    `/api/ref/agences/${codeBanque}/${codeAgence}`,
+                  );
+                  if (!refAgenceResponse.ok) return null;
+                  const agence = await safeJsonParse<RefAgenceDTO>(refAgenceResponse);
+                  const libelle = agence?.libAgence?.trim();
+                  return libelle ? { codeAgence, libelle } : null;
+                } catch {
+                  return null;
+                }
+              }),
+            );
+
+            agenceResults.forEach((result) => {
+              if (result) {
+                agenceNameByCode.set(result.codeAgence, result.libelle);
+              }
+            });
+          }
+        }
+      } catch {
+        // Ignore REF errors and keep fallback labels.
+      }
+
       const dossiersTransformes: DossierAVA[] = data.map(
         (dto) => {
           const nomComplet = dto.nomClient?.trim() || "";
@@ -263,7 +310,7 @@ export function AVAAnnulationReservation() {
           return {
             codeAgence: dto.codeAgence,
             libelleAgence:
-              agenceLabels[dto.codeAgence] ||
+              agenceNameByCode.get(dto.codeAgence) ||
               `Agence ${dto.codeAgence}`,
             typeDossier: dto.typeDossierAva,
             codeTypeDossier: dto.typeDossierAva,
@@ -293,6 +340,12 @@ export function AVAAnnulationReservation() {
 
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
+      setAgences(
+        agenceCodes.map((code) => ({
+          codeAgence: String(code),
+          libelleAgence: agenceNameByCode.get(code) || `Agence ${code}`,
+        })),
+      );
 
       console.log(
         "✅ API: Dossiers AVA chargés avec succès (" +
@@ -320,28 +373,55 @@ export function AVAAnnulationReservation() {
 
   // Charger les agences
   const fetchAgences = async () => {
-    const mockAgences: Agence[] = [
-      {
-        codeAgence: "100",
-        libelleAgence: "Agence Tunis Centre",
-      },
-      { codeAgence: "200", libelleAgence: "Agence Sfax" },
-      { codeAgence: "300", libelleAgence: "Agence Sousse" },
-      { codeAgence: "400", libelleAgence: "Agence Monastir" },
-    ];
-
     try {
-      const response = await fetch("/api/ref/agences");
-      if (response.ok) {
-        const data = await safeJsonParse<Agence[]>(response);
-        if (data) {
-          setAgences(data);
-          return;
-        }
+      const [dossiersResponse, donneesGeneralesResponse] = await Promise.all([
+        fetch("/api/operations-deleguees/dossiers-valides-avec-nom"),
+        fetch("/api/ref/donnees-generales"),
+      ]);
+
+      if (!dossiersResponse.ok || !donneesGeneralesResponse.ok) {
+        return;
       }
-      throw new Error("API_ERROR");
-    } catch (error) {
-      setAgences(mockAgences);
+
+      const dossiersData = await safeJsonParse<Array<{ codeAgence: number }>>(dossiersResponse);
+      const donneesGenerales = await safeJsonParse<DonneesGeneralesRefDTO[]>(donneesGeneralesResponse);
+      const codeBanque = Array.isArray(donneesGenerales)
+        ? donneesGenerales.find((item) => typeof item?.codeBanque === "number")?.codeBanque
+        : undefined;
+
+      if (!Array.isArray(dossiersData) || typeof codeBanque !== "number") {
+        return;
+      }
+
+      const agenceCodes = Array.from(
+        new Set(
+          dossiersData
+            .map((d) => d.codeAgence)
+            .filter((code) => Number.isFinite(code)),
+        ),
+      );
+
+      const mappedAgences = await Promise.all(
+        agenceCodes.map(async (codeAgence) => {
+          try {
+            const response = await fetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
+            if (!response.ok) {
+              return { codeAgence: String(codeAgence), libelleAgence: `Agence ${codeAgence}` };
+            }
+            const agence = await safeJsonParse<RefAgenceDTO>(response);
+            return {
+              codeAgence: String(codeAgence),
+              libelleAgence: agence?.libAgence?.trim() || `Agence ${codeAgence}`,
+            };
+          } catch {
+            return { codeAgence: String(codeAgence), libelleAgence: `Agence ${codeAgence}` };
+          }
+        }),
+      );
+
+      setAgences(mappedAgences);
+    } catch {
+      // Keep current state from fetchDossiers fallback.
     }
   };
 
