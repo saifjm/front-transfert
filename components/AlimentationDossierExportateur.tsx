@@ -4,6 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { 
@@ -50,13 +51,15 @@ interface DossierExportateur {
   statut: 'ACTIF' | 'SUSPENDU' | 'CLOTURE';
 }
 
-interface AlimentationDTO {
-  numeroDossier?: string;
-  montantAlimentation?: number;
-  typeOperation?: 'AUGMENTATION' | 'RESTITUTION';
-  dateOperation?: string;
-  reference?: string;
-  observations?: string;
+interface OperationExportateurAVADTO {
+  numDossierAva?: number;
+  dateDosRap?: string;
+  mntRap?: number;
+  codeDevise?: number;
+  numeroCompte?: string;
+  typePieceBenef?: number;
+  noPieceBenef?: string;
+  codeProduitService?: number;
 }
 
 interface BeneficiaireExistant {
@@ -84,6 +87,17 @@ export function AlimentationDossierExportateur() {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // État pour le modal d'erreur API
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [apiError, setApiError] = useState<{
+    code?: string;
+    error?: string;
+    details?: string;
+    message?: string;
+    timestamp?: string;
+    status?: number;
+  } | null>(null);
+
   // Filtres de recherche
   const [searchNumeroDossier, setSearchNumeroDossier] = useState('');
   const [searchTypeDossier, setSearchTypeDossier] = useState('');
@@ -94,9 +108,10 @@ export function AlimentationDossierExportateur() {
   const [agences, setAgences] = useState<Agence[]>([]);
 
   // États pour l'alimentation
-  const [alimentation, setAlimentation] = useState<AlimentationDTO>({
-    typeOperation: 'AUGMENTATION',
-    dateOperation: new Date().toISOString().split('T')[0]
+  const [alimentation, setAlimentation] = useState<OperationExportateurAVADTO>({
+    dateDosRap: new Date().toISOString().split('T')[0],
+    codeDevise: 788,
+    codeProduitService: 108
   });
 
   // Bénéficiaires
@@ -119,12 +134,12 @@ export function AlimentationDossierExportateur() {
     // Données mock par défaut
     const mockDossiers: DossierExportateur[] = [
       {
-        codeAgence: '001',
+        codeAgence: '100',
         libelleAgence: 'Agence Tunis Centre',
         typeDossier: '1',
         codeTypeDossier: '1',
         libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'EXP-2026-001',
+        numeroDossier: 'AVA-2026-001',
         dateDossier: '2026-01-15',
         nomClient: 'Dupont Jean',
         prenomClient: 'Jean',
@@ -141,12 +156,12 @@ export function AlimentationDossierExportateur() {
         statut: 'ACTIF'
       },
       {
-        codeAgence: '002',
+        codeAgence: '300',
         libelleAgence: 'Agence Sousse',
         typeDossier: '2',
         codeTypeDossier: '2',
         libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numeroDossier: 'EXP-2026-002',
+        numeroDossier: 'AVA-2026-002',
         dateDossier: '2026-01-20',
         nomClient: 'Martin Sophie',
         prenomClient: 'Sophie',
@@ -161,130 +176,90 @@ export function AlimentationDossierExportateur() {
         solde: 20000,
         devise: 'TND',
         statut: 'ACTIF'
-      },
-      {
-        codeAgence: '001',
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: '3',
-        codeTypeDossier: '3',
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numeroDossier: 'EXP-2026-003',
-        dateDossier: '2026-02-01',
-        nomClient: 'Ben Ali Ahmed',
-        prenomClient: 'Ahmed',
-        noPieceClient: '9876543C',
-        montantAutorise: 750000,
-        mntAutorise: 750000,
-        montantUtilise: 0,
-        mntUtilise: 0,
-        mntAvance: 375000,
-        mntAutorisationBct: 150000,
-        mntReserve: 0,
-        solde: 750000,
-        devise: 'TND',
-        statut: 'ACTIF'
-      },
-      {
-        codeAgence: '003',
-        libelleAgence: 'Agence Sfax',
-        typeDossier: '1',
-        codeTypeDossier: '1',
-        libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'EXP-2025-089',
-        dateDossier: '2025-12-10',
-        nomClient: 'Trabelsi Leila',
-        prenomClient: 'Leila',
-        noPieceClient: '5555555D',
-        montantAutorise: 400000,
-        mntAutorise: 400000,
-        montantUtilise: 400000,
-        mntUtilise: 400000,
-        mntAvance: 200000,
-        mntAutorisationBct: 80000,
-        mntReserve: 0,
-        solde: 0,
-        devise: 'TND',
-        statut: 'ACTIF'
-      },
-      {
-        codeAgence: '002',
-        libelleAgence: 'Agence Sousse',
-        typeDossier: '4',
-        codeTypeDossier: '4',
-        libelleTypeDossier: 'AUTRES ACTIVITES (BANQUES)',
-        numeroDossier: 'EXP-2025-075',
-        dateDossier: '2025-11-25',
-        nomClient: 'Hamdi Mohamed',
-        prenomClient: 'Mohamed',
-        noPieceClient: '3333333E',
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 50000,
-        mntUtilise: 50000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 10000,
-        solde: 150000,
-        devise: 'TND',
-        statut: 'SUSPENDU'
-      },
-      {
-        codeAgence: '004',
-        libelleAgence: 'Agence Nabeul',
-        typeDossier: '5',
-        codeTypeDossier: '5',
-        libelleTypeDossier: 'A. ACT. (PROM.-NOUV. PROJ.)',
-        numeroDossier: 'EXP-2026-010',
-        dateDossier: '2026-02-05',
-        nomClient: 'Jlassi Fatma',
-        prenomClient: 'Fatma',
-        noPieceClient: '8888888F',
-        montantAutorise: 600000,
-        mntAutorise: 600000,
-        montantUtilise: 200000,
-        mntUtilise: 200000,
-        mntAvance: 300000,
-        mntAutorisationBct: 120000,
-        mntReserve: 100000,
-        solde: 400000,
-        devise: 'TND',
-        statut: 'ACTIF'
-      },
-      {
-        codeAgence: '001',
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: '1',
-        codeTypeDossier: '1',
-        libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'EXP-2026-015',
-        dateDossier: '2026-02-10',
-        nomClient: 'Saidi Karim',
-        prenomClient: 'Karim',
-        noPieceClient: '7777777G',
-        montantAutorise: 450000,
-        mntAutorise: 450000,
-        montantUtilise: 100000,
-        mntUtilise: 100000,
-        mntAvance: 225000,
-        mntAutorisationBct: 90000,
-        mntReserve: 50000,
-        solde: 350000,
-        devise: 'TND',
-        statut: 'ACTIF'
       }
     ];
 
     try {
-      const response = await fetch('/api/dossiers/exportateurs/valides');
-      if (response.ok) {
-        const data = await safeJsonParse<DossierExportateur[]>(response);
-        if (data) {
-          setDossiers(data);
-          setDossiersFiltres(data);
-          return;
-        }
+      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      if (!response.ok) {
+        throw new Error(`HTTP_ERROR_${response.status}`);
       }
-      throw new Error('API_ERROR');
+
+      interface DossierValideDTO {
+        codeAgence: number;
+        typeDossierAva: number;
+        numDossier: number;
+        dateDossier: string;
+        noPieceClient: string;
+        nomClient: string;
+      }
+
+      const data = await safeJsonParse<DossierValideDTO[]>(response);
+      if (!data) {
+        throw new Error('NO_DATA');
+      }
+
+      const typeDossierLabels: { [key: number]: string } = {
+        1: 'EXPORTATEUR',
+        2: 'MARCHE REALISABLE A L\'ETRANGER',
+        3: 'AUTRES ACTIVITES (ANNEXE N.2)',
+        4: 'AUTRES ACTIVITES (BANQUES)',
+        5: 'A. ACT. (PROM.-NOUV. PROJ.)'
+      };
+
+      const dossiersTransformes: DossierExportateur[] = await Promise.all(
+        data.map(async (dto) => {
+          // Récupérer les soldes réels pour ce dossier
+          let soldes: any = {};
+          try {
+            const soldesResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
+            if (soldesResponse.ok) {
+              const soldesData = await safeJsonParse<any>(soldesResponse);
+              if (soldesData) {
+                soldes = soldesData;
+              }
+            }
+          } catch (e) {
+            console.warn(`Impossible de récupérer les soldes pour le dossier ${dto.numDossier}`);
+          }
+
+          return {
+            codeAgence: dto.codeAgence.toString(),
+            libelleAgence: '', // Renseigné par les agences lors du filtrage/affichage
+            typeDossier: dto.typeDossierAva.toString(),
+            codeTypeDossier: dto.typeDossierAva.toString(),
+            libelleTypeDossier: typeDossierLabels[dto.typeDossierAva] || 'Type inconnu',
+            numeroDossier: `AVA-${dto.numDossier}`,
+            dateDossier: dto.dateDossier,
+            nomClient: dto.nomClient,
+            prenomClient: '',
+            noPieceClient: dto.noPieceClient,
+            
+            // Intégration des données financières réelles
+            montantAutorise: soldes.montantAutorise || 0,
+            mntAutorise: soldes.montantAutorise || 0,
+            montantUtilise: soldes.montantUtilise || 0,
+            mntUtilise: soldes.montantUtilise || 0,
+            mntAvance: soldes.montantAvance || 0,
+            mntAutorisationBct: soldes.montantAutorisationBct || 0,
+            mntReserve: soldes.montantReserve || 0,
+            solde: soldes.soldeDisponible || 0,
+            devise: 'TND',
+            statut: 'ACTIF'
+          };
+        })
+      );
+
+      // Enrichissement basique (bien que les agences puissent ne pas être encore prêtes)
+      dossiersTransformes.forEach(dossier => {
+        const agence = agences.find(a => a.codeAgence === dossier.codeAgence);
+        if (agence) {
+          dossier.libelleAgence = agence.libelleAgence;
+        }
+      });
+
+      setDossiers(dossiersTransformes);
+      setDossiersFiltres(dossiersTransformes);
     } catch (error) {
       console.info('ℹ️ Mode démonstration - Dossiers Exportateurs');
       setDossiers(mockDossiers);
@@ -371,8 +346,9 @@ export function AlimentationDossierExportateur() {
     setEtape('recherche');
     setDossierSelectionne(null);
     setAlimentation({
-      typeOperation: 'AUGMENTATION',
-      dateOperation: new Date().toISOString().split('T')[0]
+      dateDosRap: new Date().toISOString().split('T')[0],
+      codeDevise: 788,
+      codeProduitService: 108
     });
     setErrors({});
   };
@@ -381,27 +357,24 @@ export function AlimentationDossierExportateur() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!alimentation.montantAlimentation || alimentation.montantAlimentation <= 0) {
-      newErrors.montantAlimentation = 'Le montant doit être supérieur à 0';
+    if (!alimentation.mntRap || alimentation.mntRap <= 0) {
+      newErrors.mntRap = 'Le montant doit être supérieur à 0';
     }
 
-    if (!alimentation.typeOperation) {
-      newErrors.typeOperation = 'Le type d\'opération est obligatoire';
+    if (!alimentation.typePieceBenef) {
+      newErrors.typePieceBenef = 'Le type de pièce est obligatoire';
     }
 
-    if (!alimentation.dateOperation) {
-      newErrors.dateOperation = 'La date est obligatoire';
+    if (!alimentation.dateDosRap) {
+      newErrors.dateDosRap = 'La date est obligatoire';
     }
 
-    if (!alimentation.reference || alimentation.reference.trim() === '') {
-      newErrors.reference = 'La référence est obligatoire';
+    if (!alimentation.noPieceBenef || alimentation.noPieceBenef.trim() === '') {
+      newErrors.noPieceBenef = 'Le numéro de pièce est obligatoire';
     }
 
-    // Validation spécifique pour RESTITUTION
-    if (alimentation.typeOperation === 'RESTITUTION' && dossierSelectionne) {
-      if (alimentation.montantAlimentation! > dossierSelectionne.montantUtilise) {
-        newErrors.montantAlimentation = `Le montant de restitution ne peut pas dépasser le montant utilisé (${dossierSelectionne.montantUtilise.toLocaleString()} ${dossierSelectionne.devise})`;
-      }
+    if (!alimentation.numeroCompte || alimentation.numeroCompte.trim() === '') {
+      newErrors.numeroCompte = 'Le numéro de compte (RIB) est obligatoire';
     }
 
     setErrors(newErrors);
@@ -422,15 +395,39 @@ export function AlimentationDossierExportateur() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/dossiers/exportateurs/alimenter', {
+      // Extraire l'ID du dossier proprement
+      let numDossierNumber = 0;
+      if (dossierSelectionne.numeroDossier) {
+        numDossierNumber = Number(dossierSelectionne.numeroDossier.replace('AVA-', '').replace('EXP-', ''));
+      }
+
+      const payload: OperationExportateurAVADTO = {
+        ...alimentation,
+        numDossierAva: numDossierNumber
+      };
+
+      const response = await fetch('/api/operation-exportateur-ava/rapatriement/true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alimentation)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        toast.success('Alimentation enregistrée avec succès', {
-          description: `Dossier ${dossierSelectionne.numeroDossier} alimenté`
+        // Si la réponse est un PDF (quand Finalize=true on attend parfois un PDF)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/pdf')) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Rapatriement_AVA_${payload.numDossierAva}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+
+        toast.success('Rapatriement enregistré avec succès', {
+          description: `Dossier ${dossierSelectionne.numeroDossier} rapatrié`
         });
         
         // Retour à la recherche
@@ -439,12 +436,29 @@ export function AlimentationDossierExportateur() {
         // Recharger les dossiers
         await fetchDossiers();
       } else {
-        throw new Error('Erreur serveur');
+        const errorData = await safeJsonParse<any>(response);
+        
+        if (errorData) {
+          setApiError({
+            status: response.status,
+            message: errorData.message || 'Erreur lors du traitement de la requête',
+            details: errorData.details || errorData.error,
+            code: errorData.code,
+            timestamp: errorData.timestamp || new Date().toISOString()
+          });
+        } else {
+          setApiError({
+            status: response.status,
+            message: 'Erreur inattendue du serveur',
+            details: `HTTP ${response.status}`
+          });
+        }
+        setShowErrorModal(true);
       }
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Alimentation simulée');
-      toast.success('✓ Alimentation enregistrée (mode démo)', {
-        description: `Dossier ${dossierSelectionne.numeroDossier} alimenté`
+      console.info('ℹ️ Mode démonstration - Rapatriement simulé (Erreur réseau)');
+      toast.success('✓ Rapatriement enregistré (mode démo)', {
+        description: `Dossier ${dossierSelectionne.numeroDossier} rapatrié`
       });
       
       // Retour à la recherche après un délai
@@ -769,99 +783,98 @@ export function AlimentationDossierExportateur() {
       {/* Formulaire d'alimentation */}
       <Card>
         <CardHeader>
-          <CardTitle>Formulaire d'Alimentation</CardTitle>
+          <CardTitle>Formulaire d'Alimentation (Rapatriement)</CardTitle>
           <CardDescription>
-            Renseignez les informations de l'opération d'alimentation
+            Renseignez les informations de l'opération de rapatriement
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="typeOperation">Type d'Opération *</Label>
+              <Label htmlFor="typePieceBenef">Type de Pièce *</Label>
               <Select
-                value={alimentation.typeOperation}
-                onValueChange={(value: 'AUGMENTATION' | 'RESTITUTION') => 
-                  setAlimentation({ ...alimentation, typeOperation: value })
+                value={alimentation.typePieceBenef?.toString()}
+                onValueChange={(value) => 
+                  setAlimentation({ ...alimentation, typePieceBenef: Number(value) })
                 }
               >
-                <SelectTrigger className={errors.typeOperation ? 'border-red-500' : ''}>
-                  <SelectValue />
+                <SelectTrigger className={errors.typePieceBenef ? 'border-red-500' : ''}>
+                  <SelectValue placeholder="Sélectionner le type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="AUGMENTATION">Augmentation du montant</SelectItem>
-                  <SelectItem value="RESTITUTION">Restitution de montant</SelectItem>
+                  <SelectItem value="1">Carte d'identité nationale</SelectItem>
+                  <SelectItem value="4">Carte de séjour</SelectItem>
+                  <SelectItem value="7">Passeport</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.typeOperation && (
-                <p className="text-xs text-red-600">{errors.typeOperation}</p>
+              {errors.typePieceBenef && (
+                <p className="text-xs text-red-600">{errors.typePieceBenef}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                {alimentation.typeOperation === 'AUGMENTATION' 
-                  ? 'Augmente le montant autorisé du dossier'
-                  : 'Restitue une partie du montant utilisé'
-                }
-              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="montantAlimentation">Montant *</Label>
+              <Label htmlFor="noPieceBenef">Numéro de pièce *</Label>
               <Input
-                id="montantAlimentation"
+                id="noPieceBenef"
+                value={alimentation.noPieceBenef || ''}
+                onChange={(e) => setAlimentation({ ...alimentation, noPieceBenef: e.target.value })}
+                placeholder="Ex. 123456789"
+                className={errors.noPieceBenef ? 'border-red-500' : ''}
+              />
+              {errors.noPieceBenef && (
+                <p className="text-xs text-red-600">{errors.noPieceBenef}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mntRap">Montant (Rapatriement) *</Label>
+              <Input
+                id="mntRap"
                 type="number"
                 min="0"
                 step="0.01"
-                value={alimentation.montantAlimentation || ''}
+                value={alimentation.mntRap || ''}
                 onChange={(e) => setAlimentation({ 
                   ...alimentation, 
-                  montantAlimentation: Number(e.target.value) || undefined 
+                  mntRap: Number(e.target.value) || undefined 
                 })}
-                placeholder="Montant à alimenter"
-                className={errors.montantAlimentation ? 'border-red-500' : ''}
+                placeholder="Montant du rapatriement"
+                className={errors.mntRap ? 'border-red-500' : ''}
               />
-              {errors.montantAlimentation && (
-                <p className="text-xs text-red-600">{errors.montantAlimentation}</p>
+              {errors.mntRap && (
+                <p className="text-xs text-red-600">{errors.mntRap}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Devise : {dossierSelectionne?.devise}
+                Devise du rapatriement : {dossierSelectionne?.devise}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dateOperation">Date Opération *</Label>
+              <Label htmlFor="dateDosRap">Date de dossier *</Label>
               <Input
-                id="dateOperation"
+                id="dateDosRap"
                 type="date"
-                value={alimentation.dateOperation}
-                onChange={(e) => setAlimentation({ ...alimentation, dateOperation: e.target.value })}
-                className={errors.dateOperation ? 'border-red-500' : ''}
+                value={alimentation.dateDosRap}
+                onChange={(e) => setAlimentation({ ...alimentation, dateDosRap: e.target.value })}
+                className={errors.dateDosRap ? 'border-red-500' : ''}
               />
-              {errors.dateOperation && (
-                <p className="text-xs text-red-600">{errors.dateOperation}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reference">Référence *</Label>
-              <Input
-                id="reference"
-                value={alimentation.reference || ''}
-                onChange={(e) => setAlimentation({ ...alimentation, reference: e.target.value })}
-                placeholder="Référence document"
-                className={errors.reference ? 'border-red-500' : ''}
-              />
-              {errors.reference && (
-                <p className="text-xs text-red-600">{errors.reference}</p>
+              {errors.dateDosRap && (
+                <p className="text-xs text-red-600">{errors.dateDosRap}</p>
               )}
             </div>
 
             <div className="col-span-2 space-y-2">
-              <Label htmlFor="observations">Observations</Label>
+              <Label htmlFor="numeroCompte">Numéro de compte (RIB) *</Label>
               <Input
-                id="observations"
-                value={alimentation.observations || ''}
-                onChange={(e) => setAlimentation({ ...alimentation, observations: e.target.value })}
-                placeholder="Observations éventuelles"
+                id="numeroCompte"
+                value={alimentation.numeroCompte || ''}
+                onChange={(e) => setAlimentation({ ...alimentation, numeroCompte: e.target.value })}
+                placeholder="Ex. 1234567890123"
+                className={errors.numeroCompte ? 'border-red-500' : ''}
               />
+              {errors.numeroCompte && (
+                <p className="text-xs text-red-600">{errors.numeroCompte}</p>
+              )}
             </div>
           </div>
 
@@ -882,18 +895,87 @@ export function AlimentationDossierExportateur() {
               {isSubmitting ? (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Enregistrement...
+                  Génération en cours...
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Enregistrer l'Alimentation
+                  Rapatrier & Générer
                 </>
               )}
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal d'erreur API */}
+      <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Erreur lors du rapatriement
+            </DialogTitle>
+            <DialogDescription>
+              Une erreur s'est produite lors de l'enregistrement. Veuillez consulter les détails ci-dessous.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {apiError && (
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                {apiError.code && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Code :</span>
+                    <span className="text-sm text-red-800 font-mono">{apiError.code}</span>
+                  </div>
+                )}
+                
+                {apiError.error && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Erreur :</span>
+                    <span className="text-sm text-red-800">{apiError.error}</span>
+                  </div>
+                )}
+                
+                {apiError.message && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Message :</span>
+                    <span className="text-sm text-red-800">{apiError.message}</span>
+                  </div>
+                )}
+
+                {apiError.details && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Détails :</span>
+                    <span className="text-sm text-red-800">{apiError.details}</span>
+                  </div>
+                )}
+                
+                {apiError.status && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Statut HTTP :</span>
+                    <span className="text-sm text-red-800">{apiError.status}</span>
+                  </div>
+                )}
+                
+                {apiError.timestamp && (
+                  <div className="flex items-start gap-2">
+                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Horodatage :</span>
+                    <span className="text-sm text-red-800 font-mono">{apiError.timestamp}</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end">
+                <Button onClick={() => setShowErrorModal(false)} variant="outline">
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
