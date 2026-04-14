@@ -347,19 +347,89 @@ export function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiDossiers, setApiDossiers] = useState<any[]>([]);
+  const [agenceMap, setAgenceMap] = useState<Map<number, string>>(new Map());
+  const [clientMapByDossier, setClientMapByDossier] = useState<Map<number, string>>(new Map());
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/operations-deleguees');
-      if (!response.ok) {
-        throw new Error(`HTTP_ERROR_${response.status}`);
+      const [dossiersResponse, donneesGeneralesResponse, dossiersAvecNomResponse] = await Promise.all([
+        fetch('/api/operations-deleguees'),
+        fetch('/api/ref/donnees-generales'),
+        fetch('/api/operations-deleguees/dossiers-valides-avec-nom'),
+      ]);
+
+      if (!dossiersResponse.ok) {
+        throw new Error(`HTTP_ERROR_${dossiersResponse.status}`);
       }
-      const data = await safeJsonParse<any[]>(response);
+
+      const data = await safeJsonParse<any[]>(dossiersResponse);
       setApiDossiers(Array.isArray(data) ? data : []);
+
+      if (dossiersAvecNomResponse.ok) {
+        const dossiersAvecNom = await safeJsonParse<Array<{ numDossier?: number; nomClient?: string; noPieceClient?: string }>>(dossiersAvecNomResponse);
+        if (Array.isArray(dossiersAvecNom)) {
+          const map = new Map<number, string>();
+          for (const item of dossiersAvecNom) {
+            const num = Number(item?.numDossier);
+            if (!Number.isFinite(num)) continue;
+            map.set(num, (item?.nomClient || '').trim() || (item?.noPieceClient || '-'));
+          }
+          setClientMapByDossier(map);
+        } else {
+          setClientMapByDossier(new Map());
+        }
+      } else {
+        setClientMapByDossier(new Map());
+      }
+
+      const donneesGenerales = donneesGeneralesResponse.ok
+        ? await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse)
+        : null;
+      const currentCodeBanque =
+        Array.isArray(donneesGenerales) && donneesGenerales.length > 0
+          ? Number(donneesGenerales[0]?.codeBanque)
+          : null;
+
+      if (Array.isArray(data) && Number.isFinite(currentCodeBanque as number)) {
+        const uniqueCodes = Array.from(
+          new Set(
+            data
+              .map((d) => Number(d?.codeAgence))
+              .filter((code) => Number.isFinite(code)),
+          ),
+        ) as number[];
+
+        const agencesResponses = await Promise.all(
+          uniqueCodes.map(async (codeAgence) => {
+            try {
+              const resp = await fetch(`/api/ref/agences/${currentCodeBanque}/${codeAgence}`);
+              if (!resp.ok) return null;
+              const agence = await safeJsonParse<{ libAgence?: string }>(resp);
+              return {
+                codeAgence,
+                libAgence: agence?.libAgence || `Agence ${codeAgence}`,
+              };
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        const nextMap = new Map<number, string>();
+        for (const agence of agencesResponses) {
+          if (!agence) continue;
+          nextMap.set(agence.codeAgence, agence.libAgence);
+        }
+        setAgenceMap(nextMap);
+      } else {
+        setAgenceMap(new Map());
+      }
     } catch {
       setApiDossiers([]);
+      setAgenceMap(new Map());
+      setClientMapByDossier(new Map());
     } finally {
       setLoading(false);
     }
@@ -379,6 +449,20 @@ export function Dashboard() {
       };
     });
   }, []);
+
+  const getAgenceLabel = (rawCodeAgence: unknown) => {
+    const code = Number(rawCodeAgence);
+    if (!Number.isFinite(code)) return '-';
+    return agenceMap.get(code) || `Agence ${code}`;
+  };
+
+  const getClientLabel = (d: any) => {
+    const dossierNum = Number(d?.numDossier);
+    if (Number.isFinite(dossierNum) && clientMapByDossier.has(dossierNum)) {
+      return clientMapByDossier.get(dossierNum) || '-';
+    }
+    return d?.nomClient || d?.noPieceClient || '-';
+  };
 
   const dataDriven = useMemo(() => {
     const toNum = (v: unknown) => (typeof v === 'number' ? v : Number(v || 0));
@@ -422,8 +506,8 @@ export function Dashboard() {
       .slice(0, 7)
       .map((d) => ({
         num: `AVA-${d.numDossier}`,
-        client: d.nomClient || d.noPieceClient || '-',
-        agence: `Agence ${d.codeAgence}`,
+        client: getClientLabel(d),
+        agence: getAgenceLabel(d.codeAgence),
         devise: 'TND',
         montant: toNum(d.mntAutorise),
         statut: d.etatDossier === 'V' ? 'Actif' : d.etatDossier === 'B' ? 'Suspendu' : d.etatDossier === 'C' ? 'Clôturé' : 'Réservé',
@@ -433,7 +517,7 @@ export function Dashboard() {
 
     const byAgence = new Map<string, { dossiers: number; montant: number; actifs: number }>();
     for (const d of apiDossiers) {
-      const key = `Agence ${d.codeAgence ?? '-'}`;
+      const key = getAgenceLabel(d.codeAgence);
       const prev = byAgence.get(key) || { dossiers: 0, montant: 0, actifs: 0 };
       prev.dossiers += 1;
       prev.montant += toNum(d.mntAutorise);
@@ -463,7 +547,7 @@ export function Dashboard() {
       .sort((a, b) => b.montant - a.montant);
 
     return { total, active, suspended, closed, totalEngaged, evolution, montants, repartition, latest, agences, devises };
-  }, [apiDossiers, monthlyKeys]);
+  }, [apiDossiers, monthlyKeys, agenceMap, clientMapByDossier]);
 
   const liveKpiData = [
     { ...kpiData[0], value: dataDriven.active, display: dataDriven.active.toLocaleString('fr-TN') },

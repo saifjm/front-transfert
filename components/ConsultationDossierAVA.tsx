@@ -160,7 +160,9 @@ export function ConsultationDossierAVA() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/operations-deleguees");
+      const response = await fetch(
+        "/api/operations-deleguees/dossiers-valides-avec-nom",
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -171,7 +173,7 @@ export function ConsultationDossierAVA() {
         typeDossierAva: number;
         dateDossier: string;
         codeAgence: number;
-        typePieceClient: number;
+        typePieceClient?: number;
         noPieceClient: string;
         nomClient?: string;
         numeroCompte?: string;
@@ -200,6 +202,70 @@ export function ConsultationDossierAVA() {
         throw new Error("JSON_PARSE_ERROR");
       }
 
+      let agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch(
+          "/api/ref/donnees-generales",
+        );
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales =
+            await safeJsonParse<Array<{ codeBanque?: number }>>(
+              donneesGeneralesResponse,
+            );
+          const codeBanque =
+            Array.isArray(donneesGenerales) &&
+            donneesGenerales.length > 0
+              ? Number(donneesGenerales[0]?.codeBanque)
+              : NaN;
+
+          if (Number.isFinite(codeBanque)) {
+            const uniqueAgences = Array.from(
+              new Set(
+                data
+                  .map((dto) => Number(dto.codeAgence))
+                  .filter((code) => Number.isFinite(code)),
+              ),
+            ) as number[];
+
+            const agences = await Promise.all(
+              uniqueAgences.map(async (codeAgence) => {
+                try {
+                  const agenceResponse = await fetch(
+                    `/api/ref/agences/${codeBanque}/${codeAgence}`,
+                  );
+                  if (!agenceResponse.ok) return null;
+                  const agence = await safeJsonParse<{
+                    libAgence?: string;
+                  }>(agenceResponse);
+                  return {
+                    codeAgence,
+                    libAgence:
+                      agence?.libAgence || `Agence ${codeAgence}`,
+                  };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+
+            agenceNameByCode = new Map(
+              agences
+                .filter(
+                  (
+                    item,
+                  ): item is {
+                    codeAgence: number;
+                    libAgence: string;
+                  } => Boolean(item),
+                )
+                .map((item) => [item.codeAgence, item.libAgence]),
+            );
+          }
+        }
+      } catch {
+        agenceNameByCode = new Map();
+      }
+
       const typeDossierLabels: Record<number, string> = {
         1: "EXPORTATEUR",
         2: "MARCHE REALISABLE A L'ETRANGER",
@@ -217,11 +283,13 @@ export function ConsultationDossierAVA() {
           const nom =
             nomParts.length > 1
               ? nomParts.slice(1).join(" ")
-              : nomComplet || "Client " + dto.numDossier;
+              : nomComplet || "-";
 
           return {
             codeAgence: dto.codeAgence,
-            libelleAgence: `Agence ${dto.codeAgence}`,
+            libelleAgence:
+              agenceNameByCode.get(dto.codeAgence) ||
+              `Agence ${dto.codeAgence}`,
             typeDossier: dto.typeDossierAva,
             codeTypeDossier: dto.typeDossierAva,
             libelleTypeDossier:
@@ -243,7 +311,13 @@ export function ConsultationDossierAVA() {
             solde: dto.solde !== undefined ? dto.solde : 0,
             devise: "TND",
             statut:
-              dto.etatDossier === "V" ? "ACTIF" : "SUSPENDU",
+              dto.etatDossier === "V"
+                ? "ACTIF"
+                : dto.etatDossier === "C"
+                  ? "CLOTURE"
+                  : dto.etatDossier === "B"
+                    ? "SUSPENDU"
+                    : "ACTIF",
             declarationFiscale: dto.declarationFiscale,
             numeroCompte: dto.numeroCompte,
             echeance: dto.echeance,
@@ -850,14 +924,15 @@ export function ConsultationDossierAVA() {
                             : "-"}
                         </td>
                         <td className="p-3 text-sm">
-                          {dossier.codeAgence}
+                          {dossier.libelleAgence}
                         </td>
                         <td className="p-3 text-sm">
                           {dossier.noPieceClient}
                         </td>
                         <td className="p-3 text-sm">
-                          {dossier.prenomClient}{" "}
-                          {dossier.nomClient}
+                          {[dossier.prenomClient, dossier.nomClient]
+                            .filter(Boolean)
+                            .join(" ") || "-"}
                         </td>
                         <td className="p-3">
                           <span
@@ -914,8 +989,12 @@ export function ConsultationDossierAVA() {
             </Badge>
             <span>•</span>
             <span className="font-semibold">
-              {dossierSelectionne?.prenomClient}{" "}
-              {dossierSelectionne?.nomClient}
+              {[
+                dossierSelectionne?.prenomClient,
+                dossierSelectionne?.nomClient,
+              ]
+                .filter(Boolean)
+                .join(" ") || "-"}
             </span>
             <span className="text-xs opacity-70">
               ({dossierSelectionne?.noPieceClient})
