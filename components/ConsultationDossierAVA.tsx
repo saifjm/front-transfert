@@ -35,10 +35,12 @@ import {
   Paperclip,
   Download,
   Eye,
+  ExternalLink,
 } from "lucide-react";
 import { safeJsonParse } from "../utils";
 
 interface DocumentJoint {
+  numLigne?: number;
   numDossier: number;
   dateOperation: string;
   extention: string;
@@ -95,6 +97,9 @@ type SortColumn = keyof DossierAVAConsultation | null;
 type SortDirection = "asc" | "desc";
 
 export function ConsultationDossierAVA() {
+  const documentsBasePath = String(
+    import.meta.env.VITE_DOCUMENTS_BASE_PATH || "",
+  ).trim();
   const [etape, setEtape] = useState<"liste" | "detail">(
     "liste",
   );
@@ -346,7 +351,8 @@ export function ConsultationDossierAVA() {
               operationDetail?.numeroBct ?? dto.numeroBct,
             dateBct: operationDetail?.dateBct ?? dto.dateBct,
             beneficiaires: dto.beneficiaires || [],
-            documents: dto.documents || [],
+            documents:
+              operationDetail?.documents || dto.documents || [],
           };
         });
 
@@ -603,6 +609,23 @@ export function ConsultationDossierAVA() {
         {statut}
       </Badge>
     );
+  };
+
+  const buildDocumentUrl = (doc: DocumentJoint) => {
+    const cleanBase = documentsBasePath.trim().replace(/[\/\\]+$/, "");
+    if (!cleanBase || !doc.pathAnnee || !doc.pathMois) return null;
+    const safeFile = encodeURIComponent(doc.referenceFichierJoint);
+    const isWindowsAbsolutePath = /^[a-zA-Z]:[\\/]/.test(cleanBase);
+    const isUnixAbsolutePath = cleanBase.startsWith("/");
+    const isLocalFsPath = isWindowsAbsolutePath || isUnixAbsolutePath;
+
+    if (isLocalFsPath) {
+      // In Vite dev, local filesystem files must be served through /@fs.
+      const normalized = cleanBase.replace(/\\/g, "/");
+      return `/@fs/${normalized}/${doc.pathAnnee}/${doc.pathMois}/${safeFile}`;
+    }
+
+    return `${cleanBase}/${doc.pathAnnee}/${doc.pathMois}/${safeFile}`;
   };
 
   if (etape === "liste") {
@@ -1436,21 +1459,72 @@ export function ConsultationDossierAVA() {
                           {doc.typeDocument}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                          {doc.pathAnnee && doc.pathMois
+                            ? `${doc.pathAnnee}/${doc.pathMois}`
+                            : "Chemin non renseigné"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
                           {new Date(
                             doc.dateOperation,
                           ).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {buildDocumentUrl(doc) ? (
+                          <>
+                            <Button
+                              asChild
+                              size="icon"
+                              variant="ghost"
+                              title="Prévisualiser"
+                            >
+                              <a
+                                href={buildDocumentUrl(doc) || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </a>
+                            </Button>
+                            <Button
+                              asChild
+                              size="icon"
+                              variant="ghost"
+                              title="Télécharger"
+                            >
+                              <a
+                                href={buildDocumentUrl(doc) || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                download
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Chemin document indisponible"
+                            disabled
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+              {documentsBasePath ? (
+                <p className="text-xs text-muted-foreground mt-4">
+                  Base documents: {documentsBasePath}
+                </p>
+              ) : (
+                <p className="text-xs text-orange-600 mt-4">
+                  Définissez `VITE_DOCUMENTS_BASE_PATH` dans votre `.env` pour activer l'ouverture des fichiers.
+                </p>
               )}
             </CardContent>
           </Card>
