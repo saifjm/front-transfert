@@ -7,8 +7,9 @@ import {
   FolderOpen, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Clock, Globe, Building2, RefreshCw, FileText, ArrowUpRight,
   ArrowDownRight, DollarSign, BarChart3, ShieldAlert, Plane,
-  Calendar, ChevronRight, Activity, PauseCircle, RotateCcw, Sparkles
+  Calendar, ChevronRight, Activity, PauseCircle, RotateCcw, Sparkles, PlusCircle
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { safeJsonParse } from '../utils';
 
 // ── Mocked Data ───────────────────────────────────────────────────────────────
@@ -342,13 +343,19 @@ function PanelHeader({ title, subtitle, action, icon }: {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function Dashboard() {
+export interface DashboardProps {
+  onNavigate?: (section: string) => void;
+}
+
+export function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [activeTab, setActiveTab] = useState<'evolution' | 'montants'>('evolution');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiDossiers, setApiDossiers] = useState<any[]>([]);
   const [agenceMap, setAgenceMap] = useState<Map<number, string>>(new Map());
   const [clientMapByDossier, setClientMapByDossier] = useState<Map<number, string>>(new Map());
+  const [selectedOperation, setSelectedOperation] = useState<any>(null);
+  const [showActionModal, setShowActionModal] = useState(false);
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const fetchDashboardData = async () => {
@@ -567,6 +574,11 @@ export function Dashboard() {
     fetchDashboardData().finally(() => setTimeout(() => setRefreshing(false), 600));
   };
 
+  const handleRowClick = (op: any) => {
+    setSelectedOperation(op);
+    setShowActionModal(true);
+  };
+
   return (
     <div style={{ padding: '24px', background: '#f4f7fa', minHeight: '100vh' }}>
 
@@ -768,9 +780,10 @@ export function Dashboard() {
                       style={{
                         borderBottom: '1px solid #f8fafb',
                         background: i % 2 === 0 ? '#fff' : '#fafbfc',
-                        transition: 'background 0.12s',
+                        transition: 'background 0.12s, transform 0.1s',
                         cursor: 'pointer',
                       }}
+                      onClick={() => handleRowClick(d)}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#EEF3F7'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? '#fff' : '#fafbfc'; }}
                     >

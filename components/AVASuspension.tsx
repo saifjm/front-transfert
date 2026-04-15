@@ -242,14 +242,6 @@ export function AVASuspension() {
       5: "INVESTISSEMENT",
     };
 
-    const agenceLabels: Record<number, string> = {
-      16: "Agence Lac",
-      17: "Agence Principale",
-      100: "Agence Tunis Centre",
-      200: "Agence Sfax",
-      300: "Agence Sousse",
-    };
-
     try {
       const response = await fetch(
         "/api/operations-deleguees/dossiers-valides-avec-nom",
@@ -271,6 +263,33 @@ export function AVASuspension() {
       const data =
         await safeJsonParse<DossierValideDTO[]>(response);
       if (data && Array.isArray(data)) {
+        // Resolve agence labels from API
+        let agenceNameByCode = new Map<number, string>();
+        try {
+          const dgRes = await fetch("/api/ref/donnees-generales");
+          if (dgRes.ok) {
+            const dg = await safeJsonParse<Array<{ codeBanque?: number }>>(dgRes);
+            const cBanque = Array.isArray(dg) && dg.length > 0 ? Number(dg[0]?.codeBanque) : NaN;
+            if (Number.isFinite(cBanque)) {
+              const uniqueCodes = Array.from(new Set(data.map((d) => d.codeAgence)));
+              const resolved = await Promise.all(
+                uniqueCodes.map(async (code) => {
+                  try {
+                    const ar = await fetch(`/api/ref/agences/${cBanque}/${code}`);
+                    if (!ar.ok) return null;
+                    const ag = await safeJsonParse<{ libAgence?: string }>(ar);
+                    return ag?.libAgence ? { code, lib: ag.libAgence } : null;
+                  } catch { return null; }
+                })
+              );
+              agenceNameByCode = new Map(
+                resolved.filter((r): r is { code: number; lib: string } => Boolean(r))
+                  .map((r) => [r.code, r.lib])
+              );
+            }
+          }
+        } catch { /* fallback to code only */ }
+
         const dossiersTransformes: DossierAVA[] = data.map(
           (dto) => {
             const nomComplet = dto.nomClient?.trim() || "";
@@ -285,14 +304,14 @@ export function AVASuspension() {
             return {
               codeAgence: dto.codeAgence,
               libelleAgence:
-                agenceLabels[dto.codeAgence] ||
+                agenceNameByCode.get(dto.codeAgence) ||
                 `Agence ${dto.codeAgence}`,
               typeDossier: dto.typeDossierAva,
               codeTypeDossier: dto.typeDossierAva,
               libelleTypeDossier:
                 typeDossierLabels[dto.typeDossierAva] ||
                 `Type ${dto.typeDossierAva}`,
-              numeroDossier: `AVA-${dto.numDossier}`,
+              numeroDossier: `${dto.numDossier}`,
               dateDossier: dto.dateDossier,
               noPieceClient: dto.noPieceClient,
               nomClient: nom || "N/A",

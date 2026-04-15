@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -111,43 +111,108 @@ export function AVAClotureDossier() {
         statut: 'ACTIF',
         echeance: '2024-12-31',
         typePieceClient: 1
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: 'Agence Sfax',
-        typeDossier: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numeroDossier: 'AVA-2',
-        dateDossier: '2024-02-10',
-        noPieceClient: '2345678M',
-        nomClient: 'Martin',
-        prenomClient: 'Sophie',
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 0,
-        mntUtilise: 0,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 0,
-        mntBlocage: 0,
-        solde: 200000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-11-30',
-        typePieceClient: 1
       }
     ];
 
     try {
       const response = await fetch('/api/dossiers/ava/cloturables');
       const data = await safeJsonParse<DossierAVA[]>(response);
-      if (data) {
-        setDossiers(data);
-        setDossiersFiltres(data);
-      } else {
-        throw new Error('NO_DATA');
+      
+      const typeDossierLabels: Record<number, string> = {
+        1: "EXPORTATEUR",
+        2: "MARCHE REALISABLE A L'ETRANGER",
+        3: "AUTRES ACTIVITES (ANNEXE N.2)",
+        4: "AUTRES ACTIVITES (BANQUES)",
+        5: "A. ACT. (PROM.-NOUV. PROJ.)",
+      };
+
+      let agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch('/api/ref/donnees-generales');
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales = await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse);
+          const cBanque =
+            Array.isArray(donneesGenerales) && donneesGenerales.length > 0
+              ? Number(donneesGenerales[0]?.codeBanque)
+              : NaN;
+          if (Number.isFinite(cBanque)) {
+            const uniqueCodes = Array.from(
+              new Set(
+                data
+                  ? data
+                    .map((dto) => Number(dto.codeAgence))
+                    .filter((code) => Number.isFinite(code))
+                  : [],
+              ),
+            ) as number[];
+            const agencesResolved = await Promise.all(
+              uniqueCodes.map(async (codeAgence) => {
+                try {
+                  const agenceResponse = await fetch(`/api/ref/agences/${cBanque}/${codeAgence}`);
+                  if (!agenceResponse.ok) return null;
+                  const agenceData = await safeJsonParse<{ libAgence?: string }>(agenceResponse);
+                  return { codeAgence, libelleAgence: agenceData?.libAgence || `Agence ${codeAgence}` };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            agenceNameByCode = new Map(
+              agencesResolved
+                .filter((item): item is { codeAgence: number; libelleAgence: string } => Boolean(item))
+                .map((item) => [item.codeAgence, item.libelleAgence]),
+            );
+          }
+        }
+      } catch {
+        agenceNameByCode = new Map();
       }
+
+      if (data && Array.isArray(data)) {
+        const dossiersTransformes: DossierAVA[] = data.map(
+          (dto) => {
+            const nomComplet = dto.nomClient?.trim() || "";
+            const nomParts = nomComplet.split(" ");
+            const prenom =
+              nomParts.length > 1 ? nomParts[0] : "";
+            const nom =
+              nomParts.length > 1
+                ? nomParts.slice(1).join(" ")
+                : nomComplet;
+
+            return {
+              ...dto,
+              libelleAgence:
+                agenceNameByCode.get(Number(dto.codeAgence)) ||
+                dto.libelleAgence ||
+                `Agence ${dto.codeAgence}`,
+              libelleTypeDossier:
+                typeDossierLabels[Number(dto.typeDossier)] ||
+                dto.libelleTypeDossier ||
+                `Type ${dto.typeDossier}`,
+              nomClient: nom || dto.nomClient || "N/A",
+              prenomClient: prenom || dto.prenomClient || "",
+            };
+          },
+        );
+
+        // Mettre à jour la liste des agences pour le filtre
+        setAgences(prevAgences => {
+            const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
+            dossiersTransformes.forEach(d => {
+                const cAgence = String(d.codeAgence);
+                if (cAgence && !newAgencesMap.has(cAgence)) {
+                    newAgencesMap.set(cAgence, { codeAgence: cAgence, libelleAgence: d.libelleAgence });
+                }
+            });
+            return Array.from(newAgencesMap.values());
+        });
+
+        setDossiers(dossiersTransformes);
+        setDossiersFiltres(dossiersTransformes);
+        return;
+      }
+      throw new Error('NO_DATA');
     } catch (error) {
       console.info('ℹ️ Mode démonstration - Clôture Dossier');
       setDossiers(mockDossiers);
@@ -158,22 +223,7 @@ export function AVAClotureDossier() {
   };
 
   const fetchAgences = async () => {
-    const mockAgences: Agence[] = [
-      { codeAgence: '100', libelleAgence: 'Agence Tunis Centre' },
-      { codeAgence: '200', libelleAgence: 'Agence Sfax' }
-    ];
-
-    try {
-      const response = await fetch('/api/ref/agences');
-      const data = await safeJsonParse<Agence[]>(response);
-      if (data) {
-        setAgences(data);
-      } else {
-        throw new Error('NO_DATA');
-      }
-    } catch (error) {
-      setAgences(mockAgences);
-    }
+    // La liste des agences est alimentée dynamiquement via fetchDossiers
   };
 
   useEffect(() => {

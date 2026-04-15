@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -19,13 +19,10 @@ import {
   Filter,
   X,
   FileText,
-  Download,
-  Printer,
   ChevronDown,
   FileCheck,
   FileBarChart,
-  FileLock,
-  MoreVertical
+  FileLock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
@@ -407,7 +404,7 @@ export function AVAGenerationDossier() {
 
   // Générer l'attestation d'ouverture
   const genererAttestationOuverture = async (dossier: DossierAVA) => {
-    setGeneratingPdf(dossier.NUM_DOSSIER);
+    setGeneratingPdf(dossier.NUM_DOSSIER || null);
 
     try {
       const doc = new jsPDF({
@@ -473,7 +470,7 @@ export function AVAGenerationDossier() {
       // Références
       const references = [
         { label: 'Code type dossier AVA', value: String(dossier.CODE_TYPE_DOS_AVA) },
-        { label: 'Numero du dossier', value: dossier.NUM_DOSSIER },
+        { label: 'Numero du dossier', value: dossier.NUM_DOSSIER || '' },
         { label: 'Date d\'ouverture', value: dossier.DATE_DOSSIER }
       ];
 
@@ -483,7 +480,7 @@ export function AVAGenerationDossier() {
         const labelText = ref.label + ' : ';
         doc.text(labelText, margin + 5, yPosition);
         doc.setFont('times', 'normal');
-        doc.text(ref.value, margin + 55, yPosition);
+        doc.text(ref.value || '', margin + 55, yPosition);
         yPosition += 5;
       }
       yPosition += 5;
@@ -508,7 +505,7 @@ export function AVAGenerationDossier() {
       doc.setFont('times', 'bold');
       doc.text('Solde disponible : ', margin + 5, yPosition);
       doc.setFont('times', 'normal');
-      const soldeText = String(dossier.SOLDE.toFixed(3)) + ' TND';
+      const soldeText = String((dossier.SOLDE || 0).toFixed(3)) + ' TND';
       doc.text(soldeText, margin + 65, yPosition);
       yPosition += 10;
 
@@ -525,7 +522,7 @@ export function AVAGenerationDossier() {
       doc.text('Cachet et signature de l\'Intermediaire Agree', pageWidth - margin - 60, pageHeight - margin - 10);
 
       // Télécharger le PDF
-      const fileName = 'Attestation_Ouverture_' + dossier.NUM_DOSSIER.replace(/\//g, '_') + '.pdf';
+      const fileName = 'Attestation_Ouverture_' + (dossier.NUM_DOSSIER || '').replace(/\//g, '_') + '.pdf';
       doc.save(fileName);
 
       toast.success('Attestation d\'ouverture generee', {
@@ -545,7 +542,7 @@ export function AVAGenerationDossier() {
 
   // Générer l'attestation de solde
   const genererAttestationSolde = async (dossier: DossierAVA) => {
-    setGeneratingPdf(dossier.NUM_DOSSIER);
+    setGeneratingPdf(dossier.NUM_DOSSIER || null);
 
     try {
       const doc = new jsPDF({
@@ -622,7 +619,7 @@ export function AVAGenerationDossier() {
       // Puces - Références
       const references = [
         { label: 'Code type dossier AVA', value: String(dossier.CODE_TYPE_DOS_AVA) },
-        { label: 'Numéro du dossier', value: dossier.NUM_DOSSIER },
+        { label: 'Numéro du dossier', value: dossier.NUM_DOSSIER || '' },
         { label: 'Date d\'ouverture', value: dossier.DATE_DOSSIER }
       ];
 
@@ -632,7 +629,7 @@ export function AVAGenerationDossier() {
         doc.setFont('times', 'bold');
         doc.text(`${ref.label} : `, margin + 10, yPosition);
         doc.setFont('times', 'normal');
-        doc.text(ref.value, margin + 55, yPosition);
+        doc.text(ref.value || '', margin + 55, yPosition);
         yPosition += 5;
       }
       yPosition += 4;
@@ -668,7 +665,7 @@ export function AVAGenerationDossier() {
       doc.setFont('times', 'bold');
       doc.text('Solde disponible : ', margin + 10, yPosition);
       doc.setFont('times', 'bold');
-      doc.text(`${dossier.SOLDE.toFixed(3)} TND`, margin + 85, yPosition);
+      doc.text(`${(dossier.SOLDE || 0).toFixed(3)} TND`, margin + 85, yPosition);
       yPosition += 8;
 
       // Paragraphe explicatif sur le solde
@@ -698,10 +695,10 @@ export function AVAGenerationDossier() {
         type: 'ATTESTATION_SOLDE',
         numDossier: dossier.NUM_DOSSIER,
         dateOuverture: dossier.DATE_DOSSIER,
-        titulaire: dossier.NO_PIECE_CLIENT,
-        montantAutorise: dossier.montantAutorise,
-        montantUtilise: dossier.montantUtilise,
-        solde: dossier.SOLDE,
+        titulaire: dossier.NO_PIECE_CLIENT || '',
+        montantAutorise: dossier.montantAutorise || 0,
+        montantUtilise: dossier.montantUtilise || 0,
+        solde: dossier.SOLDE || 0,
         dateGeneration: new Date().toISOString()
       });
 
@@ -720,7 +717,7 @@ export function AVAGenerationDossier() {
       doc.text('Cachet et signature de l\'Intermédiaire Agréé', pageWidth - margin - 60, pageHeight - margin - 5);
 
       // Télécharger le PDF
-      const fileName = `Attestation_Solde_${dossier.NUM_DOSSIER.replace(/\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Attestation_Solde_${(dossier.NUM_DOSSIER || '').replace(/\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
 
       toast.success('Attestation de solde générée', {
@@ -739,7 +736,7 @@ export function AVAGenerationDossier() {
   };
 
   // Générer l'attestation de clôture
-  const genererAttestationCloture = (dossier: DossierAVA) => {
+  const genererAttestationCloture = () => {
     toast.info('Attestation de clôture', {
       description: 'Cette fonctionnalité sera bientôt disponible',
     });
@@ -747,7 +744,7 @@ export function AVAGenerationDossier() {
 
   // Générer le décompte mouvements
   const genererDecompteMouvements = async (dossier: DossierAVA) => {
-    setGeneratingPdf(dossier.NUM_DOSSIER);
+    setGeneratingPdf(dossier.NUM_DOSSIER || null);
 
     try {
       const doc = new jsPDF();
@@ -933,7 +930,7 @@ export function AVAGenerationDossier() {
       colX += 30;
       doc.text(String((dossier.montantAutorise || 0).toFixed(3)), colX, yPosition + 5);
       colX += 30;
-      doc.text(dossier.NUM_DOSSIER, colX, yPosition + 5);
+      doc.text(dossier.NUM_DOSSIER || '', colX, yPosition + 5);
       colX += 35;
       doc.text('Allocation initiale', colX, yPosition + 5);
 
@@ -997,7 +994,7 @@ export function AVAGenerationDossier() {
       doc.text(footerText, footerTextX, pageHeight - 4);
 
       // Télécharger le PDF
-      const fileName = `Decompte_Mouvements_${dossier.NUM_DOSSIER.replace(/\\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Decompte_Mouvements_${(dossier.NUM_DOSSIER || '').replace(/\//g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
 
       toast.success('Décompte mouvements généré', {
@@ -1025,7 +1022,7 @@ export function AVAGenerationDossier() {
         genererAttestationSolde(dossier);
         break;
       case 'attestation-cloture':
-        genererAttestationCloture(dossier);
+        genererAttestationCloture();
         break;
       case 'decompte-mouvements':
         genererDecompteMouvements(dossier);
@@ -1258,7 +1255,7 @@ export function AVAGenerationDossier() {
                       </td>
                       <td className="p-3 text-sm">{dossier.LIBELLE_AGENCE}</td>
                       <td className="p-3 text-sm">{dossier.DATE_DOSSIER}</td>
-                      <td className="p-3">{getBadgeStatut(dossier.ETAT_DOSSIER)}</td>
+                      <td className="p-3">{getBadgeStatut(dossier.ETAT_DOSSIER || '')}</td>
                       <td className="p-3">
                         <DropdownMenu>
                           <DropdownMenuTrigger 

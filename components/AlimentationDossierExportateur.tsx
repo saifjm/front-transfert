@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -6,24 +6,12 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
 import { 
-  Search, 
   ArrowLeft, 
   FileText, 
-  CheckCircle2, 
-  XCircle, 
   AlertTriangle,
   RefreshCw,
-  DollarSign,
-  Calendar,
-  User,
-  Building,
-  TrendingUp,
-  Save,
-  PlusCircle,
-  Trash2,
-  RotateCcw
+  Save
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
@@ -60,18 +48,6 @@ interface OperationExportateurAVADTO {
   typePieceBenef?: number;
   noPieceBenef?: string;
   codeProduitService?: number;
-}
-
-interface BeneficiaireExistant {
-  id?: string;
-  typePieceBenef?: number;
-  noPieceBenef?: string;
-  nomBenef?: string;
-  adresseBenef?: string;
-  qualite?: string;
-  datePiece?: string;
-  etat?: 'AA' | 'AD' | 'A' | 'N'; // AA: A activer, AD: A désactiver, A: Actif, N: Inactif
-  isNew?: boolean; // Pour distinguer les nouveaux bénéficiaires
 }
 
 interface Agence {
@@ -113,10 +89,6 @@ export function AlimentationDossierExportateur() {
     codeDevise: 788,
     codeProduitService: 108
   });
-
-  // Bénéficiaires
-  const [beneficiaires, setBeneficiaires] = useState<BeneficiaireExistant[]>([]);
-  const [beneficiairesInitiaux, setBeneficiairesInitiaux] = useState<BeneficiaireExistant[]>([]);
 
   // États de validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -207,6 +179,46 @@ export function AlimentationDossierExportateur() {
         5: 'A. ACT. (PROM.-NOUV. PROJ.)'
       };
 
+      let agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch('/api/ref/donnees-generales');
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales = await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse);
+          const codeBanque =
+            Array.isArray(donneesGenerales) && donneesGenerales.length > 0
+              ? Number(donneesGenerales[0]?.codeBanque)
+              : NaN;
+          if (Number.isFinite(codeBanque)) {
+            const uniqueCodes = Array.from(
+              new Set(
+                data
+                  .map((dto: any) => Number(dto.codeAgence))
+                  .filter((code: number) => Number.isFinite(code)),
+              ),
+            ) as number[];
+            const agencesResolved = await Promise.all(
+              uniqueCodes.map(async (codeAgence) => {
+                try {
+                  const agenceResponse = await fetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
+                  if (!agenceResponse.ok) return null;
+                  const agence = await safeJsonParse<{ libAgence?: string }>(agenceResponse);
+                  return { codeAgence, libelleAgence: agence?.libAgence || `Agence ${codeAgence}` };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            agenceNameByCode = new Map(
+              agencesResolved
+                .filter((item): item is { codeAgence: number; libelleAgence: string } => Boolean(item))
+                .map((item) => [item.codeAgence, item.libelleAgence]),
+            );
+          }
+        }
+      } catch {
+        agenceNameByCode = new Map();
+      }
+
       const dossiersTransformes: DossierExportateur[] = await Promise.all(
         data.map(async (dto) => {
           // Récupérer les soldes réels pour ce dossier
@@ -225,7 +237,7 @@ export function AlimentationDossierExportateur() {
 
           return {
             codeAgence: dto.codeAgence.toString(),
-            libelleAgence: '', // Renseigné par les agences lors du filtrage/affichage
+            libelleAgence: agenceNameByCode.get(dto.codeAgence) || `Agence ${dto.codeAgence}`,
             typeDossier: dto.typeDossierAva.toString(),
             codeTypeDossier: dto.typeDossierAva.toString(),
             libelleTypeDossier: typeDossierLabels[dto.typeDossierAva] || 'Type inconnu',
@@ -240,22 +252,25 @@ export function AlimentationDossierExportateur() {
             mntAutorise: soldes.montantAutorise || 0,
             montantUtilise: soldes.montantUtilise || 0,
             mntUtilise: soldes.montantUtilise || 0,
-            mntAvance: soldes.montantAvance || 0,
-            mntAutorisationBct: soldes.montantAutorisationBct || 0,
-            mntReserve: soldes.montantReserve || 0,
+            mntAvance: soldes.mntAvance || 0,
+            mntAutorisationBct: soldes.mntAutorisationBct || 0,
+            mntReserve: soldes.mntReserve || 0,
             solde: soldes.soldeDisponible || 0,
             devise: 'TND',
-            statut: 'ACTIF'
+            statut: 'ACTIF' as const
           };
         })
       );
 
-      // Enrichissement basique (bien que les agences puissent ne pas être encore prêtes)
-      dossiersTransformes.forEach(dossier => {
-        const agence = agences.find(a => a.codeAgence === dossier.codeAgence);
-        if (agence) {
-          dossier.libelleAgence = agence.libelleAgence;
-        }
+      // Mettre à jour agences pour le select de filtre s'il manquait des entrées
+      setAgences(prevAgences => {
+        const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
+        dossiersTransformes.forEach(d => {
+            if (d.codeAgence && !newAgencesMap.has(d.codeAgence)) {
+                newAgencesMap.set(d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence });
+            }
+        });
+        return Array.from(newAgencesMap.values());
       });
 
       setDossiers(dossiersTransformes);
@@ -333,9 +348,10 @@ export function AlimentationDossierExportateur() {
   const handleSelectDossier = (dossier: DossierExportateur) => {
     setDossierSelectionne(dossier);
     setAlimentation({
-      numeroDossier: dossier.numeroDossier,
-      typeOperation: 'AUGMENTATION',
-      dateOperation: new Date().toISOString().split('T')[0]
+      numDossierAva: Number(dossier.numeroDossier.replace('AVA-', '').replace('EXP-', '')),
+      dateDosRap: new Date().toISOString().split('T')[0],
+      codeDevise: 788,
+      codeProduitService: 108
     });
     setErrors({});
     setEtape('alimentation');
@@ -468,18 +484,6 @@ export function AlimentationDossierExportateur() {
       }, 1000);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // Badge de statut
-  const getStatutBadge = (statut: DossierExportateur['statut']) => {
-    switch (statut) {
-      case 'ACTIF':
-        return <Badge className="bg-green-500"><CheckCircle2 className="w-3 h-3 mr-1" />Actif</Badge>;
-      case 'SUSPENDU':
-        return <Badge className="bg-orange-500"><AlertTriangle className="w-3 h-3 mr-1" />Suspendu</Badge>;
-      case 'CLOTURE':
-        return <Badge className="bg-gray-500"><XCircle className="w-3 h-3 mr-1" />Clôturé</Badge>;
     }
   };
 

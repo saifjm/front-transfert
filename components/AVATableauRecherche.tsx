@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -98,10 +98,10 @@ export function AVATableauRecherche({
     NO_PIECE_CLIENT: d.NO_PIECE_CLIENT || d.noPieceClient || '',
     nom_client: d.nom_client || d.nomClient || '',
     prenom_client: d.prenom_client || d.prenomClient || '',
-    DECLARATION_FISCALE: d.DECLARATION_FISCALE || '',
+    DECLARATION_FISCALE: d.DECLARATION_FISCALE || (d as any).declarationFiscale || '',
     SOLDE: d.SOLDE ?? d.solde ?? 0,
     ETAT_DOSSIER: d.ETAT_DOSSIER || 'ACTIF',
-    NUMERO_COMPTE: d.NUMERO_COMPTE || '',
+    NUMERO_COMPTE: d.NUMERO_COMPTE || (d as any).numeroCompte || '',
     montantAutorise: d.montantAutorise || d.mntAutorise || 0,
     montantUtilise: d.montantUtilise || d.mntUtilise || 0,
     devise: d.devise || 'TND'

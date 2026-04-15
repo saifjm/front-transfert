@@ -70,7 +70,7 @@ export default function App() {
             <Topbar activeSection={activeSection} userEmail={user?.email} />
             <main className="flex-1 overflow-auto">
               <div key={activeSection} className="page-transition" style={{ minHeight: '100%' }}>
-                {renderContent(activeSection)}
+                {renderContent(activeSection, setActiveSection)}
               </div>
             </main>
           </div>
@@ -82,10 +82,10 @@ export default function App() {
   );
 }
 
-function renderContent(activeSection: string) {
+function renderContent(activeSection: string, setActiveSection: (section: string) => void) {
   switch (activeSection) {
     case 'dashboard':
-      return <Dashboard />;
+      return <Dashboard onNavigate={setActiveSection} />;
     case 'ava-ouverture':
       return <AVAForm />;
     case 'ava-form':

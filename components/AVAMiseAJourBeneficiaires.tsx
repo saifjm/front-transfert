@@ -1,15 +1,16 @@
 import {
   ArrowLeft,
   FileText,
+  Filter,
   PlusCircle,
   RotateCcw,
   Save,
+  Search,
   Trash2
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-import { AVATableauRecherche } from './AVATableauRecherche';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -38,16 +39,11 @@ interface DossierAVA {
   solde?: number;
   echeance?: string;
   typePieceClient?: number;
-}
-
-// DTO depuis l'API
-interface DossierValideDTO {
-  codeAgence: number;
-  typeDossierAva: number;
-  numDossier: number;
-  dateDossier: string;
-  noPieceClient: string;
-  nomClient: string;
+  declarationFiscale?: string;
+  numeroCompte?: string;
+  DECLARATION_FISCALE?: string;
+  NUMERO_COMPTE?: string;
+  SOLDE?: number;
 }
 
 interface OperationsDelegueeSummaryDTO {
@@ -106,20 +102,20 @@ interface Agence {
 export function AVAMiseAJourBeneficiaires() {
   const [etape, setEtape] = useState<'recherche' | 'mise-a-jour'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
-  const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
   const [dossierSelectionne, setDossierSelectionne] = useState<DossierAVA | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Liste des agences
+  const [agences, setAgences] = useState<Agence[]>([]);
+
   // Filtres de recherche
+  const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
   const [searchNumeroDossier, setSearchNumeroDossier] = useState('');
   const [searchTypeDossier, setSearchTypeDossier] = useState('');
   const [searchClient, setSearchClient] = useState('');
   const [searchAgence, setSearchAgence] = useState('');
-  
-  // Liste des agences
-  const [agences, setAgences] = useState<Agence[]>([]);
-  
+
   // Bénéficiaires
   const [beneficiaires, setBeneficiaires] = useState<BeneficiaireExistant[]>([]);
   const [beneficiairesInitiaux, setBeneficiairesInitiaux] = useState<BeneficiaireExistant[]>([]);
@@ -129,6 +125,37 @@ export function AVAMiseAJourBeneficiaires() {
     fetchDossiers();
     fetchAgences();
   }, []);
+
+  // Filtrer les dossiers
+  useEffect(() => {
+    let filtered = [...dossiers];
+    if (searchNumeroDossier.trim()) {
+      filtered = filtered.filter(d =>
+        (d.numeroDossier || String(d.numDossier || '')).toLowerCase().includes(searchNumeroDossier.toLowerCase())
+      );
+    }
+    if (searchTypeDossier) {
+      filtered = filtered.filter(d => (d.codeTypeDossier || d.typeDossierAva)?.toString() === searchTypeDossier);
+    }
+    if (searchClient.trim()) {
+      const term = searchClient.toLowerCase();
+      filtered = filtered.filter(d =>
+        (d.nomClient || '').toLowerCase().includes(term) ||
+        (d.noPieceClient || '').toLowerCase().includes(term)
+      );
+    }
+    if (searchAgence) {
+      filtered = filtered.filter(d => d.codeAgence?.toString() === searchAgence);
+    }
+    setDossiersFiltres(filtered);
+  }, [searchNumeroDossier, searchTypeDossier, searchClient, searchAgence, dossiers]);
+
+  const resetFilters = () => {
+    setSearchNumeroDossier('');
+    setSearchTypeDossier('');
+    setSearchClient('');
+    setSearchAgence('');
+  };
 
   // Charger les dossiers valides
   const fetchDossiers = async () => {
@@ -264,12 +291,58 @@ export function AVAMiseAJourBeneficiaires() {
         dateDossier: string;
         noPieceClient: string;
         nomClient: string;
+        declarationFiscale?: string;
+        DECLARATION_FISCALE?: string;
+        solde?: number;
+        SOLDE?: number;
+        numeroCompte?: string;
+        NUMERO_COMPTE?: string;
       }
 
       const data = await safeJsonParse<DossierValideDTO[]>(response);
       
       if (!data) {
         throw new Error('JSON_PARSE_ERROR');
+      }
+
+      let agenceNameByCode = new Map<number, string>();
+      try {
+        const donneesGeneralesResponse = await fetch('/api/ref/donnees-generales');
+        if (donneesGeneralesResponse.ok) {
+          const donneesGenerales = await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse);
+          const codeBanque =
+            Array.isArray(donneesGenerales) && donneesGenerales.length > 0
+              ? Number(donneesGenerales[0]?.codeBanque)
+              : NaN;
+          if (Number.isFinite(codeBanque)) {
+            const uniqueCodes = Array.from(
+              new Set(
+                data
+                  .map((dto: any) => Number(dto.codeAgence))
+                  .filter((code: number) => Number.isFinite(code)),
+              ),
+            ) as number[];
+            const agencesResolved = await Promise.all(
+              uniqueCodes.map(async (codeAgence) => {
+                try {
+                  const agenceResponse = await fetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
+                  if (!agenceResponse.ok) return null;
+                  const agence = await safeJsonParse<{ libAgence?: string }>(agenceResponse);
+                  return { codeAgence, libelleAgence: agence?.libAgence || `Agence ${codeAgence}` };
+                } catch {
+                  return null;
+                }
+              }),
+            );
+            agenceNameByCode = new Map(
+              agencesResolved
+                .filter((item): item is { codeAgence: number; libelleAgence: string } => Boolean(item))
+                .map((item) => [item.codeAgence, item.libelleAgence]),
+            );
+          }
+        }
+      } catch {
+        agenceNameByCode = new Map();
       }
       
       // Mapper les types de dossier avec leurs libellés
@@ -293,25 +366,29 @@ export function AVAMiseAJourBeneficiaires() {
         noPieceClient: dto.noPieceClient,
         nomClient: dto.nomClient,
         prenomClient: '', // Non fourni par l'API
-        libelleAgence: '' // Sera renseigné via la liste des agences
+        libelleAgence: agenceNameByCode.get(dto.codeAgence) || agences.find(a => a.codeAgence === dto.codeAgence)?.libelleAgence || `Agence ${dto.codeAgence}`,
+        declarationFiscale: dto.declarationFiscale || dto.DECLARATION_FISCALE || '',
+        solde: dto.solde ?? dto.SOLDE ?? 0,
+        numeroCompte: dto.numeroCompte || dto.NUMERO_COMPTE || ''
       }));
 
-      // Enrichir avec les libellés d'agence
-      dossiersTransformes.forEach(dossier => {
-        const agence = agences.find(a => a.codeAgence === dossier.codeAgence);
-        if (agence) {
-          dossier.libelleAgence = agence.libelleAgence;
-        }
+      // Mettre à jour agences pour le select de filtre s'il manquait des entrées
+      setAgences(prevAgences => {
+        const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
+        dossiersTransformes.forEach(d => {
+            if (d.codeAgence && !newAgencesMap.has(d.codeAgence)) {
+                newAgencesMap.set(d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence || `Agence ${d.codeAgence}` });
+            }
+        });
+        return Array.from(newAgencesMap.values());
       });
 
       setDossiers(dossiersTransformes);
-      setDossiersFiltres(dossiersTransformes);
       
       console.log('✅ API: Dossiers chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
       // Mode démonstration silencieux - pas d'alerte utilisateur
       setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
       
       // Log discret uniquement si ce n'est pas une erreur réseau classique
       if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
@@ -336,39 +413,6 @@ export function AVAMiseAJourBeneficiaires() {
       console.error('Erreur chargement agences:', error);
     }
   };
-
-  // Filtrer les dossiers
-  useEffect(() => {
-    let resultats = [...dossiers];
-
-    if (searchNumeroDossier) {
-      resultats = resultats.filter(d => 
-        d.numeroDossier?.toLowerCase().includes(searchNumeroDossier.toLowerCase())
-      );
-    }
-
-    if (searchTypeDossier) {
-      resultats = resultats.filter(d => 
-        d.codeTypeDossier === Number(searchTypeDossier)
-      );
-    }
-
-    if (searchClient) {
-      resultats = resultats.filter(d => 
-        d.noPieceClient?.toLowerCase().includes(searchClient.toLowerCase()) ||
-        d.nomClient?.toLowerCase().includes(searchClient.toLowerCase()) ||
-        d.prenomClient?.toLowerCase().includes(searchClient.toLowerCase())
-      );
-    }
-
-    if (searchAgence) {
-      resultats = resultats.filter(d => 
-        d.codeAgence === Number(searchAgence)
-      );
-    }
-
-    setDossiersFiltres(resultats);
-  }, [searchNumeroDossier, searchTypeDossier, searchClient, searchAgence, dossiers]);
 
   const fetchBeneficiaires = async (numDossier: number) => {
     try {
@@ -453,21 +497,6 @@ export function AVAMiseAJourBeneficiaires() {
   // Sélectionner un dossier et charger ses bénéficiaires
   const selectionnerDossier = async (dossier: DossierAVA) => {
     setLoading(true);
-    
-    // Bénéficiaire mock par défaut
-    const mockBeneficiaires: BeneficiaireExistant[] = [
-      {
-        id: '1',
-        typePieceBenef: 1,
-        noPieceBenef: '12345678',
-        nomBenef: 'Dupont Jean',
-        adresseBenef: '12 Avenue Bourguiba, Tunis',
-        qualite: 'Dirigeant',
-        datePiece: '2020-05-15',
-        etat: 'A',
-        isNew: false
-      }
-    ];
     
     try {
       // 1. Charger le résumé du dossier depuis l'API
@@ -725,14 +754,6 @@ export function AVAMiseAJourBeneficiaires() {
     }
   };
 
-  // Réinitialiser les filtres
-  const resetFilters = () => {
-    setSearchNumeroDossier('');
-    setSearchTypeDossier('');
-    setSearchClient('');
-    setSearchAgence('');
-  };
-
   // Réinitialiser la liste des bénéficiaires
   const resetBeneficiaires = () => {
     // Créer une copie profonde pour éviter les références partagées
@@ -744,7 +765,7 @@ export function AVAMiseAJourBeneficiaires() {
   // Interface de recherche
   if (etape === 'recherche') {
     return (
-      <div className="p-6 max-w-full mx-auto space-y-6">
+      <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
         {/* En-tête */}
         <div>
           <h1 className="text-3xl font-bold">Mise à jour Bénéficiaires</h1>
@@ -753,14 +774,141 @@ export function AVAMiseAJourBeneficiaires() {
           </p>
         </div>
 
-        {/* Tableau de recherche avec tri et filtres */}
-        <AVATableauRecherche
-          dossiers={dossiers}
-          onSelectDossier={(dossier) => selectionnerDossier(dossier as DossierAVA)}
-          loading={loading}
-          titre="Rechercher un dossier"
-          description="Sélectionnez un dossier pour mettre à jour ses bénéficiaires"
-        />
+        {/* Filtres */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Filtres de recherche
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="searchNumeroDossier">Numéro de dossier</Label>
+                <Input
+                  id="searchNumeroDossier"
+                  placeholder="Ex: 9360426"
+                  value={searchNumeroDossier}
+                  onChange={(e) => setSearchNumeroDossier(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="searchTypeDossier">Type de dossier</Label>
+                <Select value={searchTypeDossier} onValueChange={setSearchTypeDossier}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tous les types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 - EXPORTATEUR</SelectItem>
+                    <SelectItem value="2">2 - MARCHE REALISABLE A L'ETRANGER</SelectItem>
+                    <SelectItem value="3">3 - AUTRES ACTIVITES (ANNEXE N.2)</SelectItem>
+                    <SelectItem value="4">4 - AUTRES ACTIVITES (BANQUES)</SelectItem>
+                    <SelectItem value="5">5 - A. ACT. (PROM.-NOUV. PROJ.)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="searchClient">Client</Label>
+                <Input
+                  id="searchClient"
+                  placeholder="Nom ou N° pièce"
+                  value={searchClient}
+                  onChange={(e) => setSearchClient(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="searchAgence">Agence</Label>
+                <Select value={searchAgence} onValueChange={setSearchAgence}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Toutes les agences" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agences.map(agence => (
+                      <SelectItem key={agence.codeAgence} value={String(agence.codeAgence)}>
+                        {agence.codeAgence} - {agence.libelleAgence}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={resetFilters}>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Réinitialiser les filtres
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Liste des dossiers */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Dossiers valides ({dossiersFiltres.length})</CardTitle>
+            <CardDescription>
+              Sélectionnez un dossier pour mettre à jour ses bénéficiaires
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#435B7B] mx-auto"></div>
+                <p className="text-muted-foreground mt-4">Chargement des dossiers...</p>
+              </div>
+            ) : dossiersFiltres.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Aucun dossier trouvé</p>
+                <p className="text-sm text-muted-foreground mt-2">Essayez de modifier vos critères de recherche</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-3 font-semibold">Code Agence</th>
+                      <th className="text-left p-3 font-semibold">Agence</th>
+                      <th className="text-left p-3 font-semibold">Type Dossier</th>
+                      <th className="text-left p-3 font-semibold">Numéro Dossier</th>
+                      <th className="text-left p-3 font-semibold">Date Dossier</th>
+                      <th className="text-left p-3 font-semibold">N° Pièce Client</th>
+                      <th className="text-left p-3 font-semibold">Client</th>
+                      <th className="text-left p-3 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dossiersFiltres.map((dossier, index) => (
+                      <tr key={index} className="border-b hover:bg-muted/50 transition-colors">
+                        <td className="p-3">
+                          <Badge variant="outline">{dossier.codeAgence}</Badge>
+                        </td>
+                        <td className="p-3 text-sm">{dossier.libelleAgence || `Agence ${dossier.codeAgence}`}</td>
+                        <td className="p-3">
+                          <Badge variant="secondary">
+                            {dossier.codeTypeDossier} - {dossier.libelleTypeDossier}
+                          </Badge>
+                        </td>
+                        <td className="p-3 font-medium">{dossier.numeroDossier || dossier.numDossier}</td>
+                        <td className="p-3 text-sm">
+                          {dossier.dateDossier ? new Date(dossier.dateDossier).toLocaleDateString('fr-FR') : '-'}
+                        </td>
+                        <td className="p-3 text-sm">{dossier.noPieceClient}</td>
+                        <td className="p-3 text-sm">{dossier.nomClient}</td>
+                        <td className="p-3">
+                          <Button size="sm" onClick={() => selectionnerDossier(dossier)} disabled={loading}>
+                            <Search className="w-4 h-4 mr-2" />
+                            Sélectionner
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -824,8 +972,8 @@ export function AVAMiseAJourBeneficiaires() {
                 <p className="font-medium">{dossierSelectionne?.numeroDossier}</p>
               </div>
             </div>
-            {/* Ligne 2: N° Pièce Client, Nom du client */}
-            <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+            {/* Ligne 2: N° Pièce Client, Nom du client, Déclaration Fiscale, N° Compte */}
+            <div className="grid grid-cols-4 gap-4 text-sm mt-4">
               <div>
                 <p className="text-muted-foreground">N° Pièce Client</p>
                 <p className="font-medium">{dossierSelectionne?.noPieceClient}</p>
@@ -833,6 +981,14 @@ export function AVAMiseAJourBeneficiaires() {
               <div>
                 <p className="text-muted-foreground">Nom du client</p>
                 <p className="font-medium">{dossierSelectionne?.prenomClient} {dossierSelectionne?.nomClient}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Décl. Fiscale</p>
+                <p className="font-medium">{dossierSelectionne?.declarationFiscale || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">N° Compte</p>
+                <p className="font-medium">{dossierSelectionne?.numeroCompte || '-'}</p>
               </div>
             </div>
           </div>

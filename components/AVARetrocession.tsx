@@ -196,17 +196,103 @@ export function AVARetrocession() {
       }
     ];
 
+    const typeDossierLabels: Record<number, string> = {
+      1: 'EXPORTATEUR',
+      2: "MARCHE REALISABLE A L'ETRANGER",
+      3: 'AUTRES ACTIVITES (ANNEXE N.2)',
+      4: 'AUTRES ACTIVITES (BANQUES)',
+      5: 'A. ACT. (PROM.-NOUV. PROJ.)',
+    };
+
     try {
-      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
-      if (response.ok) {
-        const data = await safeJsonParse<DossierAVA[]>(response);
-        if (data) {
-          setDossiers(data);
-          setDossiersFiltres(data);
-          return;
-        }
+      const response = await fetch('/api/operations-deleguees');
+      if (!response.ok) throw new Error('API_ERROR');
+
+      interface OperationsDelegueeDTO {
+        numDossier: number;
+        typeDossierAva: number;
+        dateDossier: string;
+        codeAgence: number;
+        noPieceClient: string;
+        etatDossier: string;
+        mntAutorise?: number;
+        mntAvance?: number;
+        mntAutorisationBct?: number;
+        mntUtilise?: number;
+        mntReserve?: number;
+        mntBlocage?: number;
+        solde?: number;
+        echeance?: string;
+        beneficiaires?: Array<{ nomBenef?: string }>;
       }
-      throw new Error('API_ERROR');
+
+      const data = await safeJsonParse<OperationsDelegueeDTO[]>(response);
+      if (data && Array.isArray(data)) {
+        // Resolve agence labels from API
+        let agenceNameByCode = new Map<number, string>();
+        try {
+          const dgRes = await fetch('/api/ref/donnees-generales');
+          if (dgRes.ok) {
+            const dg = await safeJsonParse<Array<{ codeBanque?: number }>>(dgRes);
+            const cBanque = Array.isArray(dg) && dg.length > 0 ? Number(dg[0]?.codeBanque) : NaN;
+            if (Number.isFinite(cBanque)) {
+              const uniqueCodes = Array.from(new Set(data.map((d) => d.codeAgence)));
+              const resolved = await Promise.all(
+                uniqueCodes.map(async (code) => {
+                  try {
+                    const ar = await fetch(`/api/ref/agences/${cBanque}/${code}`);
+                    if (!ar.ok) return null;
+                    const ag = await safeJsonParse<{ libAgence?: string }>(ar);
+                    return ag?.libAgence ? { code, lib: ag.libAgence } : null;
+                  } catch { return null; }
+                })
+              );
+              agenceNameByCode = new Map(
+                resolved.filter((r): r is { code: number; lib: string } => Boolean(r))
+                  .map((r) => [r.code, r.lib])
+              );
+            }
+          }
+        } catch { /* fallback */ }
+
+        const dossiersTransformes: DossierAVA[] = data.map((dto) => {
+          const nomComplet = dto.beneficiaires?.[0]?.nomBenef?.trim() || '';
+          const nomParts = nomComplet.split(' ');
+          const prenom = nomParts.length > 1 ? nomParts[0] : '';
+          const nom = nomParts.length > 1 ? nomParts.slice(1).join(' ') : nomComplet;
+
+          return {
+            codeAgence: dto.codeAgence,
+            libelleAgence: agenceNameByCode.get(dto.codeAgence) || `Agence ${dto.codeAgence}`,
+            typeDossier: dto.typeDossierAva,
+            codeTypeDossier: dto.typeDossierAva,
+            libelleTypeDossier: typeDossierLabels[dto.typeDossierAva] || `Type ${dto.typeDossierAva}`,
+            numeroDossier: String(dto.numDossier),
+            dateDossier: dto.dateDossier,
+            noPieceClient: dto.noPieceClient,
+            nomClient: nom || 'N/A',
+            prenomClient: prenom || '',
+            montantAutorise: dto.mntAutorise ?? 0,
+            mntAutorise: dto.mntAutorise ?? 0,
+            montantUtilise: dto.mntUtilise ?? 0,
+            mntUtilise: dto.mntUtilise ?? 0,
+            mntAvance: dto.mntAvance ?? 0,
+            mntAutorisationBct: dto.mntAutorisationBct ?? 0,
+            mntReserve: dto.mntReserve ?? 0,
+            mntBlocage: dto.mntBlocage ?? 0,
+            solde: dto.solde ?? 0,
+            devise: 'TND',
+            statut: 'ACTIF',
+            echeance: dto.echeance,
+            typePieceClient: 1,
+          };
+        });
+
+        setDossiers(dossiersTransformes);
+        setDossiersFiltres(dossiersTransformes);
+        return;
+      }
+      throw new Error('PARSE_ERROR');
     } catch (error) {
       console.info('ℹ️ Mode démonstration - Rétrocession');
       setDossiers(mockDossiers);
