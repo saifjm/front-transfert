@@ -448,16 +448,19 @@ export function AVAForm() {
     try {
       // Récupérer les informations de la personne
       const personneResponse = await fetch(`/api/ref/personnes/by-nopiececlient/${encodeURIComponent(noPiece)}`);
-      const personneData = await safeJsonParse<any>(personneResponse);
-      
+      const personneRaw = await safeJsonParse<any>(personneResponse);
+
+      // API may return an array or a direct object
+      const personneData = Array.isArray(personneRaw) ? personneRaw[0] : personneRaw;
+
       if (!personneResponse.ok || !personneData || !personneData.nom) {
         throw new Error('Personne not found');
       }
-      
+
       // Récupérer les comptes
       const comptesResponse = await fetch(`/api/ref/comptes/by-piece-client/${encodeURIComponent(noPiece)}`);
       const comptesData = await safeJsonParse<CompteSummary[]>(comptesResponse);
-      
+
       if (comptesData && Array.isArray(comptesData)) {
         setClientInfo({
           nom: personneData.nom,
