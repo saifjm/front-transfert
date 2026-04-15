@@ -6,9 +6,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
 import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.AvaMarcheDTO;
@@ -1310,6 +1313,40 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
     @Transactional
     public OuvertureDossierDTO alimentationSuiteAccordBct(Integer numDossier, AutorisationBctDTO dto, boolean finalizeFlag) {
         log.info("Alimentation suite accord BCT pour numDossier: {} avec numeroBct: {}, finalize: {}", numDossier, dto.getNumeroBct(), finalizeFlag);
+        
+        // --- Nouveaux contrôles de saisie selon editAccord.md ---
+        RestTemplate restTemplate = new RestTemplate();
+        Map accordBct;
+        try {
+            accordBct = restTemplate.getForObject("http://localhost:8090/api/ref/central-bank-agreements/{numBct}", Map.class, dto.getNumeroBct());
+        } catch (HttpClientErrorException.NotFound e) {
+            throw new ResourceNotFoundException("Accord non trouvé");
+        } catch (Exception e) {
+            throw new BusinessException("Erreur lors de l'appel à l'API BCT Ref: " + e.getMessage());
+        }
+        
+        if (accordBct == null) {
+            throw new ResourceNotFoundException("Accord non trouvé");
+        }
+
+        String dateAccordStr = String.valueOf(accordBct.get("dateAccordBct"));
+        String typeAccord = String.valueOf(accordBct.get("typeAccordBct"));
+        
+        if (dateAccordStr == null || "null".equals(dateAccordStr) || !dateAccordStr.startsWith(dto.getDateBct().toString()) || !Objects.equals(dto.getTypeBct(), typeAccord)) {
+            throw new BusinessException("La combinaison de numBct, DataBct et type n'existe pas.");
+        }
+        
+        String validite = String.valueOf(accordBct.get("validite"));
+        if ("0".equals(validite)) {
+            throw new BusinessException("Accord non valide");
+        }
+        
+        String scope = String.valueOf(accordBct.get("scope"));
+        if (!"AVA".equals(scope)) {
+            throw new BusinessException("Le scope n'est pas AVA");
+        }
+        // --------------------------------------------------------
+
         log.debug("⏳ Tentative d'acquisition du lock pessimiste sur le dossier {}", numDossier);
 
         // 1) Vérification que le dossier existe AVEC LOCK PESSIMISTE

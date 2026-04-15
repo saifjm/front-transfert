@@ -2,13 +2,13 @@ package IbansysPoc.AVA.mapper;
 
 import java.util.List;
 
-import IbansysPoc.AVA.entity.BeneficiairesMvt;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 
 import IbansysPoc.AVA.DTO.BeneficiaireDTO;
 import IbansysPoc.AVA.entity.Beneficiaire;
+import IbansysPoc.AVA.entity.BeneficiairesMvt;
 
 @Mapper(componentModel = "spring")
 public interface BeneficiaireMapper {

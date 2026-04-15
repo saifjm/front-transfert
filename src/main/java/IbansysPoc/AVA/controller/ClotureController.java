@@ -1,16 +1,21 @@
 package IbansysPoc.AVA.controller;
 
+import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import IbansysPoc.AVA.DTO.ClotureDTO;
 import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
 import IbansysPoc.AVA.exception.BusinessException;
 import IbansysPoc.AVA.service.ClotureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/cloture")

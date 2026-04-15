@@ -1,17 +1,18 @@
 package IbansysPoc.AVA.service;
 
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.transaction.annotation.Transactional;
+
 import IbansysPoc.AVA.DTO.AutorisationBctDTO;
 import IbansysPoc.AVA.DTO.DossierValideDTO;
 import IbansysPoc.AVA.DTO.LeveeSuspensionDTO;
+import IbansysPoc.AVA.DTO.OperationsDelegueeSummaryDTO;
 import IbansysPoc.AVA.DTO.OuvertureDossierDTO;
 import IbansysPoc.AVA.DTO.SuspensionDTO;
 import IbansysPoc.AVA.DTO.SuspensionDataDTO;
-import IbansysPoc.AVA.DTO.OperationsDelegueeSummaryDTO;
 import IbansysPoc.AVA.entity.OperationsDeleguee;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Optional;
 
 public interface OperationsDelegueeService {
 
