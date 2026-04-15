@@ -641,15 +641,22 @@ export function AVAReservation() {
 
       console.log("📥 Réponse API status:", response.status);
 
-      // Gestion du succès (201)
-      if (response.status === 201) {
-        const result = await safeJsonParse<any>(response);
+      // Gestion du succès (200 OK)
+      if (response.ok) {
+        const result = await safeJsonParse<{
+          refOperation?: number;
+          numDossier?: number;
+          status?: string;
+          message?: string;
+        }>(response);
         console.log(
           "✅ Réservation créée, passage à la validation:",
           result,
         );
 
-        // Deuxième étape : Validation de l'opération
+        const refOperation = result?.refOperation;
+
+        // Deuxième étape : Validation via refOperation reçu
         try {
           const validateResponse = await fetch(
             `/api/reservation-operations/validate/${reservation.reference}`,
@@ -658,25 +665,24 @@ export function AVAReservation() {
               headers: { "Content-Type": "application/json" },
             },
           );
-          const validateResult =
-            await safeJsonParse<any>(validateResponse);
 
           console.log(
-            "📥 Réponse Validation API:",
-            validateResult,
+            "📥 Réponse Validation API status:",
+            validateResponse.status,
           );
 
-          if (
-            validateResponse.ok &&
-            validateResult?.valide !== false
-          ) {
+          if (validateResponse.ok) {
+            const validateResult =
+              await safeJsonParse<any>(validateResponse);
+            console.log("✅ Validation réussie:", validateResult);
             setShowSuccessDialog(true);
           } else {
+            const errData = await validateResponse.json().catch(() => null);
             setApiError({
               error: "Validation échouée",
               message:
-                validateResult?.message ||
-                "L'opération a été créée mais la validation a échoué.",
+                errData?.message ||
+                "La réservation a été créée mais la validation a échoué.",
             });
             setShowErrorDialog(true);
           }
@@ -685,7 +691,6 @@ export function AVAReservation() {
             "❌ Erreur lors de la validation:",
             valError,
           );
-          // Si la validation échoue techniquement, on considère que c'est une erreur
           setApiError({
             error: "Erreur technique de validation",
             message:
@@ -696,7 +701,7 @@ export function AVAReservation() {
         return;
       }
 
-      // Gestion des erreurs (Status autre que 201)
+      // Gestion des erreurs
       if (!response.ok) {
         const errorData = await response
           .json()

@@ -656,23 +656,60 @@ export function AVAAnnulationReservation() {
 
       console.log("📥 Réponse API status:", response.status);
 
-      // Gestion du succès (201)
-      if (response.status === 201) {
-        const result = await safeJsonParse<any>(response);
-        console.log("✅ Succès:", result);
+      // Gestion du succès (200 OK)
+      if (response.ok) {
+        const result = await safeJsonParse<{
+          refOperation?: number;
+          numDossier?: number;
+          status?: string;
+          message?: string;
+        }>(response);
+        console.log("✅ Annulation créée, passage à la validation:", result);
 
-        setShowSuccessDialog(true);
+        // Validation immédiate via la référence du formulaire
+        try {
+          const validateResponse = await fetch(
+            `/api/reservation-operations/validate/${annulation.reference}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+            },
+          );
 
-        setTimeout(async () => {
-          setShowSuccessDialog(false);
-          handleRetourRecherche();
-          await fetchDossiers();
-        }, 3000);
+          console.log("📥 Réponse validation status:", validateResponse.status);
+
+          if (validateResponse.ok) {
+            const validateResult = await safeJsonParse<any>(validateResponse);
+            console.log("✅ Validation réussie:", validateResult);
+            setShowSuccessDialog(true);
+            setTimeout(async () => {
+              setShowSuccessDialog(false);
+              handleRetourRecherche();
+              await fetchDossiers();
+            }, 3000);
+          } else {
+            const errData = await validateResponse.json().catch(() => null);
+            setApiError({
+              error: "Validation échouée",
+              message:
+                errData?.message ||
+                "L'annulation a été enregistrée mais la validation a échoué.",
+            });
+            setShowErrorDialog(true);
+          }
+        } catch (valError) {
+          console.error("❌ Erreur validation:", valError);
+          setApiError({
+            error: "Erreur technique de validation",
+            message: "L'annulation a été créée mais impossible de la valider.",
+          });
+          setShowErrorDialog(true);
+        }
 
         return;
       }
 
-      // Gestion des erreurs (422 ou autres)
+      // Gestion des erreurs
       if (!response.ok) {
         const errorData = await response
           .json()
@@ -793,16 +830,19 @@ export function AVAAnnulationReservation() {
 
       console.log("📥 Réponse API status:", response.status);
 
-      // Gestion du succès (201)
-      if (response.status === 201) {
-        const result = await safeJsonParse<any>(response);
-        console.log("✅ Succès annulation:", result);
+      // Gestion du succès (200 OK)
+      if (response.ok) {
+        const result = await safeJsonParse<{
+          refOperation?: number;
+          numDossier?: number;
+          status?: string;
+          message?: string;
+        }>(response);
+        console.log("✅ Annulation créée, passage à la validation:", result);
 
-        // Appeler l'endpoint de validation après succès
+        // Validation immédiate via la référence de la réservation
         try {
-          console.log(
-            `📤 Validation de la réservation: ${reservationSelectionnee.referenceRes}`,
-          );
+          console.log(`📤 Validation de l'annulation: ${reservationSelectionnee.referenceRes}`);
 
           const validateResponse = await fetch(
             `/api/reservation-operations/validate/${reservationSelectionnee.referenceRes}`,
@@ -818,35 +858,23 @@ export function AVAAnnulationReservation() {
           );
 
           if (validateResponse.ok) {
-            const validateResult =
-              await safeJsonParse<any>(validateResponse);
-            console.log(
-              "✅ Succès validation:",
-              validateResult,
-            );
+            const validateResult = await safeJsonParse<any>(validateResponse);
+            console.log("✅ Validation réussie:", validateResult);
           } else {
-            console.warn(
-              "⚠️ Validation échouée, mais l'annulation a été enregistrée",
-            );
+            console.warn("⚠️ Validation échouée après annulation");
           }
         } catch (validateError) {
-          console.warn(
-            "⚠️ Erreur lors de la validation, mais l'annulation a été enregistrée:",
-            validateError,
-          );
+          console.warn("⚠️ Erreur validation:", validateError);
         }
 
-        // Afficher le dialog de succès
+        // Afficher le dialog de succès dans tous les cas si l'annulation a réussi
         setShowSuccessDialog(true);
 
         setTimeout(async () => {
           setShowSuccessDialog(false);
           setReservationSelectionnee(null);
           const numDossierPure =
-            dossierSelectionne?.numeroDossier.replace(
-              "AVA-",
-              "",
-            );
+            dossierSelectionne?.numeroDossier.replace("AVA-", "");
           await fetchReservations(numDossierPure);
         }, 3000);
 
@@ -945,13 +973,15 @@ export function AVAAnnulationReservation() {
         throw new Error("JSON_PARSE_ERROR");
       }
 
-      // Filtrer les réservations : référence non vide ET mntAnnulation === 0
-      const reservationsFiltrees = data.filter(
-        (r) =>
-          r.referenceRes &&
-          r.referenceRes.trim() !== "" &&
-          (r.mntAnnulation === 0 || r.mntAnnulation === null),
-      );
+      // Garder les réservations avec un solde restant > 0
+      // Le montant restant = mntReserve - mntAnnulation (déjà annulé)
+      const reservationsFiltrees = data
+        .filter((r) => r.referenceRes && r.referenceRes.trim() !== "")
+        .map((r) => ({
+          ...r,
+          mntReserve: r.mntReserve - (r.mntAnnulation ?? 0),
+        }))
+        .filter((r) => r.mntReserve > 0);
 
       setReservations(reservationsFiltrees);
 
