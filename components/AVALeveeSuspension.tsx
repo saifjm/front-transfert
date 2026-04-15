@@ -77,6 +77,7 @@ interface SuspensionData {
   dateEtat: string;
   motif?: string;
   motifSuspension?: string; // Gardé pour compatibilité si besoin
+  codeEtat?: number; // 1 = Dépassement montant autorisé, etc.
 }
 
 interface Agence {
@@ -436,22 +437,28 @@ export function AVALeveeSuspension() {
         ? {
             dateEtat: "2024-02-10",
             motif: "DECLARATION FISCALE NON PRESENTEE",
+            codeEtat: 2,
           }
         : {
             dateEtat: "2024-01-20",
             motif: "DÉPASSEMENT DU MONTANT AUTORISÉ",
+            codeEtat: 1,
           };
 
     try {
       const response = await fetch(
-        `/api/operations-deleguees/${numDossier}/suspension-data`,
+        `/api/operations-deleguees/${numDossier}`,
       );
 
       if (response.ok) {
         const data =
-          await safeJsonParse<SuspensionData>(response);
+          await safeJsonParse<{ dateEtat?: string; motifEtat?: string; codeEtat?: number }>(response);
         if (data) {
-          setSuspensionData(data);
+          setSuspensionData({
+            dateEtat: data.dateEtat || new Date().toISOString(),
+            motif: data.motifEtat || "Motif inconnu",
+            codeEtat: data.codeEtat,
+          });
           setLoadingSuspensionData(false);
           return;
         }
@@ -575,6 +582,11 @@ export function AVALeveeSuspension() {
     setErrors({});
   };
 
+  const isDepassementAutorise = 
+    suspensionData?.codeEtat === 1 || 
+    suspensionData?.motif === "DÉPASSEMENT DU MONTANT AUTORISÉ" ||
+    suspensionData?.motifSuspension === "DÉPASSEMENT DU MONTANT AUTORISÉ";
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -584,6 +596,15 @@ export function AVALeveeSuspension() {
 
     if (!levee.dateLevee) {
       newErrors.dateLevee = "La date est obligatoire";
+    }
+
+    if (isDepassementAutorise) {
+      if (!levee.numBct || levee.numBct.trim() === "") {
+        newErrors.numBct = "Numéro BCT est obligatoire";
+      }
+      if (!levee.dateBct) {
+        newErrors.dateBct = "Date BCT est obligatoire";
+      }
     }
 
     setErrors(newErrors);
@@ -1210,15 +1231,12 @@ export function AVALeveeSuspension() {
               </p>
             </div>
 
-            {/* Champs conditionnels pour motif "DÉPASSEMENT DU MONTANT AUTORISÉ" */}
-            {(suspensionData?.motif ===
-              "DÉPASSEMENT DU MONTANT AUTORISÉ" ||
-              suspensionData?.motifSuspension ===
-                "DÉPASSEMENT DU MONTANT AUTORISÉ") && (
+            {/* Champs conditionnels pour motif "DÉPASSEMENT DU MONTANT AUTORISÉ" ou codeEtat=1 */}
+            {isDepassementAutorise && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="numBct">
-                    Numéro d'autorisation BCT
+                    Numéro d'autorisation BCT *
                   </Label>
                   <Input
                     id="numBct"
@@ -1230,12 +1248,16 @@ export function AVALeveeSuspension() {
                       })
                     }
                     placeholder="Numéro d'autorisation BCT"
+                    className={errors.numBct ? "border-red-500" : ""}
                   />
+                  {errors.numBct && (
+                    <p className="text-xs text-red-600">{errors.numBct}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="dateBct">
-                    Date d'autorisation BCT
+                    Date d'autorisation BCT *
                   </Label>
                   <Input
                     id="dateBct"
@@ -1247,7 +1269,11 @@ export function AVALeveeSuspension() {
                         dateBct: e.target.value,
                       })
                     }
+                    className={errors.dateBct ? "border-red-500" : ""}
                   />
+                  {errors.dateBct && (
+                    <p className="text-xs text-red-600">{errors.dateBct}</p>
+                  )}
                 </div>
               </>
             )}
