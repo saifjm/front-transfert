@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -1239,6 +1239,47 @@ public class OperationsDelegueeServiceImpl implements OperationsDelegueeService 
         if (!"B".equals(operationsDeleguee.getEtatDossier())) {
             throw new BusinessException("Le dossier n'est pas suspendu. État actuel: " + operationsDeleguee.getEtatDossier());
         }
+
+        // --- Nouveaux contrôles sur le référentiel BCT ---
+        if (dto.getNumBct() != null && !dto.getNumBct().trim().isEmpty() && dto.getDateBct() != null) {
+            Integer numBctInt;
+            try {
+                numBctInt = Integer.parseInt(dto.getNumBct());
+            } catch (NumberFormatException e) {
+                throw new BusinessException("NUM_BCT_INVALIDE", "Le numéro BCT doit être un nombre entier valide: " + dto.getNumBct());
+            }
+            
+            RestTemplate restTemplate = new RestTemplate();
+            Map accordBct;
+            try {
+                accordBct = restTemplate.getForObject("http://localhost:8090/api/ref/central-bank-agreements/{numBct}", Map.class, numBctInt);
+            } catch (HttpClientErrorException.NotFound e) {
+                throw new ResourceNotFoundException("Accord non trouvé");
+            } catch (Exception e) {
+                throw new BusinessException("Erreur lors de l'appel à l'API BCT Ref: " + e.getMessage());
+            }
+
+            if (accordBct == null) {
+                throw new ResourceNotFoundException("Accord non trouvé");
+            }
+
+            String dateAccordStr = String.valueOf(accordBct.get("dateAccordBct"));
+            
+            if (dateAccordStr == null || "null".equals(dateAccordStr) || !dateAccordStr.startsWith(dto.getDateBct().toString())) {
+                throw new BusinessException("La combinaison de numBct et dateBct n'existe pas.");
+            }
+            
+            String validite = String.valueOf(accordBct.get("validite"));
+            if ("0".equals(validite)) {
+                throw new BusinessException("Accord non valide");
+            }
+            
+            String scope = String.valueOf(accordBct.get("scope"));
+            if (!"AVA".equals(scope)) {
+                throw new BusinessException("Le scope n'est pas AVA");
+            }
+        }
+        // -------------------------------------------------
 
         // 3) Vérification conditionnelle: si codeEtat était 1 (DEPASSEMENT DU MONTANT AUTORISE),
         //    alors numBct et dateBct sont obligatoires
