@@ -5,6 +5,14 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "./ui/dialog";
 import { 
   Search, 
   ArrowLeft, 
@@ -17,6 +25,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
+import { AlertCircle } from 'lucide-react';
+
+interface ApiError {
+  status: number;
+  message: string;
+  details?: string;
+  code?: string;
+  timestamp?: string;
+}
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -77,6 +94,8 @@ export function AVAClotureDossier() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiError, setApiError] = useState<ApiError | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   useEffect(() => {
     fetchDossiers();
@@ -115,8 +134,24 @@ export function AVAClotureDossier() {
     ];
 
     try {
-      const response = await fetch('/api/dossiers/ava/cloturables');
-      const data = await safeJsonParse<DossierAVA[]>(response);
+      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      if (!response.ok) {
+        throw new Error(`HTTP_ERROR_${response.status}`);
+      }
+
+      interface DossierValideDTO {
+        codeAgence: number;
+        typeDossierAva: number;
+        numDossier: number;
+        dateDossier: string;
+        noPieceClient: string;
+        nomClient: string;
+      }
+
+      const data = await safeJsonParse<DossierValideDTO[]>(response);
+      if (!data) {
+        throw new Error('NO_DATA');
+      }
       
       const typeDossierLabels: Record<number, string> = {
         1: "EXPORTATEUR",
@@ -139,10 +174,8 @@ export function AVAClotureDossier() {
             const uniqueCodes = Array.from(
               new Set(
                 data
-                  ? data
-                    .map((dto) => Number(dto.codeAgence))
-                    .filter((code) => Number.isFinite(code))
-                  : [],
+                  .map((dto) => Number(dto.codeAgence))
+                  .filter((code) => Number.isFinite(code))
               ),
             ) as number[];
             const agencesResolved = await Promise.all(
@@ -168,51 +201,69 @@ export function AVAClotureDossier() {
         agenceNameByCode = new Map();
       }
 
-      if (data && Array.isArray(data)) {
-        const dossiersTransformes: DossierAVA[] = data.map(
-          (dto) => {
-            const nomComplet = dto.nomClient?.trim() || "";
-            const nomParts = nomComplet.split(" ");
-            const prenom =
-              nomParts.length > 1 ? nomParts[0] : "";
-            const nom =
-              nomParts.length > 1
-                ? nomParts.slice(1).join(" ")
-                : nomComplet;
+      const dossiersTransformes: DossierAVA[] = await Promise.all(
+        data.map(async (dto) => {
+          const nomComplet = dto.nomClient?.trim() || "";
+          const nomParts = nomComplet.split(" ");
+          const prenom = nomParts.length > 1 ? nomParts[0] : "";
+          const nom = nomParts.length > 1 ? nomParts.slice(1).join(" ") : nomComplet;
 
-            return {
-              ...dto,
-              libelleAgence:
-                agenceNameByCode.get(Number(dto.codeAgence)) ||
-                dto.libelleAgence ||
-                `Agence ${dto.codeAgence}`,
-              libelleTypeDossier:
-                typeDossierLabels[Number(dto.typeDossier)] ||
-                dto.libelleTypeDossier ||
-                `Type ${dto.typeDossier}`,
-              nomClient: nom || dto.nomClient || "N/A",
-              prenomClient: prenom || dto.prenomClient || "",
-            };
-          },
-        );
+          // Récupérer les soldes réels pour ce dossier
+          let soldes: any = {};
+          try {
+            const soldesResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
+            if (soldesResponse.ok) {
+              const soldesData = await safeJsonParse<any>(soldesResponse);
+              if (soldesData) {
+                soldes = soldesData;
+              }
+            }
+          } catch (e) {
+            console.warn(`Impossible de récupérer les soldes pour le dossier ${dto.numDossier}`);
+          }
 
-        // Mettre à jour la liste des agences pour le filtre
-        setAgences(prevAgences => {
-            const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
-            dossiersTransformes.forEach(d => {
-                const cAgence = String(d.codeAgence);
-                if (cAgence && !newAgencesMap.has(cAgence)) {
-                    newAgencesMap.set(cAgence, { codeAgence: cAgence, libelleAgence: d.libelleAgence });
-                }
-            });
-            return Array.from(newAgencesMap.values());
-        });
+          return {
+            codeAgence: dto.codeAgence,
+            libelleAgence: agenceNameByCode.get(Number(dto.codeAgence)) || `Agence ${dto.codeAgence}`,
+            typeDossier: dto.typeDossierAva,
+            codeTypeDossier: dto.typeDossierAva,
+            libelleTypeDossier: typeDossierLabels[Number(dto.typeDossierAva)] || `Type ${dto.typeDossierAva}`,
+            numeroDossier: `AVA-${dto.numDossier}`,
+            dateDossier: dto.dateDossier,
+            nomClient: nom || dto.nomClient || "N/A",
+            prenomClient: prenom || "",
+            noPieceClient: dto.noPieceClient,
+            
+            // Données financières
+            montantAutorise: soldes.montantAutorise || 0,
+            mntAutorise: soldes.montantAutorise || 0,
+            montantUtilise: soldes.montantUtilise || 0,
+            mntUtilise: soldes.montantUtilise || 0,
+            mntAvance: soldes.mntAvance || 0,
+            mntAutorisationBct: soldes.mntAutorisationBct || 0,
+            mntReserve: soldes.montantReserve || soldes.mntReserve || 0,
+            mntBlocage: soldes.mntBlocage || 0,
+            solde: soldes.soldeDisponible || 0,
+            devise: 'TND',
+            statut: 'ACTIF' as const
+          };
+        })
+      );
 
-        setDossiers(dossiersTransformes);
-        setDossiersFiltres(dossiersTransformes);
-        return;
-      }
-      throw new Error('NO_DATA');
+      // Mettre à jour la liste des agences pour le filtre
+      setAgences(prevAgences => {
+          const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
+          dossiersTransformes.forEach(d => {
+              const cAgence = String(d.codeAgence);
+              if (cAgence && !newAgencesMap.has(cAgence)) {
+                  newAgencesMap.set(cAgence, { codeAgence: cAgence, libelleAgence: d.libelleAgence });
+              }
+          });
+          return Array.from(newAgencesMap.values());
+      });
+
+      setDossiers(dossiersTransformes);
+      setDossiersFiltres(dossiersTransformes);
     } catch (error) {
       console.info('ℹ️ Mode démonstration - Clôture Dossier');
       setDossiers(mockDossiers);
@@ -311,23 +362,60 @@ export function AVAClotureDossier() {
       return;
     }
 
+    if (!dossierSelectionne?.numeroDossier) return;
+
     setIsSubmitting(true);
+    // Extrait le vrai numéro de dossier s'il est préfixé d'AVA-
+    const rawDossierString = dossierSelectionne.numeroDossier.replace('AVA-', '');
+    const numDossierId = Number(rawDossierString);
+
+    if (isNaN(numDossierId) || numDossierId <= 0) {
+      toast.error("Impossible d'extraire le numéro de dossier valide.");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      const response = await fetch('/api/dossiers/ava/cloture', {
+      const response = await fetch(`/api/cloture/${numDossierId}/true`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cloture)
+        body: JSON.stringify({
+          motif: cloture.motifCloture,
+          dateCloture: cloture.dateCloture,
+          reference: cloture.reference,
+          observations: cloture.observations
+        })
       });
 
       if (response.ok) {
+        // En cas de succès 200 ça retourne un OuvertureDossierDTO, on peut juste réagir
         toast.success('Clôture enregistrée avec succès', {
           description: `Dossier ${dossierSelectionne?.numeroDossier} clôturé`
         });
         handleRetourRecherche();
         await fetchDossiers();
       } else {
-        throw new Error('Erreur serveur');
+        const errorData = await safeJsonParse<any>(response);
+        if (response.status === 422 || response.status === 400 || response.status === 409 || response.status === 404) {
+          if (errorData) {
+            setApiError({
+              status: response.status,
+              message: errorData.message || 'Erreur lors du traitement de la requête',
+              details: errorData.details || errorData.error,
+              code: errorData.code,
+              timestamp: errorData.timestamp || new Date().toISOString()
+            });
+          } else {
+            setApiError({
+              status: response.status,
+              message: 'Erreur inattendue de validation',
+              details: `Le serveur a retourné une erreur ${response.status} sans détails supplémentaires.`
+            });
+          }
+          setShowErrorModal(true);
+        } else {
+          throw new Error('Erreur inattendue serveur');
+        }
       }
     } catch (error) {
       console.info('ℹ️ Mode démonstration');
@@ -751,12 +839,60 @@ export function AVAClotureDossier() {
                 className="text-white gap-2 hover:opacity-90 transition-opacity"
               >
                 <Save className="w-4 h-4" />
-                Enregistrer
+                {isSubmitting ? 'Clôture en cours...' : 'Confirmer la clôture'}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+      
+      {/* Modal d'erreur API - similaire à l'exportateur */}
+      <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl text-red-600">Action impossible</DialogTitle>
+                <DialogDescription>
+                  La clôture n'a pas pu être effectuée en raison d'un blocage de validation ou règle métier.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="space-y-4">
+              {apiError?.message && (
+                <div>
+                  <h4 className="font-medium text-slate-900 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                    Motif du rejet
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-700 bg-white p-3 rounded border border-slate-200 whitespace-pre-wrap">
+                    {apiError.message}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {((apiError?.status && apiError.status !== 200) || apiError?.code) && (
+              <div className="mt-6 pt-4 border-t border-slate-200 flex items-center gap-4 text-xs text-slate-500">
+                {apiError.status && <span>Code HTTP: {apiError.status}</span>}
+                {apiError.code && <span>Code métier: {apiError.code}</span>}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-6 border-t border-slate-200 pt-4">
+            <Button onClick={() => setShowErrorModal(false)} variant="outline">
+              Fermer l'alerte
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

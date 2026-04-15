@@ -254,7 +254,8 @@ export function AlimentationDossierExportateur() {
             mntUtilise: soldes.montantUtilise || 0,
             mntAvance: soldes.mntAvance || 0,
             mntAutorisationBct: soldes.mntAutorisationBct || 0,
-            mntReserve: soldes.mntReserve || 0,
+            mntReserve: soldes.montantReserve || soldes.mntReserve || 0,
+            mntBlocage: soldes.mntBlocage || 0,
             solde: soldes.soldeDisponible || 0,
             devise: 'TND',
             statut: 'ACTIF' as const
