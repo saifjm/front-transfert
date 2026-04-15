@@ -321,7 +321,7 @@ export function AVAAlimentationAccordBCT() {
       };
 
       const response = await fetch(
-        `/api/operations-deleguees/${dossierSelectionne.numDossier}/alimentation-bct/true`,
+        `/api/alimentation-bct/${dossierSelectionne.numDossier}/true`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
