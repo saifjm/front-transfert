@@ -150,8 +150,7 @@ export function ConsultationDossierAVA() {
     setLoading(true);
 
     try {
-      const [response, operationsResponse] = await Promise.all([
-        fetch("/api/operations-deleguees/dossiers-valides-avec-nom"),
+      const [response] = await Promise.all([
         fetch("/api/operations-deleguees"),
       ]);
 
@@ -191,19 +190,6 @@ export function ConsultationDossierAVA() {
 
       if (!data || !Array.isArray(data)) {
         throw new Error("JSON_PARSE_ERROR");
-      }
-
-      const operationsData = operationsResponse.ok
-        ? await safeJsonParse<OperationsDelegueeDTO[]>(operationsResponse)
-        : null;
-      const operationsByNumDossier = new Map<number, OperationsDelegueeDTO>();
-      if (Array.isArray(operationsData)) {
-        for (const op of operationsData) {
-          const dossierNum = Number(op?.numDossier);
-          if (Number.isFinite(dossierNum)) {
-            operationsByNumDossier.set(dossierNum, op);
-          }
-        }
       }
 
       let agenceNameByCode = new Map<number, string>();
@@ -281,9 +267,12 @@ export function ConsultationDossierAVA() {
 
       const dossiersTransformes: DossierAVAConsultation[] =
         data.map((dto) => {
-          const operationDetail =
-            operationsByNumDossier.get(Number(dto.numDossier));
-          const nomComplet = (dto.nomClient || "").trim();
+          // Try nomClient first, fallback to first beneficiaire name
+          const nomComplet = (
+            dto.nomClient ||
+            (dto as any).beneficiaires?.[0]?.nomBenef ||
+            ""
+          ).trim();
           const nomParts = nomComplet.split(" ");
           const prenom = nomParts.length > 1 ? nomParts[0] : "";
           const nom =
@@ -301,58 +290,38 @@ export function ConsultationDossierAVA() {
             libelleTypeDossier:
               typeDossierLabels[dto.typeDossierAva] ||
               `Type ${dto.typeDossierAva}`,
-            numeroDossier: `AVA-${dto.numDossier}`,
+            numeroDossier: `${dto.numDossier}`,
             dateDossier: dto.dateDossier,
             noPieceClient: dto.noPieceClient,
             nomClient: nom,
             prenomClient: prenom,
-            montantAutorise:
-              operationDetail?.mntAutorise ?? dto.mntAutorise ?? 0,
-            mntAutorise:
-              operationDetail?.mntAutorise ?? dto.mntAutorise ?? 0,
-            montantUtilise:
-              operationDetail?.mntUtilise ?? dto.mntUtilise ?? 0,
-            mntUtilise:
-              operationDetail?.mntUtilise ?? dto.mntUtilise ?? 0,
-            mntAvance:
-              operationDetail?.mntAvance ?? dto.mntAvance ?? 0,
-            mntAutorisationBct:
-              operationDetail?.mntAutoriseBct ??
-              dto.mntAutoriseBct ??
-              0,
-            mntReserve:
-              operationDetail?.mntReserve ?? dto.mntReserve ?? 0,
-            mntBlocage:
-              operationDetail?.mntBlocage ?? dto.mntBlocage ?? 0,
-            solde:
-              operationDetail?.solde ?? dto.solde ?? 0,
+            montantAutorise: dto.mntAutorise ?? 0,
+            mntAutorise: dto.mntAutorise ?? 0,
+            montantUtilise: dto.mntUtilise ?? 0,
+            mntUtilise: dto.mntUtilise ?? 0,
+            mntAvance: dto.mntAvance ?? 0,
+            mntAutorisationBct: dto.mntAutoriseBct ?? 0,
+            mntReserve: dto.mntReserve ?? 0,
+            mntBlocage: dto.mntBlocage ?? 0,
+            solde: dto.solde ?? 0,
             devise: "TND",
             statut:
-              (operationDetail?.etatDossier ?? dto.etatDossier) ===
-              "V"
+              dto.etatDossier === "V"
                 ? "ACTIF"
-                : (operationDetail?.etatDossier ??
-                      dto.etatDossier) === "C"
+                : dto.etatDossier === "C"
                   ? "CLOTURE"
-                  : (operationDetail?.etatDossier ??
-                        dto.etatDossier) === "B"
+                  : dto.etatDossier === "B"
                     ? "SUSPENDU"
                     : "ACTIF",
-            declarationFiscale:
-              operationDetail?.declarationFiscale ??
-              dto.declarationFiscale,
-            numeroCompte:
-              operationDetail?.numeroCompte ?? dto.numeroCompte,
-            echeance: operationDetail?.echeance ?? dto.echeance,
-            tel: operationDetail?.tel ?? dto.tel,
-            codeActivite:
-              operationDetail?.codeActivite ?? dto.codeActivite,
-            numeroBct:
-              operationDetail?.numeroBct ?? dto.numeroBct,
-            dateBct: operationDetail?.dateBct ?? dto.dateBct,
-            beneficiaires: dto.beneficiaires || [],
-            documents:
-              operationDetail?.documents || dto.documents || [],
+            declarationFiscale: dto.declarationFiscale,
+            numeroCompte: dto.numeroCompte,
+            echeance: dto.echeance,
+            tel: dto.tel,
+            codeActivite: dto.codeActivite,
+            numeroBct: dto.numeroBct,
+            dateBct: dto.dateBct,
+            beneficiaires: (dto as any).beneficiaires || [],
+            documents: (dto as any).documents || [],
           };
         });
 
