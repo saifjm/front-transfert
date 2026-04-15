@@ -137,6 +137,9 @@ public class OperationsDelegueesMvt {
     @Column(name = "REFERENCE_RES")
     private String referenceRes;
 
+    @Column(name = "REFERENCE_CLOTURE", length = 20)
+    private String referenceCloture;
+
     @Column(name = "MNT_RESERVE", precision = 23, scale = 3)
     private BigDecimal mntReserve;
 
