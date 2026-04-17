@@ -1350,22 +1350,41 @@ export function AVAForm() {
         body: JSON.stringify(dto)
       });
 
+      // Si initialisation réussie sans JSON (ou réponse vide) 
+      const responseText = await initialisationResponse.text();
+      let creationResponse;
+      try {
+        creationResponse = JSON.parse(responseText);
+      } catch (e) {
+        creationResponse = null;
+      }
+
       // Vérifier le statut de la réponse
       if (!initialisationResponse.ok) {
-        const errorData = await safeJsonParse<any>(initialisationResponse);
-        
-        if (errorData) {
-          // Afficher la popup avec les détails de l'erreur
-          setApiError({
-            code: errorData.code,
-            error: errorData.error,
-            message: errorData.message,
-            timestamp: errorData.timestamp,
-            status: errorData.status || initialisationResponse.status,
-          });
-          setShowErrorModal(true);
-          
-          console.error('❌ [ÉTAPE 1/2] Erreur d\'initialisation:', errorData);
+        if (creationResponse) {
+          // Si le dossier a déjà été validé/existe, le traiter comme succès pour avancer
+          if ((creationResponse.message && creationResponse.message.includes('déjà')) || 
+              (creationResponse.error && creationResponse.error.includes('déjà'))) {
+             console.warn('⚠️ Dossier existant détecté, on avance à la popup', creationResponse);
+             // On s'assure d'avoir l'ID si c'est dans le message
+             if (!creationResponse.numDossier) {
+                const match = (creationResponse.message || creationResponse.error).match(/numDossier=(\d+)/);
+                if (match) creationResponse.numDossier = Number(match[1]);
+             }
+          } else {
+             // Afficher la popup avec les détails de l'erreur
+             setApiError({
+               code: creationResponse.code,
+               error: creationResponse.error,
+               message: creationResponse.message,
+               timestamp: creationResponse.timestamp,
+               status: creationResponse.status || initialisationResponse.status,
+             });
+             setShowErrorModal(true);
+             
+             console.error('❌ [ÉTAPE 1/2] Erreur d\'initialisation:', creationResponse);
+             return;
+          }
         } else {
           // Erreur sans payload structuré
           toast.error('Erreur lors de l\'initialisation du dossier', {
@@ -1373,13 +1392,11 @@ export function AVAForm() {
           });
           
           console.error('❌ [ÉTAPE 1/2] Erreur d\'initialisation:', initialisationResponse.status, initialisationResponse.statusText);
+          return;
         }
-        
-        return;
       }
 
       // Récupérer la réponse de création
-      const creationResponse = await safeJsonParse<OperationCreationResponseDTO>(initialisationResponse);
       if (!creationResponse) {
         // Mode démonstration - simuler une réponse valide
         const mockResponse: OperationCreationResponseDTO = {
@@ -1443,6 +1460,21 @@ export function AVAForm() {
           errorMessage = 'Numéro de dossier introuvable';
           errorDetails = `Le dossier ${creationResponse.numDossier} n'a pas été trouvé`;
         } else if (validationResponse.status === 422) {
+          if (errorDetails.includes('existe déjà')) {
+             console.warn('⚠️ [ÉTAPE 2/2] Dossier déjà validé, on l\'affiche.');
+             // On simule une réponse de validation si le dossier existe déjà
+             const existingResponse: OuvertureDossierDTO = {
+                numDossier: creationResponse.numDossier,
+                dateDossier: new Date().toISOString().split('T')[0],
+                // ... on met ce qu'on peut récupérer
+                ...creationResponse,
+             } as OuvertureDossierDTO;
+             
+             markCurrentFilesAsPersisted();
+             setDossierValide(existingResponse);
+             setShowDossierModal(true);
+             return;
+          }
           errorMessage = 'Contrôles métier non satisfaits';
           errorDetails = errorDetails || 'Les contrôles métier (RIB, matricule, montants) ont échoué';
         }

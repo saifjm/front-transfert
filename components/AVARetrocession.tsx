@@ -58,6 +58,8 @@ interface OperationMouvement {
   };
   codeTypeDosAva: number;
   mntReserve: number;
+  codeOperation?: number;
+  mntMvtAva?: number;
 }
 
 interface Agence {
@@ -481,7 +483,9 @@ export function AVARetrocession() {
           dateOperation: '2026-01-15'
         },
         codeTypeDosAva: 3,
-        mntReserve: 15000
+        mntReserve: 15000,
+        codeOperation: 250,
+        mntMvtAva: 15000
       },
       {
         id: {
@@ -489,7 +493,9 @@ export function AVARetrocession() {
           dateOperation: '2026-01-20'
         },
         codeTypeDosAva: 3,
-        mntReserve: 8500
+        mntReserve: 8500,
+        codeOperation: 250,
+        mntMvtAva: 8500
       },
       {
         id: {
@@ -497,7 +503,9 @@ export function AVARetrocession() {
           dateOperation: '2026-02-05'
         },
         codeTypeDosAva: 3,
-        mntReserve: 6500
+        mntReserve: 6500,
+        codeOperation: 250,
+        mntMvtAva: 6500
       }
     ];
 
@@ -525,7 +533,9 @@ export function AVARetrocession() {
       if (response.ok) {
         const data = await safeJsonParse<OperationMouvement[]>(response);
         if (data) {
-          setOperations(data);
+          // Filtrer uniquement les mouvements avec codeOperation=250
+          const filteredOperations = data.filter(operation => operation.codeOperation === 250);
+          setOperations(filteredOperations);
           return;
         }
       }
@@ -731,22 +741,44 @@ export function AVARetrocession() {
       const previousPath = documents.find((d) => d.id === id)?.cheminFichier;
       const nomImage = file.name;
       const defaultParts = getCurrentDocumentPathParts();
-      const built = buildDocumentPath({
+      const builtForSave = buildDocumentPath({
         fileName: file.name,
         basePath: documentsBasePath,
         pathAnnee: defaultParts.pathAnnee,
         pathMois: defaultParts.pathMois,
       });
-      
-      updateDocument(id, 'fichier', file);
-      updateDocument(id, 'nomImage', nomImage);
-      updateDocument(id, 'pathAnnee', built.pathAnnee);
-      updateDocument(id, 'pathMois', built.pathMois);
-      updateDocument(id, 'cheminFichier', built.fullPath);
-      if (previousPath && previousPath !== built.fullPath && !persistedFilePathsRef.current.has(previousPath)) {
+
+      setDocuments(documents.map(d =>
+        d.id === id
+          ? {
+              ...d,
+              fichier: file,
+              nomImage: nomImage,
+              ...(() => {
+                const built = buildDocumentPath({
+                  fileName: file.name,
+                  basePath: documentsBasePath,
+                  pathAnnee: d.pathAnnee || defaultParts.pathAnnee,
+                  pathMois: d.pathMois || defaultParts.pathMois,
+                });
+                return {
+                  pathAnnee: built.pathAnnee,
+                  pathMois: built.pathMois,
+                  cheminFichier: built.fullPath,
+                };
+              })(),
+            }
+          : d
+      ));
+
+      if (
+        previousPath &&
+        previousPath !== builtForSave.fullPath &&
+        !persistedFilePathsRef.current.has(previousPath)
+      ) {
         void deleteLocalFileByPath(previousPath);
       }
-      void saveFileToLocalPath(file, built.fullPath, built.pathAnnee, built.pathMois);
+      void saveFileToLocalPath(file, builtForSave.pathAnnee, builtForSave.pathMois, builtForSave.fullPath);
     }
   };
 
@@ -1248,7 +1280,7 @@ export function AVARetrocession() {
                         <Badge variant="secondary">{op.codeTypeDosAva}</Badge>
                       </td>
                       <td className="p-3 text-right font-semibold text-blue-700 dark:text-blue-400">
-                        {op.mntReserve.toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} TND
+                        {(op.mntMvtAva || op.mntReserve).toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} TND
                       </td>
                       <td className="p-3 text-center">
                         <Button

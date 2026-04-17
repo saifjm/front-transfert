@@ -598,7 +598,7 @@ export function AVAClotureDossier() {
                           <Button
                             size="sm"
                             onClick={() => handleSelectDossier(dossier)}
-                            disabled={dossier.montantUtilise > 0}
+                           disabled={dossier.montantUtilise > 0}
                           >
                             <Search className="w-4 h-4 mr-2" />
                             Sélectionner
