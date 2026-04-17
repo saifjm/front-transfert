@@ -179,7 +179,7 @@ interface   InitiationOuvertureDTO {
   banqueProvenance?: BanqueProvenanceDTO;
   beneficiairesMvtListe?: BeneficiaireMvtDTO[];
   documents?: DocumentDTO[];
-  avaMarcheMvtListe?: AvaMarcheMvtDTO[];
+  avaMarcheMvt?: AvaMarcheMvtDTO;
 }
 
 export function AVAForm() {
@@ -189,13 +189,13 @@ export function AVAForm() {
   const [formData, setFormData] = useState<InitiationOuvertureDTO>({
     beneficiairesMvtListe: [],
     documents: [],
-    avaMarcheMvtListe: [],
+    avaMarcheMvt: undefined,
     typePieceClient: 3, // Type pièce client fixé à 3 (hidden)
   });
 
   const [beneficiaires, setBeneficiaires] = useState<BeneficiaireMvtDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
-  const [avaMarcheMvtListe, setAvaMarcheMvtListe] = useState<AvaMarcheMvtDTO[]>([]);
+  const [avaMarcheMvt, setAvaMarcheMvt] = useState<AvaMarcheMvtDTO | null>(null);
   const [banqueProvenance, setBanqueProvenance] = useState<BanqueProvenanceDTO>({});
   
   // État pour les erreurs de validation par champ
@@ -1051,19 +1051,19 @@ export function AVAForm() {
 
   // Ajout d'un marché AVA
   const addMarcheAva = () => {
-    setAvaMarcheMvtListe([...avaMarcheMvtListe, { id: Date.now().toString() }]);
+    setAvaMarcheMvt({ id: Date.now().toString() });
   };
 
   // Suppression d'un marché AVA
-  const removeMarcheAva = (id: string) => {
-    setAvaMarcheMvtListe(avaMarcheMvtListe.filter(m => m.id !== id));
+  const removeMarcheAva = () => {
+    setAvaMarcheMvt(null);
   };
 
   // Mise à jour d'un marché AVA
-  const updateMarcheAva = (id: string, field: keyof AvaMarcheMvtDTO, value: any) => {
-    setAvaMarcheMvtListe(avaMarcheMvtListe.map(m => 
-      m.id === id ? { ...m, [field]: value } : m
-    ));
+  const updateMarcheAva = (field: keyof AvaMarcheMvtDTO, value: any) => {
+    if (avaMarcheMvt) {
+      setAvaMarcheMvt({ ...avaMarcheMvt, [field]: value });
+    }
   };
 
   // ========================================================================
@@ -1327,13 +1327,16 @@ export function AVAForm() {
           cheminFichier: built.fullPath,
         };
       });
-      const cleanMarches = avaMarcheMvtListe.map(({ id, ...rest }) => rest);
+      const cleanMarche = avaMarcheMvt ? { ...avaMarcheMvt } : undefined;
+      if (cleanMarche) {
+        delete (cleanMarche as any).id;
+      }
 
       const dto: InitiationOuvertureDTO = {
         ...formData,
         beneficiairesMvtListe: cleanBeneficiaires,
         documents: cleanDocuments,
-        avaMarcheMvtListe: cleanMarches.length > 0 ? cleanMarches : undefined,
+        avaMarcheMvt: cleanMarche,
         banqueProvenance: Object.keys(banqueProvenance).length > 0 ? banqueProvenance : undefined,
       };
 
@@ -1531,7 +1534,7 @@ export function AVAForm() {
         solde: validationApiResponse.solde,
         beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
         documents: cleanDocuments as DocumentDTO[],
-        avaMarche: formData.avaMarcheMvtListe?.[0] as AvaMarcheDTO
+        avaMarche: formData.avaMarcheMvt as AvaMarcheDTO
       };
 
       toast.success('🎉 Dossier AVA créé et validé avec succès !', {
@@ -1574,10 +1577,10 @@ export function AVAForm() {
       void cleanupDraftDocuments();
     }
     skipDraftCleanupRef.current = false;
-    setFormData({ beneficiairesMvtListe: [], documents: [], avaMarcheMvtListe: [], typePieceClient: 3 });
+    setFormData({ beneficiairesMvtListe: [], documents: [], avaMarcheMvt: undefined, typePieceClient: 3 });
     setBeneficiaires([]);
     setDocuments([]);
-    setAvaMarcheMvtListe([]);
+    setAvaMarcheMvt(null);
     setBanqueProvenance({});
     setClientInfo(null);
     setClientNotFound(false);
@@ -2294,25 +2297,24 @@ export function AVAForm() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {avaMarcheMvtListe.length === 0 ? (
+              {!avaMarcheMvt ? (
                 <div className="text-center py-12 border-2 border-dashed rounded-lg">
                   <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">Aucun marché AVA ajouté</p>
                   <Button onClick={addMarcheAva} variant="outline" className="mt-4" size="sm">
                     <PlusCircle className="w-4 h-4 mr-2" />
-                    Ajouter le premier marché
+                    Ajouter le marché
                   </Button>
                 </div>
               ) : (
-                avaMarcheMvtListe.map((marche, index) => (
-                  <div key={marche.id} className="border rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline">Marché {index + 1}</Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeMarcheAva(marche.id!)}
-                      >
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline">Marché AVA</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeMarcheAva}
+                    >
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </div>
@@ -2321,8 +2323,8 @@ export function AVAForm() {
                       <div className="space-y-2">
                         <Label>Numéro de Marché</Label>
                         <Input
-                          value={marche.numMarche || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'numMarche', e.target.value)}
+                          value={avaMarcheMvt.numMarche || ''}
+                          onChange={(e) => updateMarcheAva('numMarche', e.target.value)}
                           placeholder="Ex: 15g"
                         />
                       </div>
@@ -2332,8 +2334,8 @@ export function AVAForm() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={marche.montantMarche || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'montantMarche', Number(e.target.value))}
+                          value={avaMarcheMvt.montantMarche || ''}
+                          onChange={(e) => updateMarcheAva('montantMarche', Number(e.target.value))}
                           placeholder="154"
                         />
                       </div>
@@ -2341,8 +2343,8 @@ export function AVAForm() {
                       <div className="space-y-2">
                         <Label>Référence Contrat</Label>
                         <Input
-                          value={marche.refContrat || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'refContrat', e.target.value)}
+                          value={avaMarcheMvt.refContrat || ''}
+                          onChange={(e) => updateMarcheAva('refContrat', e.target.value)}
                           placeholder="Ex: 14e"
                         />
                       </div>
@@ -2351,16 +2353,16 @@ export function AVAForm() {
                         <Label>Date Contrat</Label>
                         <Input
                           type="date"
-                          value={marche.dateContrat || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'dateContrat', e.target.value)}
+                          value={avaMarcheMvt.dateContrat || ''}
+                          onChange={(e) => updateMarcheAva('dateContrat', e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Contractant</Label>
                         <Input
-                          value={marche.contractant || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'contractant', e.target.value)}
+                          value={avaMarcheMvt.contractant || ''}
+                          onChange={(e) => updateMarcheAva('contractant', e.target.value)}
                           placeholder="Ex: me"
                         />
                       </div>
@@ -2369,16 +2371,16 @@ export function AVAForm() {
                         <Label>Date Fin</Label>
                         <Input
                           type="date"
-                          value={marche.dateFin || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'dateFin', e.target.value)}
+                          value={avaMarcheMvt.dateFin || ''}
+                          onChange={(e) => updateMarcheAva('dateFin', e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Code Devise</Label>
                         <Select
-                          value={marche.codeDevise?.toString()}
-                          onValueChange={(value) => updateMarcheAva(marche.id!, 'codeDevise', Number(value))}
+                          value={avaMarcheMvt.codeDevise?.toString()}
+                          onValueChange={(value) => updateMarcheAva('codeDevise', Number(value))}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Sélectionner" />
@@ -2404,15 +2406,14 @@ export function AVAForm() {
                         <Input
                           type="number"
                           step="0.01"
-                          value={marche.mntDevise || ''}
-                          onChange={(e) => updateMarcheAva(marche.id!, 'mntDevise', Number(e.target.value))}
+                          value={avaMarcheMvt.mntDevise || ''}
+                          onChange={(e) => updateMarcheAva('mntDevise', Number(e.target.value))}
                           placeholder="125"
                         />
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                )}
             </CardContent>
           </Card>
         </TabsContent>
