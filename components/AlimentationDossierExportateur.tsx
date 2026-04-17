@@ -27,6 +27,7 @@ interface DossierExportateur {
   noPieceClient: string;
   nomClient: string;
   prenomClient?: string;
+  numeroCompte?: string;
   montantAutorise: number;
   mntAutorise?: number;
   montantUtilise: number;
@@ -116,6 +117,7 @@ export function AlimentationDossierExportateur() {
         nomClient: 'Dupont Jean',
         prenomClient: 'Jean',
         noPieceClient: '1234567A',
+        numeroCompte: '123456789012345678901234',
         montantAutorise: 500000,
         mntAutorise: 500000,
         montantUtilise: 150000,
@@ -138,6 +140,7 @@ export function AlimentationDossierExportateur() {
         nomClient: 'Martin Sophie',
         prenomClient: 'Sophie',
         noPieceClient: '7654321B',
+        numeroCompte: '987654321098765432109876',
         montantAutorise: 300000,
         mntAutorise: 300000,
         montantUtilise: 280000,
@@ -164,6 +167,7 @@ export function AlimentationDossierExportateur() {
         dateDossier: string;
         noPieceClient: string;
         nomClient: string;
+        numeroCompte?: string;
       }
 
       const data = await safeJsonParse<DossierValideDTO[]>(response);
@@ -235,6 +239,31 @@ export function AlimentationDossierExportateur() {
             console.warn(`Impossible de récupérer les soldes pour le dossier ${dto.numDossier}`);
           }
 
+          // Récupérer le numéro de compte
+          let numeroCompte = dto.numeroCompte || soldes.numeroCompte;
+          if (!numeroCompte) {
+            try {
+              const detailsResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}`);
+              if (detailsResponse.ok) {
+                const detailsData = await safeJsonParse<any>(detailsResponse);
+                numeroCompte = detailsData?.numeroCompte;
+              }
+            } catch (e) {
+              console.warn(`Impossible de récupérer les détails pour le dossier ${dto.numDossier}`);
+            }
+          }
+          if (!numeroCompte) {
+            try {
+              const compteResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/numero-compte`);
+              if (compteResponse.ok) {
+                const compteData = await safeJsonParse<any>(compteResponse);
+                numeroCompte = compteData?.numeroCompte;
+              }
+            } catch (e) {
+              console.warn(`Impossible de récupérer le numéro de compte pour le dossier ${dto.numDossier}`);
+            }
+          }
+
           return {
             codeAgence: dto.codeAgence.toString(),
             libelleAgence: agenceNameByCode.get(dto.codeAgence) || `Agence ${dto.codeAgence}`,
@@ -246,6 +275,7 @@ export function AlimentationDossierExportateur() {
             nomClient: dto.nomClient,
             prenomClient: '',
             noPieceClient: dto.noPieceClient,
+            numeroCompte: numeroCompte,
             
             // Intégration des données financières réelles
             montantAutorise: soldes.montantAutorise || 0,
@@ -346,13 +376,43 @@ export function AlimentationDossierExportateur() {
   };
 
   // Sélectionner un dossier
-  const handleSelectDossier = (dossier: DossierExportateur) => {
+  const handleSelectDossier = async (dossier: DossierExportateur) => {
     setDossierSelectionne(dossier);
+    
+    let numeroCompte = dossier.numeroCompte;
+    
+    // Si aucun compte n'est trouvé, essayez via l'API comptes par pièce client
+    if (!numeroCompte && dossier.noPieceClient) {
+      try {
+        const comptesResponse = await fetch(`/api/ref/comptes/by-piece-client/${encodeURIComponent(dossier.noPieceClient)}`);
+        if (comptesResponse.ok) {
+          const comptesData = await safeJsonParse<any[]>(comptesResponse);
+          if (comptesData && comptesData.length > 0) {
+            const compte = comptesData[0];
+            if (compte.numeroCompte) {
+              numeroCompte = compte.numeroCompte;
+            } else if (compte.racineCompte) {
+              // Directement la racine du compte (13 caractères)
+              numeroCompte = String(compte.racineCompte).padStart(13, '0');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erreur appel compte', e);
+      }
+    }
+
+    // Retirer les 5 premiers caractères et les 2 derniers si on a un RIB complet (20 caractères)
+    if (numeroCompte && typeof numeroCompte === 'string' && numeroCompte.length === 20) {
+      numeroCompte = numeroCompte.substring(5, 18);
+    }
+
     setAlimentation({
       numDossierAva: Number(dossier.numeroDossier.replace('AVA-', '').replace('EXP-', '')),
       dateDosRap: new Date().toISOString().split('T')[0],
       codeDevise: 788,
-      codeProduitService: 108
+      codeProduitService: 108,
+      numeroCompte: numeroCompte || ''
     });
     setErrors({});
     setEtape('alimentation');
@@ -388,10 +448,6 @@ export function AlimentationDossierExportateur() {
 
     if (!alimentation.noPieceBenef || alimentation.noPieceBenef.trim() === '') {
       newErrors.noPieceBenef = 'Le numéro de pièce est obligatoire';
-    }
-
-    if (!alimentation.numeroCompte || alimentation.numeroCompte.trim() === '') {
-      newErrors.numeroCompte = 'Le numéro de compte (RIB) est obligatoire';
     }
 
     setErrors(newErrors);
@@ -873,8 +929,7 @@ export function AlimentationDossierExportateur() {
               <Input
                 id="numeroCompte"
                 value={alimentation.numeroCompte || ''}
-                onChange={(e) => setAlimentation({ ...alimentation, numeroCompte: e.target.value })}
-                placeholder="Ex. 1234567890123"
+                disabled={true}
                 className={errors.numeroCompte ? 'border-red-500' : ''}
               />
               {errors.numeroCompte && (

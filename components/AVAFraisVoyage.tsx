@@ -1376,8 +1376,9 @@ export function AVAFraisVoyage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="BB">BB - BILLETS DE BANQUE</SelectItem>
-                  <SelectItem value="VIR">VIR - VIREMENT</SelectItem>
-                  <SelectItem value="CAP">CAP - CARTE DE PAIEMENT INTER.</SelectItem>
+                  <SelectItem value="TC">TC - CARTE DE PAIEMENT INTER.</SelectItem>
+                  <SelectItem value="CH">CH - CHEQUE</SelectItem>
+
                 </SelectContent>
               </Select>
             </div>
