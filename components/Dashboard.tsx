@@ -7,7 +7,8 @@ import {
   FolderOpen, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
   Clock, Globe, Building2, RefreshCw, FileText, ArrowUpRight,
   ArrowDownRight, DollarSign, BarChart3, ShieldAlert, Plane,
-  Calendar, ChevronRight, Activity, PauseCircle, RotateCcw, Sparkles, PlusCircle
+  Calendar, ChevronRight, Activity, PauseCircle, RotateCcw, Sparkles, PlusCircle,
+  Users, Search, Lock, Play, XCircle, Banknote, Repeat2, FileOutput, FilePlus
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { safeJsonParse } from '../utils';
@@ -111,10 +112,10 @@ const derniersDossiers = [
 ];
 
 const alertes = [
-  { type: 'warning', msg: '12 dossiers arrivent à échéance dans les 7 prochains jours',        action: 'Consulter', icon: Clock       },
-  { type: 'error',   msg: '3 dossiers suspendus dépassent 30 jours sans levée de suspension',  action: 'Traiter',   icon: ShieldAlert },
-  { type: 'info',    msg: '5 demandes de réservation en attente de validation BCT',             action: 'Réviser',   icon: AlertTriangle },
-  { type: 'success', msg: '89 dossiers clôturés avec succès ce mois — record mensuel',         action: 'Détails',   icon: CheckCircle2  },
+  { type: 'warning', msg: '12 dossiers arrivent à échéance dans les 7 prochains jours',        action: 'Consulter', actionSection: 'ava-consultation-dossier', icon: Clock       },
+  { type: 'error',   msg: '3 dossiers suspendus dépassent 30 jours sans levée de suspension',  action: 'Traiter',   actionSection: 'ava-levee-suspension',     icon: ShieldAlert },
+  { type: 'info',    msg: '5 demandes de réservation en attente de validation BCT',             action: 'Réviser',   actionSection: 'ava-reservation',          icon: AlertTriangle },
+  { type: 'success', msg: '89 dossiers clôturés avec succès ce mois — record mensuel',         action: 'Détails',   actionSection: 'ava-consultation-dossier', icon: CheckCircle2  },
 ];
 
 const statAgences = [
@@ -140,8 +141,8 @@ const fmtM = (n: number) => {
 const statutStyle: Record<string, { bg: string; text: string; dot: string }> = {
   Actif:    { bg: '#DCFCE7', text: '#166534', dot: '#22c55e' },
   Réservé:  { bg: '#DBEAFE', text: '#1e40af', dot: '#3b82f6' },
+  Suspendu: { bg: '#FEF3C7', text: '#92400e', dot: '#F59E0B' },
   Clôturé:  { bg: '#F3F4F6', text: '#374151', dot: '#9ca3af' },
-  Suspendu: { bg: '#FEF3C7', text: '#92400e', dot: '#f59e0b' },
 };
 
 const alerteStyle: Record<string, { border: string; bg: string; icon: string; actionBg: string; actionColor: string }> = {
@@ -344,7 +345,7 @@ function PanelHeader({ title, subtitle, action, icon }: {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export interface DashboardProps {
-  onNavigate?: (section: string) => void;
+  onNavigate?: (section: string, dossierNum?: string) => void;
 }
 
 export function Dashboard({ onNavigate }: DashboardProps = {}) {
@@ -517,6 +518,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         agence: getAgenceLabel(d.codeAgence),
         devise: 'TND',
         montant: toNum(d.mntAutorise),
+        solde: toNum(d.solde),
         statut: d.etatDossier === 'V' ? 'Actif' : d.etatDossier === 'B' ? 'Suspendu' : d.etatDossier === 'C' ? 'Clôturé' : 'Réservé',
         date: d.dateDossier ? new Date(d.dateDossier).toLocaleDateString('fr-FR') : '-',
         op: `Type ${d.typeDossierAva || '-'}`,
@@ -564,9 +566,9 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   ];
 
   const liveAlertes = [
-    { type: 'info', msg: `${dataDriven.total} dossiers chargés depuis l'API`, action: 'Rafraîchir', icon: Activity },
-    { type: 'warning', msg: `${dataDriven.suspended} dossiers actuellement suspendus`, action: 'Consulter', icon: ShieldAlert },
-    { type: 'success', msg: `${dataDriven.active} dossiers actifs et exploitables`, action: 'Voir', icon: CheckCircle2 },
+    { type: 'info',    msg: `${dataDriven.total} dossiers chargés depuis l'API`,           action: 'Rafraîchir', actionSection: '',                       icon: Activity   },
+    { type: 'warning', msg: `${dataDriven.suspended} dossiers actuellement suspendus`,     action: 'Consulter',  actionSection: 'ava-levee-suspension',    icon: ShieldAlert },
+    { type: 'success', msg: `${dataDriven.active} dossiers actifs et exploitables`,        action: 'Voir',       actionSection: 'ava-consultation-dossier', icon: CheckCircle2 },
   ];
 
   const handleRefresh = () => {
@@ -575,11 +577,13 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   };
 
   const handleRowClick = (op: any) => {
+    if (op.statut === 'Clôturé' || op.statut === 'Suspendu') return;
     setSelectedOperation(op);
     setShowActionModal(true);
   };
 
   return (
+    <>
     <div style={{ padding: '24px', background: '#f4f7fa', minHeight: '100vh' }}>
 
       {/* ── Header ── */}
@@ -618,7 +622,9 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             <RefreshCw style={{ width: 14, height: 14, animation: refreshing ? 'spin-slow 0.7s linear infinite' : 'none' }} />
             Actualiser
           </button>
-          <button style={{
+          <button
+            onClick={() => onNavigate?.('ava-generation-dossier')}
+            style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '8px 16px', borderRadius: 10,
             border: 'none',
@@ -639,7 +645,19 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
 
       {/* ── KPI Cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 22 }}>
-        {liveKpiData.map((k, i) => <KpiCard key={k.label} k={k} index={i} />)}
+        {liveKpiData.map((k, i) => {
+          const kpiNav: Record<string, string> = {
+            'Dossiers AVA Actifs':  'ava-consultation-dossier',
+            'Montant Total Engagé': 'ava-consultation-dossier',
+            'Clôtures ce mois':     'ava-cloture-dossier',
+            'Dossiers Suspendus':   'ava-levee-suspension',
+          };
+          return (
+            <div key={k.label} style={{ cursor: 'pointer' }} onClick={() => onNavigate?.(kpiNav[k.label] || 'ava-consultation-dossier')}>
+              <KpiCard k={k} index={i} />
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Charts Row ── */}
@@ -749,7 +767,9 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             subtitle="7 opérations les plus récentes"
             icon={<FileText style={{ width: 15, height: 15, color: '#435B7B' }} />}
             action={
-              <button style={{
+              <button
+                onClick={() => onNavigate?.('ava-consultation-dossier')}
+                style={{
                 display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
                 color: '#435B7B', background: '#EEF3F7', border: '1px solid #D6E4F0',
                 borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
@@ -766,7 +786,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8fafb' }}>
-                  {['N° Dossier', 'Client', 'Agence', 'Devise', 'Montant', 'Opération', 'Statut', 'Date'].map(h => (
+                  {['N° Dossier', 'Client', 'Agence', 'Opération', 'Statut', 'Date'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: '#6B8CAE', fontWeight: 700, whiteSpace: 'nowrap', borderBottom: '1px solid #f0f3f7', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{h}</th>
                   ))}
                 </tr>
@@ -781,10 +801,10 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
                         borderBottom: '1px solid #f8fafb',
                         background: i % 2 === 0 ? '#fff' : '#fafbfc',
                         transition: 'background 0.12s, transform 0.1s',
-                        cursor: 'pointer',
+                        cursor: (d.statut === 'Clôturé' || d.statut === 'Suspendu') ? 'default' : 'pointer',
                       }}
                       onClick={() => handleRowClick(d)}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#EEF3F7'; }}
+                      onMouseEnter={e => { if (d.statut !== 'Clôturé' && d.statut !== 'Suspendu') (e.currentTarget as HTMLElement).style.background = '#EEF3F7'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? '#fff' : '#fafbfc'; }}
                     >
                       <td style={{ padding: '11px 14px', fontSize: 12, color: '#435B7B', fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
@@ -795,12 +815,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12, color: '#6B8CAE', whiteSpace: 'nowrap' }}>
                         {d.agence}
-                      </td>
-                      <td style={{ padding: '11px 14px' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#435B7B', background: '#EEF3F7', borderRadius: 5, padding: '2px 8px', border: '1px solid #D6E4F0' }}>{d.devise}</span>
-                      </td>
-                      <td style={{ padding: '11px 14px', fontSize: 12, color: '#2D3E54', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {d.montant.toLocaleString('fr-TN')}
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12, color: '#6B8CAE', whiteSpace: 'nowrap' }}>
                         {d.op}
@@ -920,7 +934,12 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
                     <Icon style={{ width: 15, height: 15, color: st.icon }} />
                   </div>
                   <p style={{ fontSize: 12.5, color: '#2D3E54', margin: 0, lineHeight: 1.5, flex: 1 }}>{a.msg}</p>
-                  <button style={{
+                  <button
+                    onClick={() => {
+                      if (a.action === 'Rafraîchir') handleRefresh();
+                      else if ((a as any).actionSection) onNavigate?.((a as any).actionSection);
+                    }}
+                    style={{
                     fontSize: 11, color: st.actionColor, background: st.actionBg,
                     border: 'none', borderRadius: 7, padding: '4px 10px',
                     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 600,
@@ -1029,5 +1048,97 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       </div>
 
     </div>
+
+    {/* ── Actions Rapides Modal ── */}
+    <Dialog open={showActionModal} onOpenChange={setShowActionModal}>
+      <DialogContent style={{ maxWidth: 580 }}>
+        <DialogHeader>
+          <DialogTitle style={{ color: '#2D3E54', fontSize: 17, fontWeight: 700, letterSpacing: '-0.3px' }}>
+            Actions Rapides
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Dossier summary */}
+        {selectedOperation && (
+          <div style={{
+            background: 'linear-gradient(135deg,#EEF3F7,#f8fafc)',
+            borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+            border: '1px solid #d1dce8', display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12,
+          }}>
+            {[
+              { label: 'Dossier',          value: selectedOperation.num,   mono: true  },
+              { label: 'Client',           value: selectedOperation.client, mono: false },
+              { label: 'Agence',           value: selectedOperation.agence, mono: false },
+              { label: 'Solde disponible', value: `${fmtTND(selectedOperation.solde ?? selectedOperation.montant ?? 0)} TND`, mono: false, highlight: true },
+            ].map(({ label, value, mono, highlight }) => (
+              <div key={label}>
+                <div style={{ fontSize: 9, color: '#6B8CAE', textTransform: 'uppercase', fontWeight: 700, marginBottom: 2, letterSpacing: '0.5px' }}>{label}</div>
+                <div style={{ fontSize: 12, fontWeight: highlight ? 800 : 600, color: highlight ? '#435B7B' : '#2D3E54', fontFamily: mono ? 'monospace' : 'inherit', lineHeight: 1.3 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Action grid */}
+        {(() => {
+          const actions: { label: string; section: string; Icon: React.ElementType; color: string }[] = [
+            { label: 'Frais de Voyage',        section: 'ava-frais-voyage',            Icon: Plane,       color: '#3B82F6' },
+            { label: 'Réservation',             section: 'ava-reservation',             Icon: Calendar,    color: '#8B5CF6' },
+            { label: 'Annulation Réservation',  section: 'ava-annulation-reservation',  Icon: XCircle,     color: '#EF4444' },
+            { label: 'Suspension',              section: 'ava-suspension',              Icon: PauseCircle, color: '#F59E0B' },
+            { label: 'Levée de Suspension',     section: 'ava-levee-suspension',        Icon: Play,        color: '#10B981' },
+            { label: 'Alimentation BCT',        section: 'ava-alimentation-accord-bct', Icon: Banknote,    color: '#06B6D4' },
+            { label: 'Rétrocession',            section: 'ava-retrocession',            Icon: Repeat2,     color: '#6366F1' },
+            { label: 'Ouverture Dossier',       section: 'ava-ouverture',               Icon: FilePlus,    color: '#435B7B' },
+            { label: 'Mise à jour Bénéf.',      section: 'ava-beneficiaires',           Icon: Users,       color: '#0EA5E9' },
+            { label: 'Clôture Dossier',         section: 'ava-cloture-dossier',         Icon: Lock,        color: '#64748B' },
+            { label: 'Alimentation Export.',    section: 'ava-alimentation',            Icon: FileOutput,  color: '#D97706' },
+            { label: 'Consultation',            section: 'ava-consultation-dossier',    Icon: Search,      color: '#7C3AED' },
+            { label: 'Génération Documents',    section: 'ava-generation-dossier',      Icon: FileText,    color: '#059669' },
+          ];
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+              {actions.map(({ label, section, Icon, color }) => (
+                <button
+                  key={section}
+                  onClick={() => { setShowActionModal(false); onNavigate?.(section, selectedOperation?.num); }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    gap: 7, padding: '14px 6px', borderRadius: 10, cursor: 'pointer',
+                    border: `1px solid ${color}28`, background: '#fff',
+                    transition: 'all 0.14s', fontSize: 10.5, fontWeight: 600, color: '#2D3E54',
+                    minHeight: 78, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = `${color}0e`;
+                    el.style.borderColor = `${color}55`;
+                    el.style.transform = 'translateY(-2px)';
+                    el.style.boxShadow = `0 4px 12px ${color}22`;
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = '#fff';
+                    el.style.borderColor = `${color}28`;
+                    el.style.transform = 'translateY(0)';
+                    el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                  }}
+                >
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, background: `${color}15`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon style={{ width: 16, height: 16, color }} />
+                  </div>
+                  <span style={{ textAlign: 'center', lineHeight: 1.35 }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

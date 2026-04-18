@@ -145,7 +145,6 @@ export function AVASuspension() {
   useEffect(() => {
     fetchDonneesGenerales();
     fetchDossiers();
-    fetchAgences();
   }, []);
 
   const fetchDonneesGenerales = async () => {
@@ -334,6 +333,7 @@ export function AVASuspension() {
 
         setDossiers(dossiersTransformes);
         setDossiersFiltres(dossiersTransformes);
+        setAgences(Array.from(new Map(dossiersTransformes.map(d => [String(d.codeAgence), { codeAgence: String(d.codeAgence), libelleAgence: d.libelleAgence }])).values()));
         return;
       }
       throw new Error("PARSE_ERROR");
@@ -346,29 +346,6 @@ export function AVASuspension() {
     }
   };
 
-  const fetchAgences = async () => {
-    const mockAgences: Agence[] = [
-      {
-        codeAgence: "100",
-        libelleAgence: "Agence Tunis Centre",
-      },
-      { codeAgence: "200", libelleAgence: "Agence Sfax" },
-    ];
-
-    try {
-      const response = await fetch("/api/ref/agences");
-      if (response.ok) {
-        const data = await safeJsonParse<Agence[]>(response);
-        if (data) {
-          setAgences(data);
-          return;
-        }
-      }
-      throw new Error("API_ERROR");
-    } catch (error) {
-      setAgences(mockAgences);
-    }
-  };
 
   // Filtrer les dossiers
   useEffect(() => {

@@ -97,7 +97,6 @@ export function AlimentationDossierExportateur() {
   // Charger les dossiers et agences au montage
   useEffect(() => {
     fetchDossiers();
-    fetchAgences();
   }, []);
 
   // Charger les dossiers exportateurs
@@ -293,16 +292,7 @@ export function AlimentationDossierExportateur() {
         })
       );
 
-      // Mettre à jour agences pour le select de filtre s'il manquait des entrées
-      setAgences(prevAgences => {
-        const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
-        dossiersTransformes.forEach(d => {
-            if (d.codeAgence && !newAgencesMap.has(d.codeAgence)) {
-                newAgencesMap.set(d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence });
-            }
-        });
-        return Array.from(newAgencesMap.values());
-      });
+      setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence }])).values()));
 
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
@@ -316,28 +306,6 @@ export function AlimentationDossierExportateur() {
   };
 
   // Charger les agences
-  const fetchAgences = async () => {
-    const mockAgences: Agence[] = [
-      { codeAgence: '001', libelleAgence: 'Agence Tunis Centre' },
-      { codeAgence: '002', libelleAgence: 'Agence Sousse' },
-      { codeAgence: '003', libelleAgence: 'Agence Sfax' },
-      { codeAgence: '004', libelleAgence: 'Agence Nabeul' }
-    ];
-
-    try {
-      const response = await fetch('/api/ref/agences');
-      if (response.ok) {
-        const data = await safeJsonParse<Agence[]>(response);
-        if (data) {
-          setAgences(data);
-          return;
-        }
-      }
-      throw new Error('API_ERROR');
-    } catch (error) {
-      setAgences(mockAgences);
-    }
-  };
 
   // Filtrage des dossiers
   useEffect(() => {
@@ -924,17 +892,12 @@ export function AlimentationDossierExportateur() {
               )}
             </div>
 
-            <div className="col-span-2 space-y-2">
-              <Label htmlFor="numeroCompte">Numéro de compte (RIB) *</Label>
+            <div className="hidden">
               <Input
                 id="numeroCompte"
                 value={alimentation.numeroCompte || ''}
-                disabled={true}
-                className={errors.numeroCompte ? 'border-red-500' : ''}
+                readOnly
               />
-              {errors.numeroCompte && (
-                <p className="text-xs text-red-600">{errors.numeroCompte}</p>
-              )}
             </div>
           </div>
 

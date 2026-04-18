@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -96,7 +96,7 @@ interface DossierAVAConsultation {
 type SortColumn = keyof DossierAVAConsultation | null;
 type SortDirection = "asc" | "desc";
 
-export function ConsultationDossierAVA() {
+export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumeroDossier?: string } = {}) {
   const documentsBasePath = String(
     import.meta.env.VITE_DOCUMENTS_BASE_PATH || "",
   ).trim();
@@ -144,6 +144,8 @@ export function ConsultationDossierAVA() {
   useEffect(() => {
     fetchDossiers();
   }, []);
+
+  const deepLinked = useRef(false);
 
   // Charger les dossiers
   const fetchDossiers = async () => {
@@ -535,6 +537,16 @@ export function ConsultationDossierAVA() {
     await fetchDetailsDossier(dossier);
     setEtape("detail");
   };
+
+  // Auto-ouvrir le dossier si un numéro est passé en deep-link depuis le Dashboard
+  useEffect(() => {
+    if (!initialNumeroDossier || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialNumeroDossier);
+    if (found) {
+      deepLinked.current = true;
+      handleSelectDossier(found);
+    }
+  }, [dossiers, initialNumeroDossier]);
 
   const handleRetourListe = () => {
     setEtape("liste");

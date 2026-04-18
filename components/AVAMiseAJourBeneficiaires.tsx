@@ -123,7 +123,6 @@ export function AVAMiseAJourBeneficiaires() {
   // Charger les dossiers valides au montage
   useEffect(() => {
     fetchDossiers();
-    fetchAgences();
   }, []);
 
   // Filtrer les dossiers
@@ -372,16 +371,7 @@ export function AVAMiseAJourBeneficiaires() {
         numeroCompte: dto.numeroCompte || dto.NUMERO_COMPTE || ''
       }));
 
-      // Mettre à jour agences pour le select de filtre s'il manquait des entrées
-      setAgences(prevAgences => {
-        const newAgencesMap = new Map(prevAgences.map(a => [a.codeAgence, a]));
-        dossiersTransformes.forEach(d => {
-            if (d.codeAgence && !newAgencesMap.has(d.codeAgence)) {
-                newAgencesMap.set(d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence || `Agence ${d.codeAgence}` });
-            }
-        });
-        return Array.from(newAgencesMap.values());
-      });
+      setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence || `Agence ${d.codeAgence}` }])).values()));
 
       setDossiers(dossiersTransformes);
       
@@ -399,20 +389,6 @@ export function AVAMiseAJourBeneficiaires() {
     }
   };
 
-  // Charger les agences
-  const fetchAgences = async () => {
-    try {
-      const mockAgences: Agence[] = [
-        { codeAgence: 100, libelleAgence: 'Agence Tunis Centre' },
-        { codeAgence: 200, libelleAgence: 'Agence Sfax' },
-        { codeAgence: 300, libelleAgence: 'Agence Sousse' },
-        { codeAgence: 400, libelleAgence: 'Agence Monastir' },
-      ];
-      setAgences(mockAgences);
-    } catch (error) {
-      console.error('Erreur chargement agences:', error);
-    }
-  };
 
   const fetchBeneficiaires = async (numDossier: number) => {
     try {

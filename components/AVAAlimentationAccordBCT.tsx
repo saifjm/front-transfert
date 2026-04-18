@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import {
   ArrowLeft,
   FileText,
@@ -77,6 +78,9 @@ export function AVAAlimentationAccordBCT() {
   const [dossierSelectionne, setDossierSelectionne] = useState<DossierAVA | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showManualVerifModal, setShowManualVerifModal] = useState(false);
+  const [manualVerifBaseUrl, setManualVerifBaseUrl] = useState('');
+  const [isConfirmingVerif, setIsConfirmingVerif] = useState(false);
 
   // Filtres
   const [searchNumeroDossier, setSearchNumeroDossier] = useState('');
@@ -320,6 +324,7 @@ export function AVAAlimentationAccordBCT() {
         mntMvtAva: form.mntMvtAva,
       };
 
+      // Étape 1 — Alimentation BCT
       const response = await fetch(
         `/api/alimentation-bct/${dossierSelectionne.numDossier}/true`,
         {
@@ -329,33 +334,81 @@ export function AVAAlimentationAccordBCT() {
         },
       );
 
-      if (response.ok) {
+      if (!response.ok) {
+        const errorData = await safeJsonParse<{ message?: string; error?: string }>(response);
+        toast.error('Erreur', { description: errorData?.message || errorData?.error || `HTTP ${response.status}` });
+        return;
+      }
+
+      // Étape 2 — Mise à jour validité accord BCT (ref service — port 8090)
+      const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${form.numeroBct}&dateAccordBct=${form.dateBct}&typeAccordBct=${form.typeBct}`;
+      const updateRes = await fetch(updateUrl, { method: 'POST' });
+      const updateData = await safeJsonParse<{ message?: string }>(updateRes);
+      const msg = updateData?.message || '';
+
+      if (msg === 'success') {
         toast.success('Alimentation suite accord BCT enregistrée avec succès', {
           description: `Dossier ${dossierSelectionne.numeroDossier} — BCT N°${form.numeroBct}`,
         });
         handleRetourRecherche();
         await fetchDossiers();
-      } else {
-        const errorData = await response.json().catch(() => null);
-        if (errorData?.erreurs && Array.isArray(errorData.erreurs)) {
-          errorData.erreurs.forEach((e: string) => toast.error('Erreur de validation', { description: e }));
-        } else if (errorData?.message) {
-          toast.error('Erreur', { description: errorData.message });
-        } else {
-          toast.error('Erreur', { description: `HTTP ${response.status}` });
-        }
-      }
-    } catch {
-      console.info('ℹ️ Mode démonstration - Alimentation Accord BCT');
-      toast.success('✓ Alimentation BCT enregistrée (mode démo)', {
-        description: `Dossier ${dossierSelectionne.numeroDossier}`,
-      });
-      setTimeout(() => {
+      } else if (msg === 'already updated') {
+        toast.info('Accord BCT déjà mis à jour', {
+          description: `BCT N°${form.numeroBct}`,
+        });
         handleRetourRecherche();
-        fetchDossiers();
-      }, 1000);
+        await fetchDossiers();
+      } else if (msg === 'needs a manual verification') {
+        // Portée * — demander confirmation avant d'utiliser flag=0
+        setManualVerifBaseUrl(updateUrl);
+        setShowManualVerifModal(true);
+      } else {
+        toast.error('Erreur mise à jour validité', { description: msg || `HTTP ${updateRes.status}` });
+      }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // ── Annulation vérification manuelle → flag=1 ────────────────────────────
+  const handleCancelManualVerif = async () => {
+    setIsConfirmingVerif(true);
+    try {
+      const res = await fetch(`${manualVerifBaseUrl}&flag=1`, { method: 'POST' });
+      const data = await safeJsonParse<{ message?: string }>(res);
+      if (data?.message === 'success') {
+        toast.success('Accord BCT enregistré avec succès');
+        setShowManualVerifModal(false);
+        handleRetourRecherche();
+        await fetchDossiers();
+      } else {
+        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+      }
+    } catch {
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsConfirmingVerif(false);
+    }
+  };
+
+  // ── Confirmation vérification manuelle → flag=0 ───────────────────────────
+  const handleConfirmManualVerif = async () => {
+    setIsConfirmingVerif(true);
+    try {
+      const res = await fetch(`${manualVerifBaseUrl}&flag=0`, { method: 'POST' });
+      const data = await safeJsonParse<{ message?: string }>(res);
+      if (data?.message === 'success') {
+        toast.success('Accord BCT clôturé avec succès');
+        setShowManualVerifModal(false);
+        handleRetourRecherche();
+        await fetchDossiers();
+      } else {
+        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+      }
+    } catch {
+      toast.error('Erreur lors de la clôture forcée');
+    } finally {
+      setIsConfirmingVerif(false);
     }
   };
 
@@ -791,6 +844,32 @@ export function AVAAlimentationAccordBCT() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal — vérification manuelle (portée *) */}
+      <Dialog open={showManualVerifModal} onOpenChange={setShowManualVerifModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vérification manuelle requise</DialogTitle>
+            <DialogDescription>
+              Cet accord BCT (portée *) nécessite une vérification manuelle.
+              Voulez-vous continuer et clôturer l'accord BCT ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCancelManualVerif}
+              disabled={isConfirmingVerif}
+            >
+              Non
+            </Button>
+            <Button onClick={handleConfirmManualVerif} disabled={isConfirmingVerif}>
+              {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+              Oui, continuer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -33,6 +33,7 @@ import { Toaster } from 'sonner';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [deepLinkDossier, setDeepLinkDossier] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ email: string } | null>(null);
 
@@ -45,6 +46,12 @@ export default function App() {
     setUser(null);
     setIsAuthenticated(false);
     setActiveSection('dashboard');
+    setDeepLinkDossier('');
+  };
+
+  const handleNavigate = (section: string, dossierNum?: string) => {
+    setDeepLinkDossier(dossierNum || '');
+    setActiveSection(section);
   };
 
   if (!isAuthenticated) {
@@ -63,14 +70,14 @@ export default function App() {
         <div className="flex h-screen bg-background">
           <Sidebar
             activeSection={activeSection}
-            onSectionChange={setActiveSection}
+            onSectionChange={(s) => handleNavigate(s)}
             onLogout={handleLogout}
           />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Topbar activeSection={activeSection} userEmail={user?.email} />
             <main className="flex-1 overflow-auto">
               <div key={activeSection} className="page-transition" style={{ minHeight: '100%' }}>
-                {renderContent(activeSection, setActiveSection)}
+                {renderContent(activeSection, handleNavigate, deepLinkDossier)}
               </div>
             </main>
           </div>
@@ -82,10 +89,14 @@ export default function App() {
   );
 }
 
-function renderContent(activeSection: string, setActiveSection: (section: string) => void) {
+function renderContent(
+  activeSection: string,
+  onNavigate: (section: string, dossierNum?: string) => void,
+  deepLinkDossier: string,
+) {
   switch (activeSection) {
     case 'dashboard':
-      return <Dashboard onNavigate={setActiveSection} />;
+      return <Dashboard onNavigate={onNavigate} />;
     case 'ava-ouverture':
       return <AVAForm />;
     case 'ava-form':
@@ -111,7 +122,7 @@ function renderContent(activeSection: string, setActiveSection: (section: string
     case 'ava-cloture-dossier':
       return <AVAClotureDossier />;
     case 'ava-consultation-dossier':
-      return <ConsultationDossierAVA />;
+      return <ConsultationDossierAVA initialNumeroDossier={deepLinkDossier} />;
     case 'ava-generation-diverses':
       return <AVAGenerationDiverses />;
     case 'ava-generation-dossier':
