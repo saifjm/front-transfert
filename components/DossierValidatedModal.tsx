@@ -66,10 +66,9 @@ interface DossierValidatedModalProps {
 export function DossierValidatedModal({ isOpen, dossier, onClose }: DossierValidatedModalProps) {
   if (!isOpen || !dossier) return null;
 
-  // Formatter les montants en TND avec 3 décimales
   const formatMontant = (montant?: number): string => {
-    if (montant === undefined || montant === null) return '0.000';
-    return montant.toFixed(3);
+    if (montant === undefined || montant === null) return '—';
+    return montant.toLocaleString('fr-TN', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   };
 
   // Formatter la date
@@ -82,20 +81,24 @@ export function DossierValidatedModal({ isOpen, dossier, onClose }: DossierValid
     });
   };
 
-  // Mapping type de pièce
   const getTypePieceLabel = (type?: number): string => {
     const types: { [key: number]: string } = {
       1: 'Carte d\'Identité Nationale',
-      3: 'Matricule Fiscal',
+      2: 'Carte de Séjour',
+      3: 'Matricule Fiscal (RNE)',
       4: 'Passeport',
-      7: 'Autre'
+      5: 'Carte Consulaire',
+      7: 'Autre',
     };
-    return types[type || 0] || 'Non spécifié';
+    return type != null ? (types[type] || `Type ${type}`) : 'N/A';
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0">
+      <DialogContent
+        className="max-h-[92vh] overflow-hidden flex flex-col p-0"
+        style={{ maxWidth: '860px', width: '92vw' }}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#435B7B] to-[#2D3E54] text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
           <div className="flex items-center gap-3">

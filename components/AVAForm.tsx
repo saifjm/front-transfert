@@ -297,9 +297,9 @@ export function AVAForm() {
   };
 
   const isSousActiviteVisible = () => {
-    if (!formData.codeTypeDosAva) return true; // Par défaut visible
-    if ([3, 5].includes(formData.codeTypeDosAva)) return true; // Visible et depuis /api/ref/activites
-    return false; // Caché pour types 1, 2, 4
+    if (!formData.codeTypeDosAva) return true;
+    if ([3, 4, 5].includes(formData.codeTypeDosAva)) return true;
+    return false; // Caché pour types 1, 2
   };
 
   const isCodeActiviteDisabled = () => {
@@ -1302,13 +1302,17 @@ export function AVAForm() {
       }
     }
 
+    // Capture snapshots before any await — prevents stale closure in async function
+    const snap = { ...formData };
+    const bankSnap = { ...banqueProvenance };
+
     setIsSubmitting(true);
 
     try {
       // ═══════════════════════════════════════════════════════════════════════
       // ÉTAPE 1 : INITIALISATION (POST /api/operations-deleguees-mvt/initialisation)
       // ═══════════════════════════════════════════════════════════════════════
-      
+
       // Préparation du DTO complet - Nettoyage des champs id temporaires
       const cleanBeneficiaires = beneficiaires.map(({ id, ...rest }) => rest);
       const cleanDocuments = documents.map(({ id, fichier, ...rest }) => {
@@ -1514,27 +1518,27 @@ export function AVAForm() {
       //                  mntUtilise, noPieceClient, numDossier, numeroCompte, solde, typeDossierAva }
       const dossierValideResponse: OuvertureDossierDTO = {
         numDossier: validationApiResponse.numDossier,
-        codeTypeDosAva: validationApiResponse.typeDossierAva, // API: typeDossierAva -> DTO: codeTypeDosAva
+        codeTypeDosAva: validationApiResponse.typeDossierAva ?? validationApiResponse.codeTypeDosAva ?? snap.codeTypeDosAva,
         dateDossier: validationApiResponse.dateDossier,
-        codeAgenceAva: validationApiResponse.codeAgence, // API: codeAgence -> DTO: codeAgenceAva
-        typePieceClient: formData.typePieceClient,
-        noPieceClient: formData.noPieceClient,
-        numeroCompte: formData.compteClient ? String(formData.compteClient) : undefined, // Utiliser le compte sélectionné
-        tel: formData.tel,
-        codeActivite: formData.codeActivite,
-        codeSousActivite: formData.codeSousActivite,
-        declarationFiscale: validationApiResponse.declarationFiscale,
-        dateUltDeclCaf: (formData as any).dateUltDeclCaf,
-        mntAvance: validationApiResponse.mntAvance,
-        mntUtilise: validationApiResponse.mntUtilise,
-        mntAutorise: validationApiResponse.mntAutorise,
-        mntAutoriseBct: validationApiResponse.mntAutoriseBct,
-        mntReserve: validationApiResponse.mntReserve,
-        mntBlocage: validationApiResponse.mntBlocage,
-        solde: validationApiResponse.solde,
+        codeAgenceAva: validationApiResponse.codeAgence ?? validationApiResponse.codeAgenceAva ?? snap.codeAgenceAva,
+        typePieceClient: validationApiResponse.typePieceClient ?? snap.typePieceClient,
+        noPieceClient: validationApiResponse.noPieceClient ?? snap.noPieceClient,
+        numeroCompte: validationApiResponse.numeroCompte ?? (snap.compteClient ? String(snap.compteClient) : undefined),
+        tel: validationApiResponse.tel ?? snap.tel,
+        codeActivite: validationApiResponse.codeActivite ?? snap.codeActivite,
+        codeSousActivite: validationApiResponse.codeSousActivite ?? snap.codeSousActivite,
+        declarationFiscale: validationApiResponse.declarationFiscale ?? snap.declarationFiscale,
+        dateUltDeclCaf: validationApiResponse.dateUltDeclCaf ?? (snap as any).dateUltDeclCaf,
+        mntAvance: validationApiResponse.mntAvance ?? bankSnap.mntAvance,
+        mntUtilise: validationApiResponse.mntUtilise ?? bankSnap.mntUtilise,
+        mntAutorise: validationApiResponse.mntAutorise ?? bankSnap.mntAutorise,
+        mntAutoriseBct: validationApiResponse.mntAutoriseBct ?? bankSnap.mntAutoriseBct,
+        mntReserve: validationApiResponse.mntReserve ?? bankSnap.mntReserve,
+        mntBlocage: validationApiResponse.mntBlocage ?? bankSnap.mntBlocage,
+        solde: validationApiResponse.solde ?? bankSnap.solde,
         beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
         documents: cleanDocuments as DocumentDTO[],
-        avaMarche: formData.avaMarcheMvt as AvaMarcheDTO
+        avaMarche: snap.avaMarcheMvt as AvaMarcheDTO
       };
 
       toast.success('🎉 Dossier AVA créé et validé avec succès !', {
@@ -1978,6 +1982,11 @@ export function AVAForm() {
                     {!fieldErrors.codeSousActivite && isSousActiviteRequired && (
                       <p className="text-xs text-blue-600">
                         ℹ️ Champ requis pour types dossier 3 et 5 (Source : Référentiel général)
+                      </p>
+                    )}
+                    {!isSousActiviteRequired && formData.codeTypeDosAva === 4 && (
+                      <p className="text-xs text-blue-600">
+            
                       </p>
                     )}
                     {!isSousActiviteRequired && formData.codeTypeDosAva && [3, 5].includes(formData.codeTypeDosAva) && (
