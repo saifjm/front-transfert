@@ -24,6 +24,8 @@ import IbansysPoc.AVA.service.OperationsDelegueesMvtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Transactional;
 import IbansysPoc.AVA.mapper.ExportateurMapper;
 
@@ -451,6 +453,7 @@ public class OperationsDelegueesMvtServiceImpl implements OperationsDelegueesMvt
      * Logique commune de finalize : V → applyMvtToDossier → A (ou E).
      * Réutilisée par create(finalize=true), findByNumDossierAndFinalize, updateOperationWithFinalize.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     private OperationCreationResponseDTO writeDossier(OperationsDelegueesMvt mvt) {
 
         final LocalDate now = LocalDate.now();
