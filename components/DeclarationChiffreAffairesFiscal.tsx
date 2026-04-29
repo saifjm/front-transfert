@@ -186,7 +186,7 @@ export function DeclarationChiffreAffairesFiscal() {
         setIsLoadingOperations(true);
 
         try {
-          const response = await fetch(`/api/operations-deleguees/by-matricule?noPieceClient=${encodeURIComponent(declaration.noPieceClient)}`);
+          const response = await authenticatedFetch(`/api/operations-deleguees/by-matricule?noPieceClient=${encodeURIComponent(declaration.noPieceClient)}`);
           
           if (response.ok) {
             const data: OperationDelegueResponse[] = await response.json();

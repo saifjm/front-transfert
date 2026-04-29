@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 
 // ============= INTERFACES =============
 
@@ -292,7 +293,7 @@ export function AVAFraisVoyage() {
     ];
 
     try {
-      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -490,7 +491,7 @@ export function AVAFraisVoyage() {
     
     try {
       const numDossier = dossier.numeroDossier.replace('AVA-', '');
-      const response = await fetch(`/api/operations-deleguees/${numDossier}/summarybenf`);
+      const response = await authenticatedFetch(`/api/operations-deleguees/${numDossier}/summarybenf`);
       
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -770,7 +771,7 @@ export function AVAFraisVoyage() {
     };
 
     try {
-      const response = await fetch('/api/operations-fv?finalize=true', {
+      const response = await authenticatedFetch('/api/operations-fv?finalize=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(operationFV)

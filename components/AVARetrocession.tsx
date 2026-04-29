@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { DocumentsManager } from './DocumentsManager';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -206,7 +207,7 @@ export function AVARetrocession() {
     };
 
     try {
-      const response = await fetch('/api/operations-deleguees');
+      const response = await authenticatedFetch('/api/operations-deleguees');
       if (!response.ok) throw new Error('API_ERROR');
 
       interface OperationsDelegueeDTO {
@@ -507,7 +508,7 @@ export function AVARetrocession() {
       // Construire l'URL avec les paramètres de date
       const url = `/api/operations-deleguees-mvt/by-numdossier/${numDossier}?start=${start}&end=${end}`;
       
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const data = await safeJsonParse<OperationMouvement[]>(response);
         if (data) {
@@ -621,7 +622,7 @@ export function AVARetrocession() {
         }));
       }
 
-      const response = await fetch('/api/operations-rc?finalize=true', {
+      const response = await authenticatedFetch('/api/operations-rc?finalize=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -838,7 +839,7 @@ export function AVARetrocession() {
         }));
       }
 
-      const response = await fetch('/api/operations-rc?finalize=true', {
+      const response = await authenticatedFetch('/api/operations-rc?finalize=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

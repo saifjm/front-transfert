@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { DossierValidatedModal } from './DossierValidatedModal';
 import { controleRne } from '../utils/controleRne';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -212,6 +213,7 @@ export function AVAForm() {
   const [banques, setBanques] = useState<Banque[]>([]);
   const [typesPiece, setTypesPiece] = useState<TypePiece[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
+  const [sousActivites, setSousActivites] = useState<Activite[]>([]);
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [devises, setDevises] = useState<Devise[]>([]);
   
@@ -219,6 +221,7 @@ export function AVAForm() {
   const [loadingBanques, setLoadingBanques] = useState(false);
   const [loadingTypesPiece, setLoadingTypesPiece] = useState(false);
   const [loadingActivites, setLoadingActivites] = useState(false);
+  const [loadingSousActivites, setLoadingSousActivites] = useState(false);
   const [loadingPieces, setLoadingPieces] = useState(false);
   const [loadingDevises, setLoadingDevises] = useState(false);
   
@@ -378,6 +381,29 @@ export function AVAForm() {
     }
   };
 
+  // Charger les sous-activités
+  const fetchSousActivites = async () => {
+    setLoadingSousActivites(true);
+    const mockSousActivites: Activite[] = [
+      { codeActivite: 1, libActivite: "Sous-activité 1" },
+      { codeActivite: 2, libActivite: "Sous-activité 2" },
+      { codeActivite: 3, libActivite: "Sous-activité 3" }
+    ];
+    try {
+      const response = await fetch('/api/ref/activites');
+      const data = await safeJsonParse<Activite[]>(response);
+      if (data) {
+        setSousActivites(data);
+      } else {
+        throw new Error('NO_DATA');
+      }
+    } catch (error) {
+      setSousActivites(mockSousActivites);
+    } finally {
+      setLoadingSousActivites(false);
+    }
+  };
+
   // Charger les pièces justificatives
   const fetchPieces = async () => {
     setLoadingPieces(true);
@@ -429,6 +455,7 @@ export function AVAForm() {
     fetchTypesPiece();
     fetchBanques();
     fetchActivites();
+    fetchSousActivites();
     fetchPieces();
     fetchDevises();
   }, []);
@@ -1351,7 +1378,7 @@ export function AVAForm() {
         description: 'Étape 1/2 : Création du mouvement',
       });
 
-      const initialisationResponse = await fetch('/api/operations-deleguees-mvt/initialisation?finalize=true', {
+      const initialisationResponse = await authenticatedFetch('/api/operations-deleguees-mvt/initialisation?finalize=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto)
@@ -1446,7 +1473,7 @@ export function AVAForm() {
         description: `Étape 2/2 : Création de l'opération déléguée finale`,
       });
 
-      const validationResponse = await fetch(`/api/operations-deleguees/validation/${creationResponse.numDossier}`, {
+      const validationResponse = await authenticatedFetch(`/api/operations-deleguees/validation/${creationResponse.numDossier}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -1964,18 +1991,31 @@ export function AVAForm() {
                     <Label htmlFor="codeSousActivite">
                       Code Sous-Activité {isSousActiviteRequired && <span className="text-red-500">*</span>}
                     </Label>
-                    <Input
-                      id="codeSousActivite"
-                      type="number"
-                      value={formData.codeSousActivite || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
+                    <Select
+                      value={formData.codeSousActivite?.toString()}
+                      onValueChange={(value) => {
                         setFormData({ ...formData, codeSousActivite: value ? Number(value) : undefined });
                         clearFieldError('codeSousActivite');
                       }}
-                      placeholder="Ex: 1"
-                      className={fieldErrors.codeSousActivite || (isSousActiviteRequired && !formData.codeSousActivite) ? 'border-red-500' : ''}
-                    />
+                      disabled={loadingSousActivites}
+                    >
+                      <SelectTrigger className={fieldErrors.codeSousActivite || (isSousActiviteRequired && !formData.codeSousActivite) ? 'border-red-500' : ''}>
+                        <SelectValue placeholder={loadingSousActivites ? "Chargement..." : "Sélectionner"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loadingSousActivites ? (
+                          <div className="p-2 text-sm text-muted-foreground">Chargement...</div>
+                        ) : sousActivites.length > 0 ? (
+                          sousActivites.map(sousActivite => (
+                            <SelectItem key={sousActivite.codeActivite} value={sousActivite.codeActivite.toString()}>
+                              {sousActivite.codeActivite} - {sousActivite.libActivite}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-2 text-sm text-muted-foreground">Aucune donnée</div>
+                        )}
+                      </SelectContent>
+                    </Select>
                     {fieldErrors.codeSousActivite && (
                       <span className="text-sm text-red-500">{fieldErrors.codeSousActivite}</span>
                     )}

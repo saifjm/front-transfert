@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
+import { authenticatedFetch } from '../utils/api';
 import { 
   ArrowLeft, 
   FileText, 
@@ -154,7 +155,7 @@ export function AlimentationDossierExportateur() {
     ];
 
     try {
-      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
       }
@@ -184,7 +185,7 @@ export function AlimentationDossierExportateur() {
 
       let agenceNameByCode = new Map<number, string>();
       try {
-        const donneesGeneralesResponse = await fetch('/api/ref/donnees-generales');
+        const donneesGeneralesResponse = await authenticatedFetch('/api/ref/donnees-generales');
         if (donneesGeneralesResponse.ok) {
           const donneesGenerales = await safeJsonParse<Array<{ codeBanque?: number }>>(donneesGeneralesResponse);
           const codeBanque =
@@ -202,7 +203,7 @@ export function AlimentationDossierExportateur() {
             const agencesResolved = await Promise.all(
               uniqueCodes.map(async (codeAgence) => {
                 try {
-                  const agenceResponse = await fetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
+                  const agenceResponse = await authenticatedFetch(`/api/ref/agences/${codeBanque}/${codeAgence}`);
                   if (!agenceResponse.ok) return null;
                   const agence = await safeJsonParse<{ libAgence?: string }>(agenceResponse);
                   return { codeAgence, libelleAgence: agence?.libAgence || `Agence ${codeAgence}` };
@@ -227,7 +228,7 @@ export function AlimentationDossierExportateur() {
           // Récupérer les soldes réels pour ce dossier
           let soldes: any = {};
           try {
-            const soldesResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
+            const soldesResponse = await authenticatedFetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
             if (soldesResponse.ok) {
               const soldesData = await safeJsonParse<any>(soldesResponse);
               if (soldesData) {
@@ -242,7 +243,7 @@ export function AlimentationDossierExportateur() {
           let numeroCompte = dto.numeroCompte || soldes.numeroCompte;
           if (!numeroCompte) {
             try {
-              const detailsResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}`);
+              const detailsResponse = await authenticatedFetch(`/api/operations-deleguees/${dto.numDossier}`);
               if (detailsResponse.ok) {
                 const detailsData = await safeJsonParse<any>(detailsResponse);
                 numeroCompte = detailsData?.numeroCompte;
@@ -253,7 +254,7 @@ export function AlimentationDossierExportateur() {
           }
           if (!numeroCompte) {
             try {
-              const compteResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/numero-compte`);
+              const compteResponse = await authenticatedFetch(`/api/operations-deleguees/${dto.numDossier}/numero-compte`);
               if (compteResponse.ok) {
                 const compteData = await safeJsonParse<any>(compteResponse);
                 numeroCompte = compteData?.numeroCompte;
@@ -352,7 +353,7 @@ export function AlimentationDossierExportateur() {
     // Si aucun compte n'est trouvé, essayez via l'API comptes par pièce client
     if (!numeroCompte && dossier.noPieceClient) {
       try {
-        const comptesResponse = await fetch(`/api/ref/comptes/by-piece-client/${encodeURIComponent(dossier.noPieceClient)}`);
+        const comptesResponse = await authenticatedFetch(`/api/ref/comptes/by-piece-client/${encodeURIComponent(dossier.noPieceClient)}`);
         if (comptesResponse.ok) {
           const comptesData = await safeJsonParse<any[]>(comptesResponse);
           if (comptesData && comptesData.length > 0) {
@@ -447,7 +448,7 @@ export function AlimentationDossierExportateur() {
         numDossierAva: numDossierNumber
       };
 
-      const response = await fetch('/api/operation-exportateur-ava/rapatriement/true', {
+      const response = await authenticatedFetch('/api/operation-exportateur-ava/rapatriement/true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

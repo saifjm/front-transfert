@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
+import {authenticatedFetch} from "../utils/api";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
@@ -253,7 +254,7 @@ export function AVALeveeSuspension() {
     };
 
     try {
-      const response = await fetch("/api/operations-deleguees");
+      const response = await authenticatedFetch("/api/operations-deleguees");
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -423,7 +424,7 @@ export function AVALeveeSuspension() {
           };
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossier}`,
       );
 
@@ -459,7 +460,7 @@ export function AVALeveeSuspension() {
         "AVA-",
         "",
       );
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossierStr}/summarybenf`,
       );
 
@@ -619,7 +620,7 @@ export function AVALeveeSuspension() {
     };
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "/api/levee-suspension/true",
         {
           method: "POST",

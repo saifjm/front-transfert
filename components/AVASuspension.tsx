@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
+import { authenticatedFetch } from "../utils/api";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -242,7 +243,7 @@ export function AVASuspension() {
     };
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "/api/operations-deleguees/dossiers-valides-avec-nom",
       );
 
@@ -405,7 +406,7 @@ export function AVASuspension() {
         "AVA-",
         "",
       );
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossier}/summarybenf`,
       );
 
@@ -570,7 +571,7 @@ export function AVASuspension() {
     };
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "/api/suspension/true",
         {
           method: "POST",

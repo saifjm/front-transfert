@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { login } from '../utils/api';
 
 interface LoginFormProps {
   onLogin: (email: string, password: string) => void;
@@ -11,6 +12,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -26,7 +28,18 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     e.preventDefault();
     if (!validateForm()) return;
     setIsLoading(true);
-    setTimeout(() => { setIsLoading(false); onLogin(email, password); }, 1000);
+    setApiError(null);
+
+    const result = await login(email, password);
+
+    if (result.error) {
+      setApiError(result.error);
+      return;
+    }
+
+    // Login successful
+    onLogin(email, password);
+    setIsLoading(false);
   };
 
   return (
@@ -70,6 +83,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* API Error */}
+          {apiError && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 8, background: '#fef2f2',
+              border: '1.5px solid #fca5a5', color: '#dc2626', fontSize: 13, fontWeight: 500,
+            }}>
+              {apiError}
+            </div>
+          )}
           {/* Email */}
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#2D3E54', marginBottom: 6 }}>

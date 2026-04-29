@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 
 // ── Mocked Data ───────────────────────────────────────────────────────────────
 
@@ -363,9 +364,9 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
     setLoading(true);
     try {
       const [dossiersResponse, donneesGeneralesResponse, dossiersAvecNomResponse] = await Promise.all([
-        fetch('/api/operations-deleguees'),
+        authenticatedFetch('/api/operations-deleguees'),
         fetch('/api/ref/donnees-generales'),
-        fetch('/api/operations-deleguees/dossiers-valides-avec-nom'),
+        authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom'),
       ]);
 
       if (!dossiersResponse.ok) {

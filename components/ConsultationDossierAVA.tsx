@@ -38,6 +38,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { safeJsonParse } from "../utils";
+import { authenticatedFetch } from "../utils/api";
 
 interface DocumentJoint {
   numLigne?: number;
@@ -153,7 +154,7 @@ export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumero
 
     try {
       const [response] = await Promise.all([
-        fetch("/api/operations-deleguees"),
+        authenticatedFetch("/api/operations-deleguees"),
       ]);
 
       if (!response.ok) {
@@ -362,7 +363,7 @@ export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumero
         "AVA-",
         "",
       );
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossierStr}/summarybenf`,
       );
 

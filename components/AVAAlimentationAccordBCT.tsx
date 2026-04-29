@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { authenticatedFetch } from '../utils/api';
 import {
   ArrowLeft,
   FileText,
@@ -126,7 +127,7 @@ export function AVAAlimentationAccordBCT() {
     ];
 
     try {
-      const response = await fetch('/api/operations-deleguees');
+      const response = await authenticatedFetch('/api/operations-deleguees');
       if (!response.ok) throw new Error(`HTTP_ERROR_${response.status}`);
 
       interface OperationsDelegueeDTO {
@@ -155,7 +156,7 @@ export function AVAAlimentationAccordBCT() {
       // Résolution des libellés agence via API
       let agenceNameByCode = new Map<number, string>();
       try {
-        const dgRes = await fetch('/api/ref/donnees-generales');
+        const dgRes = await authenticatedFetch('/api/ref/donnees-generales');
         if (dgRes.ok) {
           const dg = await safeJsonParse<Array<{ codeBanque?: number }>>(dgRes);
           const cBanque = Array.isArray(dg) && dg.length > 0 ? Number(dg[0]?.codeBanque) : NaN;
@@ -164,7 +165,7 @@ export function AVAAlimentationAccordBCT() {
             const resolved = await Promise.all(
               uniqueCodes.map(async (code) => {
                 try {
-                  const ar = await fetch(`/api/ref/agences/${cBanque}/${code}`);
+                  const ar = await authenticatedFetch(`/api/ref/agences/${cBanque}/${code}`);
                   if (!ar.ok) return null;
                   const ag = await safeJsonParse<{ libAgence?: string }>(ar);
                   return ag?.libAgence ? { code, lib: ag.libAgence } : null;
@@ -325,7 +326,7 @@ export function AVAAlimentationAccordBCT() {
       };
 
       // Étape 1 — Alimentation BCT
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/alimentation-bct/${dossierSelectionne.numDossier}/true`,
         {
           method: 'POST',
@@ -342,7 +343,7 @@ export function AVAAlimentationAccordBCT() {
 
       // Étape 2 — Mise à jour validité accord BCT (ref service — port 8090)
       const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${form.numeroBct}&dateAccordBct=${form.dateBct}&typeAccordBct=${form.typeBct}`;
-      const updateRes = await fetch(updateUrl, { method: 'POST' });
+      const updateRes = await authenticatedFetch(updateUrl, { method: 'POST' });
       const updateData = await safeJsonParse<{ message?: string }>(updateRes);
       const msg = updateData?.message || '';
 
@@ -374,7 +375,7 @@ export function AVAAlimentationAccordBCT() {
   const handleCancelManualVerif = async () => {
     setIsConfirmingVerif(true);
     try {
-      const res = await fetch(`${manualVerifBaseUrl}&flag=1`, { method: 'POST' });
+      const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=1`, { method: 'POST' });
       const data = await safeJsonParse<{ message?: string }>(res);
       if (data?.message === 'success') {
         toast.success('Accord BCT enregistré avec succès');
@@ -395,7 +396,7 @@ export function AVAAlimentationAccordBCT() {
   const handleConfirmManualVerif = async () => {
     setIsConfirmingVerif(true);
     try {
-      const res = await fetch(`${manualVerifBaseUrl}&flag=0`, { method: 'POST' });
+      const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=0`, { method: 'POST' });
       const data = await safeJsonParse<{ message?: string }>(res);
       if (data?.message === 'success') {
         toast.success('Accord BCT clôturé avec succès');

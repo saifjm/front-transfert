@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { AlertCircle } from 'lucide-react';
+import { authenticatedFetch } from '../utils/api';
 
 interface ApiError {
   status: number;
@@ -134,7 +135,7 @@ export function AVAClotureDossier() {
     ];
 
     try {
-      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
       }
@@ -211,7 +212,7 @@ export function AVAClotureDossier() {
           // Récupérer les soldes réels pour ce dossier
           let soldes: any = {};
           try {
-            const soldesResponse = await fetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
+            const soldesResponse = await authenticatedFetch(`/api/operations-deleguees/${dto.numDossier}/soldes`);
             if (soldesResponse.ok) {
               const soldesData = await safeJsonParse<any>(soldesResponse);
               if (soldesData) {
@@ -376,7 +377,7 @@ export function AVAClotureDossier() {
     }
 
     try {
-      const response = await fetch(`/api/cloture/${numDossierId}/true`, {
+      const response = await authenticatedFetch(`/api/cloture/${numDossierId}/true`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -276,7 +277,7 @@ export function AVAMiseAJourBeneficiaires() {
     
     try {
       // Appel API réel
-      const response = await fetch('/api/operations-deleguees/dossiers-valides-avec-nom');
+      const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       
       // Vérifier si la réponse est OK
       if (!response.ok) {
@@ -392,7 +393,7 @@ export function AVAMiseAJourBeneficiaires() {
 
   const fetchBeneficiaires = async (numDossier: number) => {
     try {
-      const response = await fetch(`/api/beneficiaires/${numDossier}`);
+      const response = await authenticatedFetch(`/api/beneficiaires/${numDossier}`);
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
       }
@@ -476,7 +477,7 @@ export function AVAMiseAJourBeneficiaires() {
     
     try {
       // 1. Charger le résumé du dossier depuis l'API
-      const summaryResponse = await fetch(`/api/operations-deleguees/${dossier.numDossier}/summary`);
+      const summaryResponse = await authenticatedFetch(`/api/operations-deleguees/${dossier.numDossier}/summary`);
       
       if (!summaryResponse.ok) {
         throw new Error(`HTTP_ERROR_${summaryResponse.status}`);
@@ -704,7 +705,7 @@ export function AVAMiseAJourBeneficiaires() {
 
       // Envoyer chaque bénéficiaire à l'API
       for (const benefPayload of beneficiairesAPayload) {
-        const response = await fetch('/api/beneficiaires/true', {
+        const response = await authenticatedFetch('/api/beneficiaires/true', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

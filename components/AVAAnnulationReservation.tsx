@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
+import { authenticatedFetch } from "../utils/api";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -230,7 +231,7 @@ export function AVAAnnulationReservation() {
     };
 
     try {
-      const response = await fetch("/api/operations-deleguees/dossiers-valides-avec-nom");
+      const response = await authenticatedFetch("/api/operations-deleguees/dossiers-valides-avec-nom");
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
@@ -375,7 +376,7 @@ export function AVAAnnulationReservation() {
   const fetchAgences = async () => {
     try {
       const [dossiersResponse, donneesGeneralesResponse] = await Promise.all([
-        fetch("/api/operations-deleguees/dossiers-valides-avec-nom"),
+        authenticatedFetch("/api/operations-deleguees/dossiers-valides-avec-nom"),
         fetch("/api/ref/donnees-generales"),
       ]);
 
@@ -485,7 +486,7 @@ export function AVAAnnulationReservation() {
         "AVA-",
         "",
       );
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossier}/summarybenf`,
       );
 
@@ -645,7 +646,7 @@ export function AVAAnnulationReservation() {
         payload,
       );
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "/api/reservation-operations/annulation",
         {
           method: "POST",
@@ -819,7 +820,7 @@ export function AVAAnnulationReservation() {
         payload,
       );
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         "/api/reservation-operations/annulation",
         {
           method: "POST",
@@ -959,7 +960,7 @@ export function AVAAnnulationReservation() {
         throw new Error("Dossier ID is undefined");
       }
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/reservations/numdossier/${numDossier}`,
       );
 

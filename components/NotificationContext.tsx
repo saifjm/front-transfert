@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 
 export type NotifType = 'warning' | 'error' | 'success' | 'info';
 export type NotifCategory = 'dossier' | 'bct' | 'systeme' | 'declaration' | 'alerte';
@@ -147,7 +148,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/operations-deleguees');
+      const response = await authenticatedFetch('/api/operations-deleguees');
       if (!response.ok) throw new Error(`HTTP_ERROR_${response.status}`);
       const data = await safeJsonParse<OuvertureDossierDTO[]>(response);
       if (!Array.isArray(data)) throw new Error('JSON_PARSE_ERROR');

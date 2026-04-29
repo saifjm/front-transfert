@@ -264,7 +264,7 @@ export function AVAGenerationDossier() {
     };
 
     try {
-      const response = await fetch('/api/operations-deleguees');
+      const response = await authenticatedFetch('/api/operations-deleguees');
 
       if (!response.ok) {
         throw new Error(`HTTP_ERROR_${response.status}`);
