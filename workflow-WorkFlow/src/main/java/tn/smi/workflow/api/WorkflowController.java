@@ -2,6 +2,7 @@ package tn.smi.workflow.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,19 +22,38 @@ public class WorkflowController {
 
     private final WorkflowRuntimeService workflowRuntimeService;
 
+    /** Resolve the original client IP from proxy headers, falling back to the TCP remote address. */
+    private static String resolveClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank() && !"unknown".equalsIgnoreCase(xff)) {
+            return xff.split(",")[0].trim();
+        }
+        String xri = request.getHeader("X-Real-IP");
+        if (xri != null && !xri.isBlank() && !"unknown".equalsIgnoreCase(xri)) {
+            return xri;
+        }
+        return request.getRemoteAddr();
+    }
+
     @GetMapping("/operations/{operationKey}/{businessKey}/task")
     @Operation(summary = "Get current task info for a workflow operation")
     public ResponseEntity<TaskResponse> getCurrentTask(
             @PathVariable String operationKey,
             @PathVariable String businessKey,
+            HttpServletRequest httpRequest,
             @RequestHeader(value = "X-User-Id") Long userId,
             @RequestHeader(value = "X-Org-Node-Id", required = false) Long orgNodeId,
-            @RequestHeader(value = "X-Role-Code", required = false) String roleCode) {
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
 
         UserContext userContext = UserContext.builder()
                 .userId(userId)
                 .orgNodeId(orgNodeId)
                 .roleCode(roleCode)
+                .authToken(authorization)
+                .sessionId(sessionId)
+                .clientIp(resolveClientIp(httpRequest))
                 .build();
 
         TaskResponse response = workflowRuntimeService.getCurrentTask(operationKey, businessKey, userContext);
@@ -46,18 +66,22 @@ public class WorkflowController {
             @PathVariable String operationKey,
             @PathVariable String decisionTag,
             @RequestBody DecisionRequest request,
+            HttpServletRequest httpRequest,
             @RequestHeader(value = "X-User-Id") Long userId,
             @RequestHeader(value = "X-Org-Node-Id", required = false) Long orgNodeId,
-            @RequestHeader(value = "X-Role-Code", required = false) String roleCode) {
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
 
-        // Generate a temporary businessKey — the service layer will resolve
-        // the real businessKey from the payload if present (e.g. refOperation for UPDATE)
         String tempBusinessKey = "TEMP-" + UUID.randomUUID().toString().substring(0, 8);
 
         UserContext userContext = UserContext.builder()
                 .userId(userId)
                 .orgNodeId(orgNodeId)
                 .roleCode(roleCode)
+                .authToken(authorization)
+                .sessionId(sessionId)
+                .clientIp(resolveClientIp(httpRequest))
                 .build();
 
         DecisionResponse response = workflowRuntimeService.decide(
@@ -72,14 +96,20 @@ public class WorkflowController {
             @PathVariable String businessKey,
             @PathVariable String decisionTag,
             @RequestBody DecisionRequest request,
+            HttpServletRequest httpRequest,
             @RequestHeader(value = "X-User-Id") Long userId,
             @RequestHeader(value = "X-Org-Node-Id", required = false) Long orgNodeId,
-            @RequestHeader(value = "X-Role-Code", required = false) String roleCode) {
+            @RequestHeader(value = "X-Role-Code", required = false) String roleCode,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
 
         UserContext userContext = UserContext.builder()
                 .userId(userId)
                 .orgNodeId(orgNodeId)
                 .roleCode(roleCode)
+                .authToken(authorization)
+                .sessionId(sessionId)
+                .clientIp(resolveClientIp(httpRequest))
                 .build();
 
         DecisionResponse response = workflowRuntimeService.decide(
@@ -87,4 +117,3 @@ public class WorkflowController {
         return ResponseEntity.ok(response);
     }
 }
-

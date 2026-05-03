@@ -8,4 +8,7 @@ public class UserContext {
     private Long orgNodeId;
     private String roleCode;
     private String username;
+    private String authToken;
+    private String sessionId;
+    private String clientIp;
 }

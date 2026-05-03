@@ -75,6 +75,10 @@ public class BusinessGatewayService {
 
         String fullUrl = baseUrl + endpoint;
         log.info("Downstream call: {} {}", "POST", fullUrl);
+        log.info("Auth context: authToken={}, sessionId={}, clientIp={}",
+                userContext.getAuthToken() != null ? "PRESENT(" + userContext.getAuthToken().length() + "chars)" : "NULL",
+                userContext.getSessionId() != null ? userContext.getSessionId() : "NULL",
+                userContext.getClientIp() != null ? userContext.getClientIp() : "NULL");
 
         String idempotencyKey = idempotencyKeyFactory.generate(
                 operation.getWfOpId(), taskId, decisionTag, businessKey);
@@ -137,11 +141,34 @@ public class BusinessGatewayService {
             if (userContext.getRoleCode() != null) {
                 requestSpec = requestSpec.header("X-Role-Code", userContext.getRoleCode());
             }
+            if (userContext.getAuthToken() != null && !userContext.getAuthToken().isBlank()) {
+                requestSpec = requestSpec.header("Authorization", userContext.getAuthToken());
+            }
+            if (userContext.getSessionId() != null && !userContext.getSessionId().isBlank()) {
+                requestSpec = requestSpec.header("X-Session-Id", userContext.getSessionId());
+            }
+            if (userContext.getClientIp() != null && !userContext.getClientIp().isBlank()) {
+                requestSpec = requestSpec.header("X-Forwarded-For", userContext.getClientIp());
+            }
 
             String responseBody = requestSpec
                     .bodyValue(requestBody)
-                    .retrieve()
-                    .bodyToMono(String.class)
+                    .exchangeToMono(resp -> {
+                        if (resp.statusCode().isError()) {
+                            return resp.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .flatMap(errBody -> {
+                                        log.error("Downstream {} error {}: body={}",
+                                                fullUrl, resp.statusCode().value(), errBody);
+                                        return reactor.core.publisher.Mono.error(
+                                                new org.springframework.web.reactive.function.client.WebClientResponseException(
+                                                        resp.statusCode().value(),
+                                                        resp.statusCode().toString(),
+                                                        null, errBody.getBytes(), null));
+                                    });
+                        }
+                        return resp.bodyToMono(String.class);
+                    })
                     .block();
 
             call.setStatus(CallStatus.SUCCESS);

@@ -1112,15 +1112,14 @@ export function AVAForm() {
   
   // Soumission via le moteur de workflow
   const handleWfDecision = async (
-    decisionTag: 'SUBMIT' | 'APPROVE' | 'REJECT' = 'APPROVE',
+    decisionTag: 'APPROUVER' | 'RETOUR_AGENCE' = 'APPROUVER',
   ) => {
     console.log('🔍 [WF] handleWfDecision appelé, decision:', decisionTag);
     console.log('🔍 [WF] formData:', formData);
     console.log('🔍 [WF] beneficiaires:', beneficiaires);
     console.log('🔍 [WF] documents:', documents);
 
-    // Validation complète uniquement pour APPROVE et REJECT (pas pour SUBMIT/brouillon)
-    if (decisionTag !== 'SUBMIT') {
+    if (true) { // always validate
     // Réinitialiser les erreurs
     const newErrors: Record<string, string> = {};
     
@@ -1377,9 +1376,8 @@ export function AVAForm() {
       console.log('[WF] Payload:', JSON.stringify(dto, null, 2));
 
       const toastLabels: Record<string, { info: string; success: string }> = {
-        SUBMIT:  { info: 'Enregistrement du brouillon...', success: 'Brouillon enregistré avec succès' },
-        APPROVE: { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
-        REJECT:  { info: 'Envoi en complémentaire agence...', success: 'Dossier envoyé en complémentaire' },
+        APPROUVER:     { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
+        RETOUR_AGENCE: { info: 'Retour en saisie agence...', success: 'Dossier retourné en saisie' },
       };
 
       toast.info(toastLabels[decisionTag].info, { description: 'Communication avec le moteur de workflow...' });
@@ -1403,8 +1401,7 @@ export function AVAForm() {
           duration: 5000,
         });
 
-        // For APPROVE show the confirmation modal with available data
-        if (decisionTag === 'APPROVE') {
+        if (decisionTag === 'APPROUVER') {
           const modalData = {
             numDossier: newKey ? Number(newKey) : undefined,
             noPieceClient: snap.noPieceClient,
@@ -1489,15 +1486,7 @@ export function AVAForm() {
         </div>
         <div className="flex gap-2">
           <Button
-            variant="outline"
-            onClick={() => handleWfDecision('SUBMIT')}
-            disabled={isSubmitting}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            Enregistrer le brouillon
-          </Button>
-          <Button
-            onClick={() => handleWfDecision('APPROVE')}
+            onClick={() => handleWfDecision('APPROUVER')}
             disabled={isSubmitting}
           >
             <Send className="w-4 h-4 mr-2" />
@@ -2642,15 +2631,7 @@ export function AVAForm() {
                 Réinitialiser
               </Button>
               <Button
-                variant="outline"
-                onClick={() => handleWfDecision('SUBMIT')}
-                disabled={isSubmitting}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Enregistrer le brouillon
-              </Button>
-              <Button
-                onClick={() => handleWfDecision('APPROVE')}
+                onClick={() => handleWfDecision('APPROUVER')}
                 disabled={isSubmitting}
               >
                 <Send className="w-4 h-4 mr-2" />
