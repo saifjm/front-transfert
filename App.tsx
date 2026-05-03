@@ -26,6 +26,7 @@ import { PaymentPortal } from './components/PaymentPortal';
 import { ComplianceCenter } from './components/ComplianceCenter';
 import { Settings } from './components/Settings';
 import { LoginForm } from './components/LoginForm';
+import { WFTaskView } from './components/WFTaskView';
 import { ErrorProvider, useErrorHandler } from './components/ErrorContext';
 import { ErrorDialog } from './components/ErrorDialog';
 import { ErrorTestComponent } from './components/ErrorTestComponent';
@@ -99,6 +100,8 @@ function renderContent(
       return <Dashboard onNavigate={onNavigate} />;
     case 'ava-ouverture':
       return <AVAForm />;
+    case 'ava-wf-taches':
+      return <WFTaskView />;
     case 'ava-form':
       return <AVAForm />;
     case 'ava-beneficiaires':

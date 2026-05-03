@@ -12,6 +12,7 @@ import {
   Search,
   FolderOpen,
   FilePlus,
+  ClipboardList,
   Wallet,
   Users,
   MapPin,
@@ -56,6 +57,7 @@ const avaItems: NavItem[] = [
   { id: 'ava-cloture-dossier', label: 'Clôture dossier', icon: Lock },
   { id: 'ava-generation-diverses', label: 'Génération diverses', icon: FileOutput },
   { id: 'ava-generation-dossier', label: 'Génération dossier', icon: FolderOutput },
+  { id: 'ava-wf-taches', label: 'Tâches en attente', icon: ClipboardList },
 ];
 
 const operationsItems: NavItem[] = [

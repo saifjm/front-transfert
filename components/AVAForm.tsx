@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { DossierValidatedModal } from './DossierValidatedModal';
 import { controleRne } from '../utils/controleRne';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
-import { authenticatedFetch } from '../utils/api';
+import { startDecision, continueDecision } from '../utils/workflowApi';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -107,11 +107,6 @@ interface ClientInfo {
   nom?: string;
   prenom?: string;
   comptes?: CompteSummary[];
-}
-
-interface OperationCreationResponseDTO {
-  refOperation: number;
-  numDossier: number;
 }
 
 interface BeneficiaireDTO {
@@ -258,6 +253,10 @@ export function AVAForm() {
   const [emailError, setEmailError] = useState<string>('');
   const [rneError, setRneError] = useState<string>('');
   const [clientNotFound, setClientNotFound] = useState<boolean>(false);
+
+  // Workflow engine state
+  const [wfBusinessKey, setWfBusinessKey] = useState<string | null>(null);
+  const [wfCurrentNode, setWfCurrentNode] = useState<string | null>(null);
 
   useEffect(() => {
     documentsRef.current = documents;
@@ -1111,13 +1110,17 @@ export function AVAForm() {
   // 5. Les erreurs disparaissent quand l'utilisateur modifie le champ concerné
   // ========================================================================
   
-  // Soumission du formulaire
-  const handleSubmit = async () => {
-    console.log('🔍 [DEBUG] handleSubmit appelé');
-    console.log('🔍 [DEBUG] formData:', formData);
-    console.log('🔍 [DEBUG] beneficiaires:', beneficiaires);
-    console.log('🔍 [DEBUG] documents:', documents);
-    
+  // Soumission via le moteur de workflow
+  const handleWfDecision = async (
+    decisionTag: 'SUBMIT' | 'APPROVE' | 'REJECT' = 'APPROVE',
+  ) => {
+    console.log('🔍 [WF] handleWfDecision appelé, decision:', decisionTag);
+    console.log('🔍 [WF] formData:', formData);
+    console.log('🔍 [WF] beneficiaires:', beneficiaires);
+    console.log('🔍 [WF] documents:', documents);
+
+    // Validation complète uniquement pour APPROVE et REJECT (pas pour SUBMIT/brouillon)
+    if (decisionTag !== 'SUBMIT') {
     // Réinitialiser les erreurs
     const newErrors: Record<string, string> = {};
     
@@ -1329,6 +1332,8 @@ export function AVAForm() {
       }
     }
 
+    } // fin validation (soumissions uniquement)
+
     // Capture snapshots before any await — prevents stale closure in async function
     const snap = { ...formData };
     const bankSnap = { ...banqueProvenance };
@@ -1336,9 +1341,7 @@ export function AVAForm() {
     setIsSubmitting(true);
 
     try {
-      // ═══════════════════════════════════════════════════════════════════════
-      // ÉTAPE 1 : INITIALISATION (POST /api/operations-deleguees-mvt/initialisation)
-      // ═══════════════════════════════════════════════════════════════════════
+      // ── Préparer le payload (même structure que l'ancien appel direct) ──────
 
       // Préparation du DTO complet - Nettoyage des champs id temporaires
       const cleanBeneficiaires = beneficiaires.map(({ id, ...rest }) => rest);
@@ -1371,232 +1374,72 @@ export function AVAForm() {
         banqueProvenance: Object.keys(banqueProvenance).length > 0 ? banqueProvenance : undefined,
       };
 
-      console.log('📤 [ÉTAPE 1/2] Initialisation du dossier...', JSON.stringify(dto, null, 2));
-      console.log('🔍 [DEBUG] RIB (compteClient):', dto.compteClient, '(longueur:', String(dto.compteClient).length, 'caractères)');
-      
-      toast.info('Initialisation du dossier en cours...', {
-        description: 'Étape 1/2 : Création du mouvement',
-      });
+      console.log('[WF] Payload:', JSON.stringify(dto, null, 2));
 
-      const initialisationResponse = await authenticatedFetch('/api/operations-deleguees-mvt/initialisation?finalize=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto)
-      });
-
-      // Si initialisation réussie sans JSON (ou réponse vide) 
-      const responseText = await initialisationResponse.text();
-      let creationResponse;
-      try {
-        creationResponse = JSON.parse(responseText);
-      } catch (e) {
-        creationResponse = null;
-      }
-
-      // Vérifier le statut de la réponse
-      if (!initialisationResponse.ok) {
-        if (creationResponse) {
-          // Si le dossier a déjà été validé/existe, le traiter comme succès pour avancer
-          if ((creationResponse.message && creationResponse.message.includes('déjà')) || 
-              (creationResponse.error && creationResponse.error.includes('déjà'))) {
-             console.warn('⚠️ Dossier existant détecté, on avance à la popup', creationResponse);
-             // On s'assure d'avoir l'ID si c'est dans le message
-             if (!creationResponse.numDossier) {
-                const match = (creationResponse.message || creationResponse.error).match(/numDossier=(\d+)/);
-                if (match) creationResponse.numDossier = Number(match[1]);
-             }
-          } else {
-             // Afficher la popup avec les détails de l'erreur
-             setApiError({
-               code: creationResponse.code,
-               error: creationResponse.error,
-               message: creationResponse.message,
-               timestamp: creationResponse.timestamp,
-               status: creationResponse.status || initialisationResponse.status,
-             });
-             setShowErrorModal(true);
-             
-             console.error('❌ [ÉTAPE 1/2] Erreur d\'initialisation:', creationResponse);
-             return;
-          }
-        } else {
-          // Erreur sans payload structuré
-          toast.error('Erreur lors de l\'initialisation du dossier', {
-            description: `Code HTTP ${initialisationResponse.status} : ${initialisationResponse.statusText}`,
-          });
-          
-          console.error('❌ [ÉTAPE 1/2] Erreur d\'initialisation:', initialisationResponse.status, initialisationResponse.statusText);
-          return;
-        }
-      }
-
-      // Récupérer la réponse de création
-      if (!creationResponse) {
-        // Mode démonstration - simuler une réponse valide
-        const mockResponse: OperationCreationResponseDTO = {
-          refOperation: Date.now(),
-          numDossier: Math.floor(Math.random() * 10000) + 1000,
-        };
-        
-        // Utiliser la réponse mock et continuer en mode démonstration
-        toast.success('Mode Démonstration', {
-          description: 'Dossier simulé créé avec succès',
-        });
-        
-        // Afficher le modal de succès avec les données mock
-        setDossierValide(mockResponse as any);
-        setShowDossierModal(true);
-        return;
-      }
-      
-      console.log('✅ [ÉTAPE 1/2] Initialisation réussie:', creationResponse);
-      
-      if (!creationResponse.numDossier) {
-        toast.error('Erreur de réponse', {
-          description: 'Le numéro de dossier n\'a pas été retourné par le serveur',
-        });
-        console.error('❌ numDossier manquant dans la réponse:', creationResponse);
-        return;
-      }
-
-      toast.success('Dossier ouvert avec succès', {
-        description: `Numéro de dossier: ${creationResponse.numDossier}`,
-      });
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // SUCCÈS - Afficher le popup de dossier ouvert
-      // ═══════════════════════════════════════════════════════════════════════
-
-      console.log(`📤 [ÉTAPE 2/2] Validation du dossier ${creationResponse.numDossier}...`);
-      
-      toast.info('Validation du dossier en cours...', {
-        description: `Étape 2/2 : Création de l'opération déléguée finale`,
-      });
-
-      const validationResponse = await authenticatedFetch(`/api/operations-deleguees/validation/${creationResponse.numDossier}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      // Vérifier le statut de la réponse
-      if (!validationResponse.ok) {
-        let errorMessage = 'Erreur lors de la validation du dossier';
-        let errorDetails = '';
-        
-        const errorData = await safeJsonParse<any>(validationResponse);
-        if (errorData) {
-          errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
-        } else {
-          errorDetails = `Code HTTP ${validationResponse.status} : ${validationResponse.statusText}`;
-        }
-
-        if (validationResponse.status === 404) {
-          errorMessage = 'Numéro de dossier introuvable';
-          errorDetails = `Le dossier ${creationResponse.numDossier} n'a pas été trouvé`;
-        } else if (validationResponse.status === 422) {
-          if (errorDetails.includes('existe déjà')) {
-             console.warn('⚠️ [ÉTAPE 2/2] Dossier déjà validé, on l\'affiche.');
-             // On simule une réponse de validation si le dossier existe déjà
-             const existingResponse: OuvertureDossierDTO = {
-                numDossier: creationResponse.numDossier,
-                dateDossier: new Date().toISOString().split('T')[0],
-                // ... on met ce qu'on peut récupérer
-                ...creationResponse,
-             } as OuvertureDossierDTO;
-             
-             markCurrentFilesAsPersisted();
-             setDossierValide(existingResponse);
-             setShowDossierModal(true);
-             return;
-          }
-          errorMessage = 'Contrôles métier non satisfaits';
-          errorDetails = errorDetails || 'Les contrôles métier (RIB, matricule, montants) ont échoué';
-        }
-
-        toast.error(errorMessage, {
-          description: errorDetails,
-        });
-        
-        console.error('❌ [ÉTAPE 2/2] Erreur de validation:', errorDetails);
-        return;
-      }
-
-      // Récupérer le dossier validé complet
-      const validationApiResponse = await safeJsonParse<any>(validationResponse);
-      if (!validationApiResponse) {
-        // En mode démonstration, utiliser les données de l'étape 1
-        const mockValidatedResponse: OuvertureDossierDTO = {
-          ...creationResponse,
-          // Ajouter les données manquantes
-          mntAutorise: banqueProvenance.mntAutorise,
-          mntAvance: banqueProvenance.mntAvance,
-        } as OuvertureDossierDTO;
-        
-        // Afficher le modal de succès avec les données mock
-        markCurrentFilesAsPersisted();
-        setDossierValide(mockValidatedResponse);
-        setShowDossierModal(true);
-        return;
-      }
-      
-      // Mapper la réponse de l'API vers le format OuvertureDossierDTO
-      // L'API retourne: { codeActivite, codeAgence, dateDossier, declarationFiscale, 
-      //                  mntAutorise, mntAutoriseBct, mntAvance, mntBlocage, mntReserve, 
-      //                  mntUtilise, noPieceClient, numDossier, numeroCompte, solde, typeDossierAva }
-      const dossierValideResponse: OuvertureDossierDTO = {
-        numDossier: validationApiResponse.numDossier,
-        codeTypeDosAva: validationApiResponse.typeDossierAva ?? validationApiResponse.codeTypeDosAva ?? snap.codeTypeDosAva,
-        dateDossier: validationApiResponse.dateDossier,
-        codeAgenceAva: validationApiResponse.codeAgence ?? validationApiResponse.codeAgenceAva ?? snap.codeAgenceAva,
-        typePieceClient: validationApiResponse.typePieceClient ?? snap.typePieceClient,
-        noPieceClient: validationApiResponse.noPieceClient ?? snap.noPieceClient,
-        numeroCompte: validationApiResponse.numeroCompte ?? (snap.compteClient ? String(snap.compteClient) : undefined),
-        tel: validationApiResponse.tel ?? snap.tel,
-        codeActivite: validationApiResponse.codeActivite ?? snap.codeActivite,
-        codeSousActivite: validationApiResponse.codeSousActivite ?? snap.codeSousActivite,
-        declarationFiscale: validationApiResponse.declarationFiscale ?? snap.declarationFiscale,
-        dateUltDeclCaf: validationApiResponse.dateUltDeclCaf ?? (snap as any).dateUltDeclCaf,
-        mntAvance: validationApiResponse.mntAvance ?? bankSnap.mntAvance,
-        mntUtilise: validationApiResponse.mntUtilise ?? bankSnap.mntUtilise,
-        mntAutorise: validationApiResponse.mntAutorise ?? bankSnap.mntAutorise,
-        mntAutoriseBct: validationApiResponse.mntAutoriseBct ?? bankSnap.mntAutoriseBct,
-        mntReserve: validationApiResponse.mntReserve ?? bankSnap.mntReserve,
-        mntBlocage: validationApiResponse.mntBlocage ?? bankSnap.mntBlocage,
-        solde: validationApiResponse.solde ?? bankSnap.solde,
-        beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
-        documents: cleanDocuments as DocumentDTO[],
-        avaMarche: snap.avaMarcheMvt as AvaMarcheDTO
+      const toastLabels: Record<string, { info: string; success: string }> = {
+        SUBMIT:  { info: 'Enregistrement du brouillon...', success: 'Brouillon enregistré avec succès' },
+        APPROVE: { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
+        REJECT:  { info: 'Envoi en complémentaire agence...', success: 'Dossier envoyé en complémentaire' },
       };
 
-      toast.success('🎉 Dossier AVA créé et validé avec succès !', {
-        description: `Numéro de dossier: ${dossierValideResponse.numDossier} | Date: ${dossierValideResponse.dateDossier || 'N/A'} | Bénéficiaires: ${dossierValideResponse.beneficiaires?.length || 0}`,
-        duration: 5000,
-      });
+      toast.info(toastLabels[decisionTag].info, { description: 'Communication avec le moteur de workflow...' });
 
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('✅ SUCCÈS COMPLET - Détails du dossier validé:');
-      console.log('═══════════════════════════════════════════════════════════════');
-      console.log('Numéro dossier:', dossierValideResponse.numDossier);
-      console.log('Type dossier:', dossierValideResponse.codeTypeDosAva);
-      console.log('Date dossier:', dossierValideResponse.dateDossier);
-      console.log('Client RNE:', dossierValideResponse.noPieceClient);
-      console.log('Compte:', dossierValideResponse.numeroCompte);
-      console.log('Activité:', dossierValideResponse.codeActivite);
-      console.log('Bénéficiaires:', dossierValideResponse.beneficiaires?.length || 0);
-      console.log('Documents:', dossierValideResponse.documents?.length || 0);
-      console.log('Montant Autorisé:', dossierValideResponse.mntAutorise);
-      console.log('Solde:', dossierValideResponse.solde);
-      console.log('═══════════════════════════════════════════════════════════════');
+      const wfResponse = wfBusinessKey
+        ? await continueDecision(wfBusinessKey, decisionTag, dto as unknown as Record<string, unknown>)
+        : await startDecision(decisionTag, dto as unknown as Record<string, unknown>);
 
-      // Ouvrir le modal avec les détails du dossier validé
-      markCurrentFilesAsPersisted();
-      setDossierValide(dossierValideResponse);
-      setShowDossierModal(true);
+      console.log('[WF] Réponse:', wfResponse);
+
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          setWfBusinessKey(newKey);
+          markCurrentFilesAsPersisted();
+        }
+        setWfCurrentNode(wfResponse.state?.currentNodeKey ?? null);
+
+        toast.success(toastLabels[decisionTag].success, {
+          description: newKey ? `Référence: ${newKey}` : undefined,
+          duration: 5000,
+        });
+
+        // For APPROVE show the confirmation modal with available data
+        if (decisionTag === 'APPROVE') {
+          const modalData = {
+            numDossier: newKey ? Number(newKey) : undefined,
+            noPieceClient: snap.noPieceClient,
+            codeTypeDosAva: snap.codeTypeDosAva,
+            codeActivite: snap.codeActivite,
+            beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
+            documents: cleanDocuments as DocumentDTO[],
+            avaMarche: snap.avaMarcheMvt as AvaMarcheDTO,
+            mntAvance: bankSnap.mntAvance,
+            mntAutorise: bankSnap.mntAutorise,
+            solde: bankSnap.solde,
+          } as OuvertureDossierDTO;
+          setDossierValide(modalData);
+          setShowDossierModal(true);
+        }
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Opération rejetée par le moteur de workflow', {
+          description: wfResponse.errorMessage || 'Le dossier a été rejeté.',
+        });
+      } else if (wfResponse.result === 'WARN_REQUIRED') {
+        toast.warning('Justification SoD requise', {
+          description: 'Une vérification a détecté un conflit. Veuillez contacter votre administrateur.',
+        });
+      } else if (wfResponse.result === 'ERROR') {
+        setApiError({ message: wfResponse.errorMessage ?? 'Erreur workflow inconnue' });
+        setShowErrorModal(true);
+      } else {
+        toast.error('Réponse inattendue du moteur de workflow', { description: String(wfResponse.result) });
+      }
+
     } catch (error) {
-      toast.error('Erreur lors de l\'enregistrement', {
+      toast.error('Erreur de communication avec le moteur de workflow', {
         description: 'Veuillez réessayer ou contacter le support.',
       });
-      console.error('❌ Erreur:', error);
+      console.error('[WF] Erreur:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -1616,6 +1459,8 @@ export function AVAForm() {
     setClientInfo(null);
     setClientNotFound(false);
     setRneError('');
+    setWfBusinessKey(null);
+    setWfCurrentNode(null);
   };
 
   // Gestion de la fermeture du modal (avec réinitialisation)
@@ -1635,14 +1480,30 @@ export function AVAForm() {
           <p className="text-muted-foreground mt-1">
             Allocation pour Voyage d'Affaire - Formulaire d'initiation
           </p>
+          {wfCurrentNode && (
+            <Badge variant="outline" className="mt-2">
+              Workflow : {wfCurrentNode}
+              {wfBusinessKey && ` — Réf. ${wfBusinessKey}`}
+            </Badge>
+          )}
         </div>
-        <Button 
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Send className="w-4 h-4 mr-2" />
-          Soumettre le dossier
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleWfDecision('SUBMIT')}
+            disabled={isSubmitting}
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Enregistrer le brouillon
+          </Button>
+          <Button
+            onClick={() => handleWfDecision('APPROVE')}
+            disabled={isSubmitting}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Soumettre
+          </Button>
+        </div>
       </div>
 
       {/* Alerte de validation globale */}
@@ -2773,19 +2634,27 @@ export function AVAForm() {
               * Champs obligatoires
             </p>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={resetForm}
                 disabled={isSubmitting}
               >
                 Réinitialiser
               </Button>
-              <Button 
-                onClick={handleSubmit}
+              <Button
+                variant="outline"
+                onClick={() => handleWfDecision('SUBMIT')}
+                disabled={isSubmitting}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Enregistrer le brouillon
+              </Button>
+              <Button
+                onClick={() => handleWfDecision('APPROVE')}
                 disabled={isSubmitting}
               >
                 <Send className="w-4 h-4 mr-2" />
-                Soumettre le dossier
+                Soumettre
               </Button>
             </div>
           </div>

@@ -104,19 +104,28 @@ export default defineConfig({
       '/api/ref': {
         target: 'http://localhost:8090',
         changeOrigin: true,
+        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
+      },
+      '/api/wf': {
+        target: 'http://localhost:8843',
+        changeOrigin: true,
+        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
       '/auth': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
       '/alimentation-bct/': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-      }
+        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
+      },
     },
   },
   build: {

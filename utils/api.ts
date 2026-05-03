@@ -13,6 +13,9 @@ export interface LoginResponse {
   email: string;
   access_token: string;
   roles: string[];
+  userId?: number;
+  orgNodeId?: number;
+  roleCode?: string;
 }
 
 export interface RefreshResponse {
@@ -48,7 +51,19 @@ export const ensureSessionId = (): string => {
 export const clearAuth = (): void => {
   sessionStorage.removeItem('accessToken');
   sessionStorage.removeItem('X-Session-Id');
+  sessionStorage.removeItem('wf_user_id');
+  sessionStorage.removeItem('wf_org_node_id');
+  sessionStorage.removeItem('wf_role_code');
 };
+
+/**
+ * Get WF engine user context from sessionStorage
+ */
+export const getWfUserContext = () => ({
+  userId: sessionStorage.getItem('wf_user_id') ?? '1',
+  orgNodeId: sessionStorage.getItem('wf_org_node_id'),
+  roleCode: sessionStorage.getItem('wf_role_code') ?? 'ADMIN',
+});
 
 /**
  * Login function
@@ -81,6 +96,17 @@ export const login = async (email: string, password: string): Promise<ApiRespons
     if (token) {
       sessionStorage.setItem('accessToken', token);
     }
+
+    // Store WF user context (falls back to admin defaults for POC if backend doesn't return these)
+    // TODO: wire up properly once the business-service login returns userId/orgNodeId/roleCode
+    sessionStorage.setItem('wf_user_id', String(data.userId ?? 1));
+    if (data.orgNodeId != null) {
+      sessionStorage.setItem('wf_org_node_id', String(data.orgNodeId));
+    }
+    sessionStorage.setItem(
+      'wf_role_code',
+      data.roleCode ?? (data.roles?.[0] as string | undefined) ?? 'ADMIN',
+    );
 
     return {
       data,

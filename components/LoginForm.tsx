@@ -34,12 +34,13 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
     if (result.error) {
       setApiError(result.error);
+      setIsLoading(false);
       return;
     }
 
     // Login successful
-    onLogin(email, password);
     setIsLoading(false);
+    onLogin(email, password);
   };
 
   return (
