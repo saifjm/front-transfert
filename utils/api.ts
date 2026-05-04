@@ -40,8 +40,11 @@ export const getSessionId = (): string | null => {
  * Generate a new session ID if none exists
  */
 export const ensureSessionId = (): string => {
-  const sessionId = 'session-123'; // Hardcodé comme demandé par défaut
-  sessionStorage.setItem('X-Session-Id', sessionId);
+  let sessionId = sessionStorage.getItem('X-Session-Id');
+  if (!sessionId) {
+    sessionId = `session-${Math.random().toString(36).substring(2, 11)}`;
+    sessionStorage.setItem('X-Session-Id', sessionId);
+  }
   return sessionId;
 };
 
