@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { startFvDecision, continueFvDecision } from '../utils/workflowApi';
 
 // ============= INTERFACES =============
 
@@ -165,6 +166,9 @@ export function AVAFraisVoyage() {
     { code: 5, libelle: 'Autorisation BCT' },
     { code: 6, libelle: 'Autre document' }
   ];
+
+  // Workflow state
+  const [wfFvBusinessKey, setWfFvBusinessKey] = useState<string | null>(null);
 
   // États de validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -487,6 +491,7 @@ export function AVAFraisVoyage() {
   // ============= GESTION DES ÉTATS =============
 
   const handleSelectDossier = async (dossier: DossierAVA) => {
+    setWfFvBusinessKey(null);
     setLoading(true);
     
     try {
@@ -771,36 +776,48 @@ export function AVAFraisVoyage() {
     };
 
     try {
-      const response = await authenticatedFetch('/api/operations-fv?finalize=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(operationFV)
-      });
+      toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      const result = await safeJsonParse<ValidationErrorResponse>(response);
-      console.log('✅ API operations-fv - Réponse:', result);
-      
-      if (response.ok) {
+      console.log('[FV WF] Payload:', JSON.stringify(operationFV, null, 2));
+
+      const wfResponse = wfFvBusinessKey
+        ? await continueFvDecision(wfFvBusinessKey, 'SOUMETTRE', operationFV as unknown as Record<string, unknown>)
+        : await startFvDecision('SOUMETTRE', operationFV as unknown as Record<string, unknown>);
+
+      console.log('[FV WF] Réponse:', wfResponse);
+
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) setWfFvBusinessKey(newKey);
+
         documents.forEach((d) => {
           if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
         });
         skipDraftCleanupRef.current = true;
+
+        toast.success('Opération FV soumise avec succès', {
+          description: newKey ? `Référence: ${newKey}` : undefined,
+          duration: 5000,
+        });
         setShowSuccessDialog(true);
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Opération rejetée par le moteur de workflow', {
+          description: wfResponse.errorMessage || 'Le dossier a été rejeté.',
+        });
+      } else if (wfResponse.result === 'ERROR') {
+        toast.error('Erreur du moteur de workflow', {
+          description: wfResponse.errorMessage || 'Une erreur est survenue.',
+        });
       } else {
-        // Fallback when backend returns structured errors
-        if (result) {
-          setValidationErrors(result);
-        }
-        setShowErrorDialog(true);
+        toast.warning(`Résultat inattendu: ${wfResponse.result}`, {
+          description: wfResponse.errorMessage,
+        });
       }
     } catch (error: any) {
-      console.info('ℹ️ Mode démonstration - Simulation de succès (business-rules-fv/valider)');
-      console.log('📦 DTO envoyé:', JSON.stringify(operationFV, null, 2));
-      documents.forEach((d) => {
-        if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
+      console.error('[FV WF] Erreur:', error);
+      toast.error('Erreur de connexion au moteur de workflow', {
+        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
       });
-      skipDraftCleanupRef.current = true;
-      setShowSuccessDialog(true);
     } finally {
       setIsSubmitting(false);
     }

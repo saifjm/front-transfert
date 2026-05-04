@@ -118,3 +118,43 @@ export async function getWfTaskList(): Promise<WfTask[]> {
   // Handle both plain array and Spring Page<> wrapper
   return Array.isArray(data) ? data : (data.content ?? []);
 }
+
+// ─── Frais Voyage workflow ────────────────────────────────────────────────────
+
+export const WF_FV_OPERATION_KEY = 'operations_frais_voyage';
+
+export async function startFvDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_FV_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueFvDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_FV_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfFvTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_FV_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
