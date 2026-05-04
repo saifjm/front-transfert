@@ -158,3 +158,22 @@ export async function getWfFvTaskList(): Promise<WfTask[]> {
   const data = await response.json();
   return Array.isArray(data) ? data : (data.content ?? []);
 }
+
+// ─── Clôture Dossier workflow ─────────────────────────────────────────────────
+// numDossier is always known upfront so we only need continueDecision (no TEMP key).
+
+export const WF_CLOTURE_OPERATION_KEY = 'operations_cloture';
+
+export async function continueClotureDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_CLOTURE_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
