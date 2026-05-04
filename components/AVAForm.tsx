@@ -26,6 +26,7 @@ import { DossierValidatedModal } from './DossierValidatedModal';
 import { controleRne } from '../utils/controleRne';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { startDecision, continueDecision } from '../utils/workflowApi';
+import { authenticatedFetch } from '../utils/api';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -1402,20 +1403,58 @@ export function AVAForm() {
         });
 
         if (decisionTag === 'APPROUVER') {
-          const modalData = {
-            numDossier: newKey ? Number(newKey) : undefined,
-            noPieceClient: snap.noPieceClient,
+          const numDossier = newKey ? Number(newKey) : undefined;
+          const modalDocuments = cleanDocuments.map(d => ({
+            typeDocument: d.typeDocument,
+            nomImage: d.referenceFichierJoint,
+            cheminFichier: d.cheminFichier,
+          }));
+          const baseModalData: OuvertureDossierDTO = {
+            numDossier,
+            dateDossier: new Date().toISOString().split('T')[0],
             codeTypeDosAva: snap.codeTypeDosAva,
+            typePieceClient: snap.typePieceClient,
+            noPieceClient: snap.noPieceClient,
+            numeroCompte: snap.compteClient ? String(snap.compteClient) : undefined,
+            tel: snap.tel,
             codeActivite: snap.codeActivite,
+            codeSousActivite: snap.codeSousActivite,
+            declarationFiscale: snap.declarationFiscale,
             beneficiaires: cleanBeneficiaires as BeneficiaireDTO[],
-            documents: cleanDocuments as DocumentDTO[],
+            documents: modalDocuments as any,
             avaMarche: snap.avaMarcheMvt as AvaMarcheDTO,
             mntAvance: bankSnap.mntAvance,
+            mntUtilise: bankSnap.mntUtilise,
             mntAutorise: bankSnap.mntAutorise,
+            mntAutoriseBct: bankSnap.mntAutoriseBct,
             solde: bankSnap.solde,
-          } as OuvertureDossierDTO;
-          setDossierValide(modalData);
+          };
+          setDossierValide(baseModalData);
           setShowDossierModal(true);
+          if (numDossier) {
+            authenticatedFetch(`/api/operations-deleguees/${numDossier}/summary`)
+              .then(r => {
+                if (!r.ok) { console.warn('[Modal] summary fetch failed:', r.status); return null; }
+                return r.json();
+              })
+              .then((summary: any) => {
+                console.log('[Modal] summary response:', summary);
+                if (summary) {
+                  setDossierValide(prev => prev ? {
+                    ...prev,
+                    codeAgenceAva: summary.codeAgenceAva ?? prev.codeAgenceAva,
+                    mntAvance: summary.mntAvance ?? prev.mntAvance,
+                    mntUtilise: summary.mntUtilise ?? prev.mntUtilise,
+                    mntAutorise: summary.mntAutorise ?? prev.mntAutorise,
+                    mntAutoriseBct: summary.mntAutorisationBct ?? prev.mntAutoriseBct,
+                    mntReserve: summary.mntReserve ?? prev.mntReserve,
+                    mntBlocage: summary.mntBlocage ?? prev.mntBlocage,
+                    solde: summary.solde ?? prev.solde,
+                  } : prev);
+                }
+              })
+              .catch((e) => { console.warn('[Modal] summary fetch error:', e); });
+          }
         }
       } else if (wfResponse.result === 'REJECTED') {
         toast.error('Opération rejetée par le moteur de workflow', {
