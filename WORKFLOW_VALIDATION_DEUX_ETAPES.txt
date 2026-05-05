@@ -1,0 +1,578 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                WORKFLOW DE VALIDATION EN DEUX ÉTAPES                         ║
+║                    Formulaire Ouverture Dossier AVA                          ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 VUE D'ENSEMBLE                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Le processus de soumission du formulaire d'ouverture AVA se déroule en
+  DEUX ÉTAPES SÉQUENTIELLES avec deux appels API distincts :
+  
+  1️⃣ INITIALISATION → Création du mouvement (MVT)
+  2️⃣ VALIDATION    → Transformation MVT → Opération déléguée finale
+  
+  ✅ Chaque étape valide et retourne des informations spécifiques
+  ✅ Le processus s'arrête en cas d'erreur à n'importe quelle étape
+  ✅ Des notifications toast guident l'utilisateur à chaque étape
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 ÉTAPE 1 : INITIALISATION DU MOUVEMENT                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  🔗 ENDPOINT
+  ───────────
+  
+  POST /api/operations-deleguees-mvt/initialisation
+  
+  📤 REQUEST BODY (InitiationOuvertureDTO)
+  ────────────────────────────────────────
+  
+  {
+    "codeTypeDosAva": 3,
+    "codeAgenceAva": 12,
+    "typePieceClient": 3,
+    "noPieceClient": "1695881M",
+    "numeroCompte": "12345678901234567890",
+    "tel": "12345678;+21687654321",
+    "email": "contact@test.com;admin@test.com",
+    "codeActivite": 24,
+    "codeSousActivite": 1,
+    "declarationFiscale": "DEC123456",
+    "mntReserve": 0,
+    "mntBlocage": 0,
+    "solde": 0,
+    "mntAvance": 10000.50,
+    "mntUtilise": 2000.00,
+    "mntAutorise": 15000.00,
+    "mntAutoriseBct": 5000.00,
+    "mntImportation": 250000,
+    "numeroBct": 123456,
+    "dateBct": "2026-02-14",
+    "beneficiairesMvtListe": [
+      {
+        "typePieceBenef": 1,
+        "noPieceBenef": "1234567M",
+        "nomBenef": "Société Exemple",
+        "adresseBenef": "Rue Exemple 1",
+        "qualite": "Fournisseur",
+        "datePiece": "2025-01-15"
+      }
+    ],
+    "documents": [
+      {
+        "typeDocument": 1,
+        "referenceFichierJoint": "contrat.pdf",
+        "extention": "pdf"
+      }
+    ],
+    "avaMarcheMvtListe": [
+      {
+        "numMarche": "MAR-2026-001",
+        "montantMarche": 100000.00,
+        "refContrat": "CNT-001",
+        "dateContrat": "2026-01-01",
+        "contractant": "Entreprise ABC",
+        "dateFin": "2026-12-31",
+        "codeDevise": 1,
+        "mntDevise": 100000.00
+      }
+    ]
+  }
+  
+  📥 RESPONSE 201 (OperationCreationResponseDTO)
+  ──────────────────────────────────────────────
+  
+  {
+    "refOperation": 123456,
+    "numDossier": 98765
+  }
+  
+  🔑 DONNÉES RETOURNÉES
+  ─────────────────────
+  
+  • refOperation : Référence unique de l'opération créée
+  • numDossier : Numéro du dossier MVT (utilisé pour l'étape 2)
+  
+  ❌ CODES D'ERREUR
+  ─────────────────
+  
+  • 400 (Bad Request) : Requête invalide ou contrôle métier échoué
+    → Champs manquants, formats invalides, règles métier non respectées
+  
+  • 500 (Internal Server Error) : Erreur serveur
+    → Problème technique côté backend
+  
+  💬 NOTIFICATION UTILISATEUR
+  ───────────────────────────
+  
+  🔵 Début : "Initialisation du dossier en cours..."
+             "Étape 1/2 : Création du mouvement"
+  
+  ✅ Succès : "Initialisation réussie"
+              "Référence opération: 123456, Numéro dossier: 98765"
+  
+  ❌ Erreur : "Requête invalide ou contrôle métier échoué"
+              + Message d'erreur détaillé du serveur
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 ÉTAPE 2 : VALIDATION DU DOSSIER                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  🔗 ENDPOINT
+  ───────────
+  
+  POST /api/operations-deleguees/validation/{numDossier}
+  
+  📌 PATH PARAMETER
+  ─────────────────
+  
+  • numDossier : Numéro du dossier reçu de l'étape 1 (ex: 98765)
+  
+  📤 REQUEST
+  ──────────
+  
+  POST /api/operations-deleguees/validation/98765
+  Content-Type: application/json
+  
+  (Pas de body requis - le numDossier dans le path suffit)
+  
+  📥 RESPONSE 201 (OuvertureDossierDTO)
+  ─────────────────────────────────────
+  
+  {
+    "numDossier": 98765,
+    "codeTypeDosAva": 3,
+    "dateDossier": "2026-02-14",
+    "codeAgenceAva": 12,
+    "typePieceClient": 3,
+    "noPieceClient": "1695881M",
+    "numeroCompte": "12345678901234567890",
+    "tel": "12345678;+21687654321",
+    "codeActivite": 24,
+    "codeSousActivite": 1,
+    "declarationFiscale": "DEC123456",
+    "dateUltDeclCaf": null,
+    "mntAvance": 10000.50,
+    "mntUtilise": 2000.00,
+    "mntAutorise": 15000.00,
+    "mntAutoriseBct": 5000.00,
+    "mntReserve": 0,
+    "mntBlocage": 0,
+    "solde": 13000.50,
+    "beneficiaires": [
+      {
+        "numDossier": 98765,
+        "dateDossier": "2026-02-14",
+        "typePieceBenef": 1,
+        "noPieceBenef": "1234567M",
+        "codeTypeDos": 3,
+        "codeAgenceAva": 12,
+        "nomBenef": "Société Exemple",
+        "adresseBenef": "Rue Exemple 1",
+        "qualite": "Fournisseur"
+      }
+    ],
+    "documents": [
+      {
+        "ligne": 1,
+        "nomImage": "contrat.pdf",
+        "cheminFichier": "/uploads/2026/02/contrat_98765.pdf",
+        "typeDocument": 1
+      }
+    ],
+    "avaMarche": {
+      "numMarche": 1,
+      "refContrat": "CNT-001",
+      "dateContrat": "2026-01-01",
+      "montantMarche": 100000.00,
+      "montantDevise": 100000.00,
+      "contractant": "Entreprise ABC",
+      "dateFin": "2026-12-31",
+      "codeDevise": 1
+    }
+  }
+  
+  🔑 DONNÉES RETOURNÉES
+  ─────────────────────
+  
+  Le dossier COMPLET validé avec :
+  • Toutes les informations du dossier principal
+  • Liste complète des bénéficiaires (enrichis avec numDossier, dateDossier)
+  • Liste des documents (avec chemins finaux)
+  • Informations marché AVA (si applicable)
+  • Montants finaux calculés
+  
+  ❌ CODES D'ERREUR
+  ─────────────────
+  
+  • 404 (Not Found) : Numéro de dossier introuvable
+    → Le dossier MVT n'existe pas ou a été supprimé
+  
+  • 422 (Unprocessable Entity) : Contrôles métier non satisfaits
+    → RIB invalide, matricule fiscal incorrect, montants incohérents
+  
+  💬 NOTIFICATION UTILISATEUR
+  ───────────────────────────
+  
+  🔵 Début : "Validation du dossier en cours..."
+             "Étape 2/2 : Création de l'opération déléguée finale"
+  
+  ✅ Succès : "🎉 Dossier AVA créé et validé avec succès !"
+              "Numéro de dossier: 98765 | Date: 2026-02-14 | Bénéficiaires: 1"
+              (durée 5 secondes)
+  
+  ❌ Erreur 404 : "Numéro de dossier introuvable"
+                  "Le dossier 98765 n'a pas été trouvé"
+  
+  ❌ Erreur 422 : "Contrôles métier non satisfaits"
+                  "Les contrôles métier (RIB, matricule, montants) ont échoué"
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔄 WORKFLOW COMPLET                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ 1️⃣ UTILISATEUR CLIQUE "SOUMETTRE LE DOSSIER"                            │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ 2️⃣ VALIDATIONS CÔTÉ CLIENT                                              │
+  │    ✓ Champs obligatoires                                                │
+  │    ✓ Formats (téléphone, email, RNE)                                    │
+  │    ✓ Cohérence BCT (numéro et date ensemble)                            │
+  │    ✓ Montant importation (selon type et activité)                       │
+  │    ✓ Montant avance (selon type dossier)                                │
+  │    ✓ Au moins 1 bénéficiaire                                            │
+  │    ✓ Au moins 1 document                                                │
+  │    ✓ Tous les bénéficiaires complets                                    │
+  │    ✓ Montants banque provenance (si applicable)                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+                           ❌ Erreur de validation ?
+                                    │
+                        Oui ────────┴────────► ❌ ARRÊT + Message d'erreur
+                                    │
+                                   Non
+                                    ↓
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ 3️⃣ ÉTAPE 1 : INITIALISATION                                             │
+  │    📤 POST /api/operations-deleguees-mvt/initialisation                 │
+  │    🔵 Toast: "Initialisation du dossier en cours... (Étape 1/2)"       │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+                           ❓ Statut HTTP ?
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            │                       │                       │
+          ❌ 400                  ❌ 500                  ✅ 201
+      Requête invalide       Erreur serveur        Succès création
+            │                       │                       │
+            └───────────► ❌ ARRÊT ◄┘                       │
+               + Message d'erreur                           │
+                                                            ↓
+                                              ┌─────────────────────────┐
+                                              │ Récupération données :  │
+                                              │ • refOperation: 123456  │
+                                              │ • numDossier: 98765     │
+                                              └─────────────────────────┘
+                                                            ↓
+                                              ✅ Toast: "Initialisation réussie"
+                                                  "Ref: 123456, Dossier: 98765"
+                                                            ↓
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ 4️⃣ ÉTAPE 2 : VALIDATION                                                 │
+  │    📤 POST /api/operations-deleguees/validation/98765                   │
+  │    🔵 Toast: "Validation du dossier en cours... (Étape 2/2)"           │
+  └─────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+                           ❓ Statut HTTP ?
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            │                       │                       │
+          ❌ 404                  ❌ 422                  ✅ 201
+    Dossier introuvable    Contrôles métier         Succès validation
+            │                  non satisfaits                │
+            └──────► ❌ ARRÊT ◄─────┘                        │
+               + Message d'erreur                            │
+                                                            ↓
+                                              ┌─────────────────────────┐
+                                              │ Récupération dossier    │
+                                              │ validé complet :        │
+                                              │ • numDossier            │
+                                              │ • dateDossier           │
+                                              │ • beneficiaires[]       │
+                                              │ • documents[]           │
+                                              │ • avaMarche             │
+                                              │ • montants finaux       │
+                                              └─────────────────────────┘
+                                                            ↓
+                                              ✅ Toast succès 5 secondes
+                                                 "🎉 Dossier AVA créé et validé !"
+                                                            ↓
+                                              📊 Logs console détaillés
+                                                            ↓
+                                              🔄 Réinitialisation formulaire
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 LOGS CONSOLE                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Le système génère des logs détaillés pour faciliter le débogage :
+  
+  📤 ÉTAPE 1 - DÉBUT
+  ──────────────────
+  
+  📤 [ÉTAPE 1/2] Initialisation du dossier...
+  {
+    "codeTypeDosAva": 3,
+    "noPieceClient": "1695881M",
+    "beneficiairesMvtListe": [...],
+    ...
+  }
+  
+  ✅ ÉTAPE 1 - SUCCÈS
+  ───────────────────
+  
+  ✅ [ÉTAPE 1/2] Initialisation réussie:
+  {
+    "refOperation": 123456,
+    "numDossier": 98765
+  }
+  
+  ❌ ÉTAPE 1 - ERREUR
+  ───────────────────
+  
+  ❌ [ÉTAPE 1/2] Erreur d'initialisation: Requête invalide...
+  
+  📤 ÉTAPE 2 - DÉBUT
+  ──────────────────
+  
+  📤 [ÉTAPE 2/2] Validation du dossier 98765...
+  
+  ✅ ÉTAPE 2 - SUCCÈS
+  ───────────────────
+  
+  ✅ [ÉTAPE 2/2] Validation réussie:
+  {
+    "numDossier": 98765,
+    "dateDossier": "2026-02-14",
+    ...
+  }
+  
+  ═══════════════════════════════════════════════════════════════
+  ✅ SUCCÈS COMPLET - Détails du dossier validé:
+  ═══════════════════════════════════════════════════════════════
+  Numéro dossier: 98765
+  Type dossier: 3
+  Date dossier: 2026-02-14
+  Client RNE: 1695881M
+  Compte: 12345678901234567890
+  Activité: 24
+  Bénéficiaires: 1
+  Documents: 1
+  Montant Autorisé: 15000.00
+  Solde: 13000.50
+  ═══════════════════════════════════════════════════════════════
+  
+  ❌ ÉTAPE 2 - ERREUR
+  ───────────────────
+  
+  ❌ [ÉTAPE 2/2] Erreur de validation: Le dossier 98765 n'a pas été trouvé
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔐 GESTION DES ERREURS                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Le système gère de manière robuste toutes les erreurs possibles :
+  
+  ✅ PARSING DES ERREURS API
+  ──────────────────────────
+  
+  try {
+    const errorData = await response.json();
+    errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
+  } catch (e) {
+    errorDetails = `Code HTTP ${response.status} : ${response.statusText}`;
+  }
+  
+  ✅ ARRÊT DU PROCESSUS EN CAS D'ERREUR
+  ──────────────────────────────────────
+  
+  • Si ÉTAPE 1 échoue → ARRÊT (pas d'appel ÉTAPE 2)
+  • Si ÉTAPE 2 échoue → ARRÊT (formulaire non réinitialisé)
+  • Utilisateur informé précisément de l'erreur
+  
+  ✅ MESSAGES CONTEXTUELS
+  ───────────────────────
+  
+  • 400 → "Requête invalide ou contrôle métier échoué"
+  • 404 → "Numéro de dossier introuvable" + détails
+  • 422 → "Contrôles métier non satisfaits" + contexte
+  • 500 → "Erreur serveur lors de l'initialisation"
+  
+  ✅ GESTION DES EXCEPTIONS RÉSEAU
+  ────────────────────────────────
+  
+  try {
+    // Appels API
+  } catch (error) {
+    toast.error('Erreur lors de l\'enregistrement', {
+      description: 'Veuillez réessayer ou contacter le support.',
+    });
+    console.error('❌ Erreur:', error);
+  } finally {
+    setIsSubmitting(false);
+  }
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎨 ÉTATS DE L'INTERFACE                                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  L'interface reflète l'état du processus :
+  
+  🔵 EN COURS DE SOUMISSION
+  ─────────────────────────
+  
+  • Bouton "Soumettre le dossier" : DÉSACTIVÉ
+  • Texte du bouton : "Soumission en cours..."
+  • Spinner visible dans le bouton
+  • État : isSubmitting = true
+  
+  ✅ SUCCÈS
+  ─────────
+  
+  • Toast de succès affiché (5 secondes)
+  • Formulaire réinitialisé (champs vides)
+  • Bouton redevient actif
+  • État : isSubmitting = false
+  
+  ❌ ERREUR
+  ─────────
+  
+  • Toast d'erreur affiché (avec détails)
+  • Formulaire NON réinitialisé (données conservées)
+  • Bouton redevient actif (possibilité de réessayer)
+  • État : isSubmitting = false
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 TYPES TYPESCRIPT                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  interface OperationCreationResponseDTO {
+    refOperation: number;      // Référence unique de l'opération
+    numDossier: number;        // Numéro du dossier MVT
+  }
+  
+  interface OuvertureDossierDTO {
+    numDossier?: number;
+    codeTypeDosAva?: number;
+    dateDossier?: string;
+    codeAgenceAva?: number;
+    typePieceClient?: number;
+    noPieceClient?: string;
+    numeroCompte?: string;
+    tel?: string;
+    codeActivite?: number;
+    codeSousActivite?: number;
+    declarationFiscale?: string;
+    dateUltDeclCaf?: string;
+    mntAvance?: number;
+    mntUtilise?: number;
+    mntAutorise?: number;
+    mntAutoriseBct?: number;
+    mntReserve?: number;
+    mntBlocage?: number;
+    solde?: number;
+    beneficiaires?: BeneficiaireDTO[];
+    documents?: DocumentDTO[];
+    avaMarche?: AvaMarcheDTO;
+  }
+  
+  interface BeneficiaireDTO {
+    numDossier?: number;
+    dateDossier?: string;
+    typePieceBenef?: number;
+    noPieceBenef?: string;
+    codeTypeDos?: number;
+    codeAgenceAva?: number;
+    nomBenef?: string;
+    adresseBenef?: string;
+    qualite?: string;
+  }
+  
+  interface AvaMarcheDTO {
+    numMarche?: number;
+    refContrat?: string;
+    dateContrat?: string;
+    montantMarche?: number;
+    montantDevise?: number;
+    contractant?: string;
+    dateFin?: string;
+    codeDevise?: number;
+  }
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🧪 TESTS À EFFECTUER                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  TEST 1 : SUCCÈS COMPLET
+  ───────────────────────
+  
+  1. Remplir formulaire complet valide
+  2. Cliquer "Soumettre le dossier"
+  3. Vérifier : Toast "Initialisation en cours..."
+  4. Vérifier : Toast "Initialisation réussie" avec refOperation et numDossier
+  5. Vérifier : Toast "Validation en cours..."
+  6. Vérifier : Toast succès final "🎉 Dossier AVA créé et validé !"
+  7. Vérifier : Formulaire réinitialisé
+  8. Vérifier : Logs console détaillés
+  
+  TEST 2 : ERREUR ÉTAPE 1 (400)
+  ─────────────────────────────
+  
+  1. Backend retourne 400 lors de l'initialisation
+  2. Vérifier : Toast "Requête invalide ou contrôle métier échoué"
+  3. Vérifier : Message d'erreur détaillé du serveur
+  4. Vérifier : Pas d'appel ÉTAPE 2
+  5. Vérifier : Formulaire conservé (données non perdues)
+  6. Vérifier : Bouton redevient actif
+  
+  TEST 3 : ERREUR ÉTAPE 2 (404)
+  ─────────────────────────────
+  
+  1. ÉTAPE 1 réussit
+  2. Backend retourne 404 lors de la validation
+  3. Vérifier : Toast "Numéro de dossier introuvable"
+  4. Vérifier : Message "Le dossier XXXXX n'a pas été trouvé"
+  5. Vérifier : Formulaire conservé
+  
+  TEST 4 : ERREUR ÉTAPE 2 (422)
+  ─────────────────────────────
+  
+  1. ÉTAPE 1 réussit
+  2. Backend retourne 422 (contrôles métier)
+  3. Vérifier : Toast "Contrôles métier non satisfaits"
+  4. Vérifier : Message détaillant le problème (RIB, matricule, etc.)
+  5. Vérifier : Formulaire conservé
+  
+  TEST 5 : ERREUR RÉSEAU
+  ──────────────────────
+  
+  1. Déconnecter le réseau
+  2. Soumettre le formulaire
+  3. Vérifier : Toast "Erreur lors de l'enregistrement"
+  4. Vérifier : Message "Veuillez réessayer ou contacter le support"
+  5. Vérifier : Logs console avec erreur réseau
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  Document créé le 15 février 2026
+  Projet : IBANSYS v1.0
+  Module : Ouverture Dossier AVA - Workflow de Validation en 2 Étapes
+  Société le Monde Informatique
+
+═══════════════════════════════════════════════════════════════════════════════

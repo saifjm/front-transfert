@@ -1,0 +1,254 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║           RÈGLES CONDITIONNELLES - CODE ACTIVITÉ & SOUS ACTIVITÉ             ║
+║                    Formulaire Ouverture Dossier AVA                          ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📋 RÉSUMÉ DES RÈGLES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TYPE DOSSIER = 3 ou 5 (AUTRES ACTIVITES / PROMOTEUR)                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Code Activité:                                                             │
+│    🔹 Source API      : /api/activites                                      │
+│    🔹 Type champ      : Liste déroulante ▼                                  │
+│    🔹 Modifiable      : ✅ OUI                                              │
+│    🔹 Obligatoire     : ✅ OUI (*)                                          │
+│                                                                             │
+│  Sous Activité:                                                             │
+│    🔹 Source API      : /api/ref/activites                                  │
+│    🔹 Type champ      : Liste déroulante ▼                                  │
+│    🔹 Visible         : ✅ OUI                                              │
+│    🔹 Obligatoire     : ✅ OUI (*)                                          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TYPE DOSSIER = 4 (AUTRES ACTIVITES BANQUES)                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Code Activité:                                                             │
+│    🔹 Valeur          : 26 - AUTRES ACTIVITES (FIXE)                        │
+│    🔹 Type champ      : Input désactivé 🔒                                  │
+│    🔹 Modifiable      : ❌ NON (fond gris)                                  │
+│    🔹 Obligatoire     : ✅ OUI (auto-rempli)                                │
+│                                                                             │
+│  Sous Activité:                                                             │
+│    🔹 Visible         : ❌ NON (champ caché)                                │
+│    🔹 Valeur          : Vide (automatiquement vidée)                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TYPE DOSSIER = 1 ou 2 (EXPORTATEUR / MARCHE)                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Code Activité:                                                             │
+│    🔹 Source API      : /api/ref/activites                                  │
+│    🔹 Type champ      : Liste déroulante ▼                                  │
+│    🔹 Modifiable      : ✅ OUI                                              │
+│    🔹 Obligatoire     : ✅ OUI (*)                                          │
+│                                                                             │
+│  Sous Activité:                                                             │
+│    🔹 Visible         : ❌ NON (champ caché)                                │
+│    🔹 Valeur          : Vide (automatiquement vidée)                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🔄 COMPORTEMENT DYNAMIQUE
+═══════════════════════════════════════════════════════════════════════════════
+
+Lorsque l'utilisateur change le Type Dossier :
+
+┌─────────────┐
+│ Type = 4    │ ──► Code Activité = 26 (fixe)
+└─────────────┘     Sous Activité = vide (caché)
+                    Champ Code Activité = désactivé 🔒
+
+
+┌─────────────┐
+│ Type = 3,5  │ ──► Code Activité depuis /api/activites
+└─────────────┘     Sous Activité depuis /api/ref/activites (visible & requis)
+                    Champ Code Activité = activé ✅
+
+
+┌─────────────┐
+│ Type = 1,2  │ ──► Code Activité depuis /api/ref/activites
+└─────────────┘     Sous Activité = vide (caché)
+                    Champ Code Activité = activé ✅
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📊 TABLEAU DE DÉCISION
+═══════════════════════════════════════════════════════════════════════════════
+
+┌──────┬───────────────────┬──────────┬──────────────┬─────────────┬──────────┐
+│ Type │ Code Activité     │ Source   │ Modifiable ? │ Sous Act.   │ Requis ? │
+│ Dos. │                   │ API      │              │ Visible ?   │          │
+├──────┼───────────────────┼──────────┼──────────────┼─────────────┼──────────┤
+│  1   │ Liste déroulante  │ /ref/act │ ✅ OUI       │ ❌ NON      │ ❌ NON   │
+├──────┼───────────────────┼──────────┼──────────────┼─────────────┼──────────┤
+│  2   │ Liste déroulante  │ /ref/act │ ✅ OUI       │ ❌ NON      │ ❌ NON   │
+├──────┼───────────────────┼──────────┼──────────────┼─────────────┼──────────┤
+│  3   │ Liste déroulante  │ /api/act │ ✅ OUI       │ ✅ OUI      │ ✅ OUI   │
+├──────┼───────────────────┼──────────┼──────────────┼─────────────┼──────────┤
+│  4   │ Fixe = 26 🔒      │ -        │ ❌ NON       │ ❌ NON      │ ❌ NON   │
+├──────┼───────────────────┼──────────┼──────────────┼─────────────┼──────────┤
+│  5   │ Liste déroulante  │ /api/act │ ✅ OUI       │ ✅ OUI      │ ✅ OUI   │
+└──────┴───────────────────┴──────────┴──────────────┴─────────────┴──────────┘
+
+Légende :
+  /ref/act = /api/ref/activites
+  /api/act = /api/activites
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🎨 APERÇU INTERFACE
+═══════════════════════════════════════════════════════════════════════════════
+
+▼ TYPE DOSSIER = 4 (BANQUES)
+────────────────────────────────────────────────────────────────────────────
+
+  Code Activité *
+  ┌───────────────────────────────────────────┐
+  │ 26 - AUTRES ACTIVITES               [🔒] │  ← Désactivé, fond gris
+  └───────────────────────────────────────────┘
+  ℹ️ Valeur fixe pour type 4
+
+  (Sous Activité : caché)
+
+
+▼ TYPE DOSSIER = 3 (AUTRES ACTIVITES)
+────────────────────────────────────────────────────────────────────────────
+
+  Code Activité *
+  ┌───────────────────────────────────────────┐
+  │ Sélectionner                          [▼] │  ← Liste déroulante active
+  └───────────────────────────────────────────┘
+  ℹ️ Source: /api/activites
+
+  Code Sous-Activité *
+  ┌───────────────────────────────────────────┐
+  │ Sélectionner                          [▼] │  ← Liste déroulante
+  └───────────────────────────────────────────┘
+  ℹ️ Champ requis pour types dossier 3 et 5 (Source: /api/ref/activites)
+
+
+▼ TYPE DOSSIER = 1 (EXPORTATEUR)
+────────────────────────────────────────────────────────────────────────────
+
+  Code Activité *
+  ┌───────────────────────────────────────────┐
+  │ Sélectionner                          [▼] │  ← Liste déroulante active
+  └───────────────────────────────────────────┘
+  ℹ️ Source: /api/ref/activites
+
+  (Sous Activité : caché)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  ✅ VALIDATION
+═══════════════════════════════════════════════════════════════════════════════
+
+Champs Obligatoires :
+
+  📌 Code Activité        : ✅ TOUJOURS OBLIGATOIRE (tous types)
+  📌 Sous Activité        : ✅ OBLIGATOIRE uniquement pour types 3 et 5
+
+
+Messages d'Erreur :
+
+  ❌ "Champs obligatoires manquants"
+     Veuillez renseigner : Code Activité
+
+  ❌ "Champs obligatoires manquants"
+     Veuillez renseigner : Code Sous-Activité (obligatoire pour types 3 et 5)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🧪 SCÉNARIOS DE TEST
+═══════════════════════════════════════════════════════════════════════════════
+
+TEST 1 : Sélection Type 4
+─────────────────────────
+1. Ouvrir formulaire
+2. Sélectionner Type Dossier = 4
+3. ✅ Code Activité = "26 - AUTRES ACTIVITES" (auto)
+4. ✅ Code Activité désactivé (gris)
+5. ✅ Sous Activité cachée
+6. Soumettre → ✅ OK
+
+
+TEST 2 : Sélection Type 3
+─────────────────────────
+1. Ouvrir formulaire
+2. Sélectionner Type Dossier = 3
+3. ✅ Code Activité modifiable (liste)
+4. ✅ Sous Activité visible avec *
+5. Soumettre sans Sous Activité → ❌ Erreur
+6. Sélectionner Sous Activité
+7. Soumettre → ✅ OK
+
+
+TEST 3 : Changement Type 3 → Type 4
+───────────────────────────────────
+1. Sélectionner Type 3
+2. Remplir Code Activité = 24
+3. Remplir Sous Activité = 2
+4. Changer pour Type 4
+5. ✅ Code Activité = 26 (forcé)
+6. ✅ Sous Activité vidée et cachée
+7. ✅ Code Activité désactivé
+
+
+TEST 4 : Changement Type 4 → Type 1
+───────────────────────────────────
+1. Sélectionner Type 4
+2. Code Activité = 26 (auto)
+3. Changer pour Type 1
+4. ✅ Code Activité modifiable
+5. ✅ Sous Activité reste cachée
+6. ✅ Peut sélectionner un code activité
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📝 NOTES IMPORTANTES
+═══════════════════════════════════════════════════════════════════════════════
+
+  ⚡ Chargement Automatique
+     Les données sont rechargées automatiquement lors du changement de type
+
+  🔄 Gestion d'Erreur
+     Fallback sur données mock si l'API échoue (mode silencieux)
+
+  🎯 UX Optimale
+     - Indicateurs visuels clairs (source des données)
+     - Champs désactivés avec fond gris
+     - Astérisques rouges pour champs obligatoires
+     - Messages d'aide contextuels
+
+  💾 Persistance
+     Les valeurs sont automatiquement gérées lors des changements de type
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  ✨ STATUT : IMPLÉMENTÉ ET OPÉRATIONNEL ✨
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  Document généré le 14 février 2026
+  Projet : IBANSYS v1.0
+  Module : Ouverture Dossier AVA
+  Société le Monde Informatique
+
+═══════���═══════════════════════════════════════════════════════════════════════

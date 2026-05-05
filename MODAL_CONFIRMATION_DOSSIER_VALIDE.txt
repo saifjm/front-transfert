@@ -1,0 +1,583 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                  MODAL DE CONFIRMATION - DOSSIER VALIDÉ                      ║
+║                     Affichage OuvertureDossierDTO                            ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 OBJECTIF                                                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  Après la soumission réussie du dossier AVA (validation en 2 étapes), afficher
+  toutes les informations du dossier créé dans un popup modal élégant avant de
+  permettre à l'utilisateur de réinitialiser le formulaire pour une nouvelle saisie.
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 WORKFLOW MODIFIÉ                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  AVANT (Ancien comportement)
+  ────────────────────────────
+  
+  1. Utilisateur clique "Soumettre le dossier"
+  2. Validation côté client
+  3. ÉTAPE 1 : POST /initialisation → Succès
+  4. ÉTAPE 2 : POST /validation/{numDossier} → Succès
+  5. Toast succès "🎉 Dossier AVA créé et validé avec succès !"
+  6. Logs console détaillés
+  7. ✅ Réinitialisation automatique du formulaire
+  
+  ─────────────────────────────────────────────────────────────────────────────
+  
+  MAINTENANT (Nouveau comportement)
+  ──────────────────────────────────
+  
+  1. Utilisateur clique "Soumettre le dossier"
+  2. Validation côté client
+  3. ÉTAPE 1 : POST /initialisation → Succès
+  4. ÉTAPE 2 : POST /validation/{numDossier} → Succès
+  5. Toast succès "🎉 Dossier AVA créé et validé avec succès !"
+  6. Logs console détaillés
+  7. ✅ OUVERTURE DU MODAL avec détails complets du dossier
+  8. Utilisateur consulte les informations
+  9. Utilisateur clique "Fermer et Nouveau Dossier"
+  10. ✅ Réinitialisation du formulaire
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎨 COMPOSANT CRÉÉ                                                            │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  📁 FICHIER
+  ──────────
+  
+  /components/DossierValidatedModal.tsx
+  
+  📝 DESCRIPTION
+  ──────────────
+  
+  Modal React avec les caractéristiques suivantes :
+  • Position : Fixed, centré sur l'écran
+  • Overlay : Fond noir semi-transparent (bg-opacity-50)
+  • Taille : max-w-5xl, responsive
+  • Hauteur max : 90vh avec scroll interne
+  • Fermeture : Bouton X + Bouton "Fermer et Nouveau Dossier"
+  • Design : Palette IBANSYS (#435B7B, #2D3E54, #D6E4F0)
+  
+  🎨 SECTIONS DU MODAL
+  ────────────────────
+  
+  1️⃣ Header (Dégradé bleu navy)
+     • Icône CheckCircle
+     • Titre : "Dossier AVA Créé avec Succès"
+     • Sous-titre : "Numéro de dossier : XXXXX"
+     • Bouton X pour fermer
+  
+  2️⃣ Informations Générales (Card avec fond dégradé)
+     • Icône Building2
+     • Grille responsive (1/2/3 colonnes)
+     • Champs affichés :
+       - Numéro de dossier
+       - Date de création
+       - Type de dossier
+       - Code agence
+       - Type pièce client + label traduit
+       - Numéro pièce (RNE)
+       - Numéro de compte
+       - Téléphone
+       - Code activité
+       - Code sous-activité (si applicable)
+       - Déclaration fiscale
+  
+  3️⃣ Détails des Montants (Card avec fond dégradé)
+     • Icône DollarSign
+     • Grille de cards colorées selon le type :
+       - Montant Avancé (vert)
+       - Montant Autorisé (bleu)
+       - Montant Utilisé (violet)
+       - Montant Autorisé BCT (orange)
+       - Montant Réservé (gris)
+       - Montant Blocage (gris)
+       - Solde Final (bleu navy, 2 colonnes)
+     • Format : X.XXX TND (3 décimales)
+  
+  4️⃣ Bénéficiaires (Card avec fond dégradé)
+     • Icône Users
+     • Titre : "Bénéficiaires (N)"
+     • Liste de cards pour chaque bénéficiaire
+     • Grille 1/2/4 colonnes par bénéficiaire :
+       - Nom
+       - Type pièce + label traduit
+       - N° pièce
+       - Qualité
+       - Adresse (sur toute la largeur)
+     • Hover effect : Shadow
+  
+  5️⃣ Documents Joints (Card avec fond dégradé)
+     • Icône FileText
+     • Titre : "Documents Joints (N)"
+     • Liste de rows pour chaque document
+     • Affichage :
+       - Icône FileText dans un badge
+       - Nom du fichier
+       - Type de document
+       - Chemin fichier (tronqué)
+     • Hover effect : Background gris clair
+  
+  6️⃣ Informations du Marché AVA (Card, si applicable)
+     • Icône Calendar
+     • Grille responsive 1/2/3 colonnes
+     • Champs affichés :
+       - Numéro de marché
+       - Référence contrat
+       - Date contrat
+       - Contractant
+       - Montant marché (TND)
+       - Montant devise
+       - Code devise
+       - Date fin
+  
+  7️⃣ Footer (Fond gris clair)
+     • Bouton "Fermer et Nouveau Dossier"
+     • Style : Bleu navy (#435B7B)
+     • Hover : Navy dark (#2D3E54)
+     • Action : Ferme modal + réinitialise formulaire
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔧 FONCTIONS UTILITAIRES                                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  formatMontant(montant?: number): string
+  ──────────────────────────────────────────
+  
+  Formate un montant en TND avec 3 décimales
+  
+  Exemples :
+  • formatMontant(10000.5) → "10000.500"
+  • formatMontant(1234.567) → "1234.567"
+  • formatMontant(undefined) → "0.000"
+  • formatMontant(null) → "0.000"
+  
+  ─────────────────────────────────────────────────────────────────────────────
+  
+  formatDate(date?: string): string
+  ──────────────────────────────────
+  
+  Formate une date ISO en format français
+  
+  Exemples :
+  • formatDate("2026-02-14") → "14/02/2026"
+  • formatDate(undefined) → "N/A"
+  • formatDate(null) → "N/A"
+  
+  ─────────────────────────────────────────────────────────────────────────────
+  
+  getTypePieceLabel(type?: number): string
+  ─────────────────────────────────────────
+  
+  Traduit le code type de pièce en libellé
+  
+  Mapping :
+  • 1 → "Carte d'Identité Nationale"
+  • 3 → "Matricule Fiscal"
+  • 4 → "Passeport"
+  • 7 → "Autre"
+  • Autre → "Non spécifié"
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🎨 PALETTE DE COULEURS                                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  COULEURS PRINCIPALES (IBANSYS)
+  ───────────────────────────────
+  
+  • Navy : #435B7B (header, titres, montant solde)
+  • Navy Dark : #2D3E54 (dégradé header, hover bouton)
+  • Ice Blue : #D6E4F0 (fond cards, dégradé)
+  • Light Blue : #B8CFDF (bordures cards)
+  
+  COULEURS MONTANTS
+  ─────────────────
+  
+  • Vert : bg-green-50, border-green-200, text-green-700/800
+  • Bleu : bg-blue-50, border-blue-200, text-blue-700/800
+  • Violet : bg-purple-50, border-purple-200, text-purple-700/800
+  • Orange : bg-orange-50, border-orange-200, text-orange-700/800
+  • Gris : bg-gray-50, border-gray-200, text-gray-700/800
+  
+  COULEURS SYSTÈME
+  ────────────────
+  
+  • Background overlay : bg-black bg-opacity-50
+  • Background modal : bg-white
+  • Background hover : hover:bg-gray-50
+  • Texte secondaire : text-gray-600
+  • Bordures : border-gray-200
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🔌 INTÉGRATION DANS AVAForm.tsx                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  1️⃣ IMPORT DU COMPOSANT
+  ──────────────────────
+  
+  import { DossierValidatedModal } from './DossierValidatedModal';
+  
+  2️⃣ NOUVEAUX ÉTATS
+  ─────────────────
+  
+  const [showDossierModal, setShowDossierModal] = useState(false);
+  const [dossierValide, setDossierValide] = useState<OuvertureDossierDTO | null>(null);
+  
+  3️⃣ MODIFICATION DANS handleSubmit (après ÉTAPE 2 réussie)
+  ──────────────────────────────────────────────────────────
+  
+  // AVANT
+  toast.success('🎉 Dossier AVA créé et validé avec succès !');
+  resetForm(); // ❌ Réinitialisation immédiate
+  
+  // MAINTENANT
+  toast.success('🎉 Dossier AVA créé et validé avec succès !');
+  setDossierValide(dossierValideResponse); // ✅ Stocker le dossier
+  setShowDossierModal(true);                // ✅ Ouvrir le modal
+  
+  4️⃣ NOUVELLE FONCTION handleCloseModal
+  ──────────────────────────────────────
+  
+  const handleCloseModal = () => {
+    setShowDossierModal(false);
+    setDossierValide(null);
+    resetForm(); // ✅ Réinitialisation lors de la fermeture
+  };
+  
+  5️⃣ AJOUT DU COMPOSANT DANS LE JSX (avant </div> de fin)
+  ────────────────────────────────────────────────────────
+  
+  <DossierValidatedModal
+    isOpen={showDossierModal}
+    dossier={dossierValide}
+    onClose={handleCloseModal}
+  />
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 EXEMPLE DE DONNÉES AFFICHÉES                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  OuvertureDossierDTO Exemple
+  ────────────────────────────
+  
+  {
+    "numDossier": 98765,
+    "codeTypeDosAva": 3,
+    "dateDossier": "2026-02-15",
+    "codeAgenceAva": 12,
+    "typePieceClient": 3,
+    "noPieceClient": "1695881M",
+    "numeroCompte": "12345678901234567890",
+    "tel": "12345678;+21687654321",
+    "codeActivite": 24,
+    "codeSousActivite": 1,
+    "declarationFiscale": "DEC123456",
+    "dateUltDeclCaf": null,
+    "mntAvance": 10000.500,
+    "mntUtilise": 2000.000,
+    "mntAutorise": 15000.000,
+    "mntAutoriseBct": 5000.000,
+    "mntReserve": 0.000,
+    "mntBlocage": 0.000,
+    "solde": 28000.500,
+    "beneficiaires": [
+      {
+        "numDossier": 98765,
+        "dateDossier": "2026-02-15",
+        "typePieceBenef": 1,
+        "noPieceBenef": "12345678",
+        "codeTypeDos": 3,
+        "codeAgenceAva": 12,
+        "nomBenef": "Société Exemple SARL",
+        "adresseBenef": "123 Avenue Habib Bourguiba, Tunis",
+        "qualite": "Fournisseur Principal"
+      },
+      {
+        "numDossier": 98765,
+        "dateDossier": "2026-02-15",
+        "typePieceBenef": 4,
+        "noPieceBenef": "AB123456",
+        "codeTypeDos": 3,
+        "codeAgenceAva": 12,
+        "nomBenef": "Entreprise Import Export",
+        "adresseBenef": "456 Rue de la République, Sfax",
+        "qualite": "Sous-traitant"
+      }
+    ],
+    "documents": [
+      {
+        "ligne": 1,
+        "nomImage": "contrat_commercial.pdf",
+        "cheminFichier": "/uploads/2026/02/98765/contrat_commercial_20260215.pdf",
+        "typeDocument": 1
+      },
+      {
+        "ligne": 2,
+        "nomImage": "facture_proforma.pdf",
+        "cheminFichier": "/uploads/2026/02/98765/facture_proforma_20260215.pdf",
+        "typeDocument": 2
+      }
+    ],
+    "avaMarche": {
+      "numMarche": 1,
+      "refContrat": "CNT-2026-001",
+      "dateContrat": "2026-01-15",
+      "montantMarche": 100000.000,
+      "montantDevise": 95000.000,
+      "contractant": "Entreprise ABC International",
+      "dateFin": "2026-12-31",
+      "codeDevise": 1
+    }
+  }
+  
+  AFFICHAGE DANS LE MODAL
+  ───────────────────────
+  
+  [HEADER - Dégradé bleu navy]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ ✓  Dossier AVA Créé avec Succès                                     [X] │
+  │    Numéro de dossier : 98765                                             │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [INFORMATIONS GÉNÉRALES]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ 🏢 Informations Générales                                                │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │ Numéro de dossier    Date de création      Type de dossier              │
+  │ 98765                15/02/2026             3                            │
+  │                                                                          │
+  │ Code agence          Type pièce client     Numéro pièce (RNE)           │
+  │ 12                   Matricule Fiscal      1695881M                      │
+  │                                                                          │
+  │ Numéro de compte                 Téléphone                              │
+  │ 12345678901234567890             12345678;+21687654321                  │
+  │                                                                          │
+  │ Code activité        Code sous-activité    Déclaration fiscale          │
+  │ 24                   1                      DEC123456                    │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [DÉTAILS DES MONTANTS]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ 💵 Détails des Montants (TND)                                            │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │ [Vert]      [Bleu]       [Violet]     [Orange]                          │
+  │ Montant     Montant      Montant      Montant                           │
+  │ Avancé      Autorisé     Utilisé      Autorisé BCT                      │
+  │ 10000.500   15000.000    2000.000     5000.000                          │
+  │                                                                          │
+  │ [Gris]      [Gris]           [Bleu Navy - Large]                        │
+  │ Montant     Montant          Solde Final                                │
+  │ Réservé     Blocage          28000.500                                  │
+  │ 0.000       0.000                                                        │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [BÉNÉFICIAIRES]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ 👥 Bénéficiaires (2)                                                     │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │ ┌──────────────────────────────────────────────────────────────────┐   │
+  │ │ Nom                    Type pièce                                 │   │
+  │ │ Société Exemple SARL   Carte d'Identité Nationale                │   │
+  │ │ N° pièce  Qualité                                                 │   │
+  │ │ 12345678  Fournisseur Principal                                   │   │
+  │ │ Adresse                                                            │   │
+  │ │ 123 Avenue Habib Bourguiba, Tunis                                 │   │
+  │ └──────────────────────────────────────────────────────────────────┘   │
+  │                                                                          │
+  │ ┌──────────────────────────────────────────────────────────────────┐   │
+  │ │ Nom                       Type pièce                              │   │
+  │ │ Entreprise Import Export  Passeport                               │   │
+  │ │ N° pièce  Qualité                                                 │   │
+  │ │ AB123456  Sous-traitant                                           │   │
+  │ │ Adresse                                                            │   │
+  │ │ 456 Rue de la République, Sfax                                    │   │
+  │ └──────────────────────────────────────────────────────────────────┘   │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [DOCUMENTS JOINTS]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ 📄 Documents Joints (2)                                                  │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │ [📄] contrat_commercial.pdf        /uploads/2026/02/98765/contra...    │
+  │      Type: 1                                                             │
+  │                                                                          │
+  │ [📄] facture_proforma.pdf          /uploads/2026/02/98765/factur...    │
+  │      Type: 2                                                             │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [INFORMATIONS DU MARCHÉ AVA]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │ 📅 Informations du Marché AVA                                            │
+  ├──────────────────────────────────────────────────────────────────────────┤
+  │ Numéro de marché     Référence contrat    Date contrat                  │
+  │ 1                    CNT-2026-001          15/01/2026                    │
+  │                                                                          │
+  │ Contractant                  Montant marché (TND)  Montant devise       │
+  │ Entreprise ABC International 100000.000            95000.000            │
+  │                                                                          │
+  │ Code devise          Date fin                                           │
+  │ 1                    31/12/2026                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
+  
+  [FOOTER - Fond gris clair]
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │                               [Fermer et Nouveau Dossier]               │
+  └──────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ✨ AVANTAGES DE CETTE APPROCHE                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  ✅ CONFIRMATION VISUELLE
+  ────────────────────────
+  
+  L'utilisateur voit EXACTEMENT ce qui a été créé dans la base de données
+  avant de commencer une nouvelle saisie.
+  
+  ✅ TRAÇABILITÉ
+  ──────────────
+  
+  L'utilisateur peut :
+  • Noter le numéro de dossier
+  • Vérifier que toutes les données sont correctes
+  • Prendre une capture d'écran si nécessaire
+  
+  ✅ VALIDATION MÉTIER
+  ────────────────────
+  
+  L'utilisateur peut valider que :
+  • Les montants sont calculés correctement
+  • Tous les bénéficiaires sont bien enregistrés
+  • Tous les documents sont joints
+  • Le marché AVA est bien créé (si applicable)
+  
+  ✅ FEEDBACK COMPLET
+  ───────────────────
+  
+  Au lieu d'un simple toast, l'utilisateur a un récapitulatif détaillé
+  avec toutes les informations importantes.
+  
+  ✅ CONTRÔLE UTILISATEUR
+  ───────────────────────
+  
+  L'utilisateur décide QUAND réinitialiser le formulaire (au lieu d'une
+  réinitialisation automatique qui pourrait survenir trop rapidement).
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🧪 TESTS À EFFECTUER                                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  TEST 1 : Succès complet avec toutes les données
+  ────────────────────────────────────────────────
+  
+  1. Remplir formulaire complet avec :
+     • 2 bénéficiaires
+     • 2 documents
+     • 1 marché AVA
+  2. Soumettre
+  3. Vérifier modal s'ouvre
+  4. Vérifier toutes les sections affichées
+  5. Vérifier formatage montants (3 décimales)
+  6. Vérifier formatage dates (JJ/MM/AAAA)
+  7. Cliquer "Fermer et Nouveau Dossier"
+  8. Vérifier formulaire réinitialisé
+  
+  TEST 2 : Succès avec données minimales
+  ───────────────────────────────────────
+  
+  1. Remplir formulaire avec :
+     • 1 bénéficiaire
+     • 1 document
+     • Pas de marché AVA
+  2. Soumettre
+  3. Vérifier modal s'ouvre
+  4. Vérifier section "Marché AVA" n'est PAS affichée
+  5. Vérifier autres sections OK
+  
+  TEST 3 : Scroll dans le modal
+  ──────────────────────────────
+  
+  1. Soumettre dossier avec beaucoup de données
+  2. Vérifier modal scrollable
+  3. Vérifier header reste fixe (ou pas selon design)
+  4. Vérifier footer reste fixe (ou pas selon design)
+  
+  TEST 4 : Fermeture du modal
+  ────────────────────────────
+  
+  1. Ouvrir modal
+  2. Cliquer sur X en haut à droite
+  3. Vérifier modal se ferme
+  4. Vérifier formulaire réinitialisé
+  
+  TEST 5 : Responsive
+  ───────────────────
+  
+  1. Ouvrir modal sur desktop
+  2. Vérifier grilles 3 colonnes
+  3. Ouvrir modal sur tablette
+  4. Vérifier grilles 2 colonnes
+  5. Ouvrir modal sur mobile
+  6. Vérifier grilles 1 colonne
+  7. Vérifier lisibilité
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📝 FICHIERS MODIFIÉS/CRÉÉS                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  NOUVEAU FICHIER
+  ───────────────
+  
+  ✅ /components/DossierValidatedModal.tsx (~400 lignes)
+     • Composant modal complet
+     • Toutes les sections
+     • Fonctions utilitaires
+     • Props typées TypeScript
+  
+  FICHIER MODIFIÉ
+  ───────────────
+  
+  ✅ /components/AVAForm.tsx
+     • Import : DossierValidatedModal
+     • États : showDossierModal, dossierValide
+     • Fonction : handleCloseModal()
+     • Modification : handleSubmit() (ligne ~1225)
+     • Ajout : <DossierValidatedModal /> dans le JSX
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ✅ CHECKLIST FINALE                                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+  [✓] Composant DossierValidatedModal créé
+  [✓] Import dans AVAForm.tsx
+  [✓] États showDossierModal et dossierValide ajoutés
+  [✓] Fonction handleCloseModal() créée
+  [✓] Modification handleSubmit() pour ouvrir modal
+  [✓] Modal ajouté dans le JSX
+  [✓] Formatage montants (3 décimales TND)
+  [✓] Formatage dates (JJ/MM/AAAA)
+  [✓] Traduction types de pièce
+  [✓] Design responsive (1/2/3 colonnes)
+  [✓] Palette IBANSYS appliquée
+  [✓] Sections conditionnelles (marché AVA)
+  [✓] Bouton fermeture + réinitialisation
+  [✓] Overlay fond noir semi-transparent
+  [✓] Animation d'ouverture (implicite avec React)
+  [✓] Scroll interne si contenu trop long
+  [✓] Tests à effectuer documentés
+  [✓] Documentation complète créée
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  Document créé le 15 février 2026
+  Projet : IBANSYS v1.0
+  Module : Modal Confirmation Dossier Validé
+  Société le Monde Informatique
+
+═══════════════════════════════════════════════════════════════════════════════
