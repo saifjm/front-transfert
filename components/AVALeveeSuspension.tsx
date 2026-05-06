@@ -4,6 +4,7 @@ import {
   FileText,
   Filter,
   PlayCircle,
+  RefreshCw,
   Save,
   Search
 } from "lucide-react";
@@ -121,6 +122,9 @@ export function AVALeveeSuspension() {
     useState<DossierAVA | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showManualVerifModal, setShowManualVerifModal] = useState(false);
+  const [manualVerifBaseUrl, setManualVerifBaseUrl] = useState('');
+  const [isConfirmingVerif, setIsConfirmingVerif] = useState(false);
 
   // État workflow
   const [wfLeveeSuspensionBusinessKey, setWfLeveeSuspensionBusinessKey] = useState<string | null>(null);
@@ -603,6 +607,52 @@ export function AVALeveeSuspension() {
     fetchDossiers();
   };
 
+  // ── Refus vérification manuelle → flag=2 (mise à zéro) ────────────
+  const handleDeclineManualVerif = async () => {
+    setIsConfirmingVerif(true);
+    try {
+      const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=2`, { method: 'POST' });
+      const data = await safeJsonParse<{ message?: string }>(res);
+      if (data?.message === 'success') {
+        toast.success('Levée de suspension enregistrée avec succès', {
+          description: 'Validité BCT consommée (mise à jour à "0")',
+        });
+        setShowManualVerifModal(false);
+        setLeveeEnregistree({ ...levee });
+        setShowSuccessModal(true);
+      } else {
+        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+      }
+    } catch {
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsConfirmingVerif(false);
+    }
+  };
+
+  // ── Confirmation vérification manuelle → flag=1 (réutilisable) ────────────────
+  const handleConfirmManualVerif = async () => {
+    setIsConfirmingVerif(true);
+    try {
+      const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=1`, { method: 'POST' });
+      const data = await safeJsonParse<{ message?: string }>(res);
+      if (data?.message === 'success') {
+        toast.success('Levée de suspension enregistrée avec succès', {
+          description: 'Validité BCT maintenue à "*" (réutilisable)',
+        });
+        setShowManualVerifModal(false);
+        setLeveeEnregistree({ ...levee });
+        setShowSuccessModal(true);
+      } else {
+        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+      }
+    } catch {
+      toast.error('Erreur lors de l\'enregistrement');
+    } finally {
+      setIsConfirmingVerif(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       toast.error(
@@ -649,14 +699,49 @@ export function AVALeveeSuspension() {
           setWfLeveeSuspensionBusinessKey(newKey);
         }
 
-        toast.success('Levée de suspension soumise avec succès', {
-          description: newKey ? `Dossier: ${newKey}` : undefined,
-          duration: 5000,
-        });
+        // Si c'est un dépassement autorisé avec BCT, mettre à jour la validité
+        if (isDepassementAutorise && levee.numBct && levee.dateBct) {
+          const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${levee.numBct}&dateAccordBct=${levee.dateBct}&typeAccordBct=L`;
+          const updateRes = await authenticatedFetch(updateUrl, { method: 'POST' });
+          const updateData = await safeJsonParse<{ message?: string }>(updateRes);
+          const msg = updateData?.message || '';
 
-        // Afficher le Dialog de succès
-        setLeveeEnregistree({ ...levee });
-        setShowSuccessModal(true);
+          if (msg === 'success') {
+            toast.success('Levée de suspension enregistrée avec succès', {
+              description: `Dossier ${levee.numeroDossier} — BCT N°${levee.numBct}`,
+              duration: 5000,
+            });
+            setLeveeEnregistree({ ...levee });
+            setShowSuccessModal(true);
+          } else if (msg === 'already updated') {
+            toast.info('Levée de suspension enregistrée', {
+              description: `Accord BCT N°${levee.numBct} déjà consommé`,
+              duration: 5000,
+            });
+            setLeveeEnregistree({ ...levee });
+            setShowSuccessModal(true);
+          } else if (msg === 'expired date') {
+            toast.error('Accord BCT expiré', {
+              description: `La date de fin d'application de cet accord BCT est dépassée`,
+            });
+          } else if (msg === 'needs a manual verification') {
+            // Portée * — demander confirmation
+            setManualVerifBaseUrl(updateUrl);
+            setShowManualVerifModal(true);
+          } else {
+            toast.error('Erreur mise à jour validité BCT', { 
+              description: msg || `HTTP ${updateRes.status}` 
+            });
+          }
+        } else {
+          // Pas de BCT, juste afficher le succès
+          toast.success('Levée de suspension soumise avec succès', {
+            description: newKey ? `Dossier: ${newKey}` : undefined,
+            duration: 5000,
+          });
+          setLeveeEnregistree({ ...levee });
+          setShowSuccessModal(true);
+        }
 
       } else if (wfResponse.result === 'REJECTED') {
         toast.error('Levée de suspension rejetée', {
@@ -1399,6 +1484,38 @@ export function AVALeveeSuspension() {
               className="w-full"
             >
               Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal — vérification manuelle (portée *) pour BCT */}
+      <Dialog open={showManualVerifModal} onOpenChange={setShowManualVerifModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accord BCT à portée générale (*)</DialogTitle>
+            <DialogDescription>
+              Cet accord BCT a une <strong>portée générale (*)</strong> qui peut être réutilisé.
+              <br /><br />
+              <strong>Pouvez-vous réutiliser cette validité ?</strong>
+              <br /><br />
+              • <strong>Oui</strong> : La validité reste <strong>"*"</strong> (réutilisable)
+              <br />
+              • <strong>Non</strong> : La validité devient <strong>"0"</strong> (consommé)
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleDeclineManualVerif}
+              disabled={isConfirmingVerif}
+            >
+              {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+              Non (consommer)
+            </Button>
+            <Button onClick={handleConfirmManualVerif} disabled={isConfirmingVerif}>
+              {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+              Oui (réutiliser)
             </Button>
           </DialogFooter>
         </DialogContent>
