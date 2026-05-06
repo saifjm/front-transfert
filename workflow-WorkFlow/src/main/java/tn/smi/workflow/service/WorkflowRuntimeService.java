@@ -59,7 +59,7 @@ public class WorkflowRuntimeService {
 
         if (opOpt.isEmpty()) {
             // Operation not started yet, return first node info
-            List<WfNode> nodes = nodeRepository.findByWfDefinition_WfDefId(def.getWfDefId());
+            List<WfNode> nodes = nodeRepository.findByWfDefinition_WfDefIdOrderByNodeIdAsc(def.getWfDefId());
             if (nodes.isEmpty()) {
                 throw new IllegalStateException("No nodes defined for workflow: " + operationKey);
             }
@@ -173,7 +173,7 @@ public class WorkflowRuntimeService {
         String currentNodeKey;
         if (operation == null) {
             // Create new operation + start Flowable process (INSERT — no refOperation in payload)
-            List<WfNode> nodes = nodeRepository.findByWfDefinition_WfDefId(def.getWfDefId());
+            List<WfNode> nodes = nodeRepository.findByWfDefinition_WfDefIdOrderByNodeIdAsc(def.getWfDefId());
             if (nodes.isEmpty()) {
                 throw new IllegalStateException("No nodes defined");
             }

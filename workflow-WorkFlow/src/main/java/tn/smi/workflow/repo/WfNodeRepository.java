@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface WfNodeRepository extends JpaRepository<WfNode, Long> {
     Optional<WfNode> findByWfDefinition_WfDefIdAndNodeKey(Long wfDefId, String nodeKey);
     List<WfNode> findByWfDefinition_WfDefId(Long wfDefId);
+    List<WfNode> findByWfDefinition_WfDefIdOrderByNodeIdAsc(Long wfDefId);
 }
 
