@@ -1,0 +1,47 @@
+# Reference Module API Documentation
+
+## 1. Daily Currency Exchange Rates API
+Base URL: `/api/ref/cours-devises`
+
+### Endpoints:
+
+1. Get All Currency Exchange Rates
+   - URL: `/api/ref/cours-devises/getall`
+   - Method: GET
+   - Response: List of CoursJoursDeviseDTO
+   ```json
+   [{
+     "dateCours": "2025-11-03",
+     "codeDevise": 840,
+     "coursAchat": 3.2500,
+     "coursVente": 3.3500,
+     "dateValeur": "2025-11-03",
+     "dateMaj": "2025-11-03",
+     "coursValide": "Y"
+   }]
+   ```
+
+2. Get Exchange Rates by Currency Code
+   - URL: `/api/ref/cours-devises/by-devise/{codeDevise}`
+   - Method: GET
+   - Path Parameter: codeDevise (Integer)
+   - Response: List of CoursJoursDeviseDTO
+
+## Response Data Types:
+
+### CoursJoursDeviseDTO
+- dateCours (Date): Exchange rate date (Primary Key)
+- codeDevise (Integer): Currency code (Primary Key)
+- coursAchat (BigDecimal): Purchase rate
+- coursVente (BigDecimal): Selling rate
+- dateValeur (Date): Value date
+- dateMaj (Date): Last update date
+- coursValide (String): Rate validity flag (Y/N)
+
+## Common Response Status Codes:
+- 200 OK: Successful request
+- 404 Not Found: Resource not found
+- 400 Bad Request: Invalid parameters
+- 500 Internal Server Error: Server error
+
+Note: All dates are in ISO format (YYYY-MM-DD)

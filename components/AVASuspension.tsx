@@ -1,4 +1,23 @@
-import React, { useState, useEffect } from "react";
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  FileText,
+  Filter,
+  PauseCircle,
+  Save,
+  Search
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { safeJsonParse } from "../utils";
+import { authenticatedFetch } from "../utils/api";
+import {
+  continueSuspensionDecision,
+  startSuspensionDecision,
+} from "../utils/workflowApi";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import {
   Card,
   CardContent,
@@ -6,17 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Button } from "./ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Badge } from "./ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -25,20 +33,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import {
-  Search,
-  ArrowLeft,
-  FileText,
-  Save,
-  CheckCircle2,
-  PauseCircle,
-  Building2,
-  Filter,
-  RotateCcw,
-} from "lucide-react";
-import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
-import { authenticatedFetch } from "../utils/api";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -112,6 +115,9 @@ export function AVASuspension() {
     useState<DossierAVA | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // État workflow
+  const [wfSuspensionBusinessKey, setWfSuspensionBusinessKey] = useState<string | null>(null);
 
   const [searchNumeroDossier, setSearchNumeroDossier] =
     useState("");
@@ -400,6 +406,7 @@ export function AVASuspension() {
 
   const handleSelectDossier = async (dossier: DossierAVA) => {
     setLoading(true);
+    setWfSuspensionBusinessKey(null); // Réinitialiser la clé workflow
 
     try {
       const numDossier = dossier.numeroDossier.replace(
@@ -490,6 +497,7 @@ export function AVASuspension() {
   const handleRetourRecherche = () => {
     setEtape("recherche");
     setDossierSelectionne(null);
+    setWfSuspensionBusinessKey(null); // Réinitialiser la clé workflow
     setSuspension({
       dateSuspension: new Date().toISOString().split("T")[0],
     });
@@ -571,36 +579,52 @@ export function AVASuspension() {
     };
 
     try {
-      const response = await authenticatedFetch(
-        "/api/suspension/true",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      // Utiliser le workflow au lieu de l'appel API direct
+      toast.info('Soumission au Service Central...', {
+        description: 'Communication avec le moteur de workflow...',
+      });
 
-      if (response.ok) {
+      const wfResponse = wfSuspensionBusinessKey
+        ? await continueSuspensionDecision(
+            wfSuspensionBusinessKey,
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>
+          )
+        : await startSuspensionDecision(
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>
+          );
+
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          setWfSuspensionBusinessKey(newKey);
+        }
+
+        toast.success('Suspension soumise avec succès', {
+          description: newKey ? `Dossier: ${newKey}` : undefined,
+          duration: 5000,
+        });
+
         // Afficher le Dialog de succès
         setSuspensionEnregistree({ ...suspension });
         setShowSuccessModal(true);
-      } else {
-        const error = await safeJsonParse<{
-          error?: string;
-          message?: string;
-        }>(response);
-        toast.error(
-          error?.message ||
-            error?.error ||
-            "Erreur lors de la suspension",
-        );
+
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Suspension rejetée', {
+          description: wfResponse.errorMessage || 'La suspension a été rejetée par le workflow',
+        });
+
+      } else if (wfResponse.result === 'ERROR') {
+        toast.error('Erreur workflow', {
+          description: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
+        });
       }
     } catch (error) {
-      console.info("ℹ️ Mode démonstration");
-
-      // Afficher le Dialog de succès en mode démo
-      setSuspensionEnregistree({ ...suspension });
-      setShowSuccessModal(true);
+      console.error('Erreur lors de la suspension:', error);
+      toast.error('Erreur', {
+        description: 'Une erreur est survenue lors de la suspension',
+      });
     } finally {
       setIsSubmitting(false);
     }

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SECURITE API Reference</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f4f4f4; text-align: left; }
+    h1 { margin-bottom: 8px; }
+    .path { font-family: monospace; color: #1a1a1a; }
+  </style>
+</head>
+<body>
+  <h1>SECURITE API Reference</h1>
+  <p>Auto-generated list of controller endpoints under <strong>securite</strong>.</p>
+
+  <h2>EmployeAgenceController</h2>
+  <table>
+    <thead>
+      <tr><th>HTTP</th><th>Path</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/employes-agence</td>
+        <td>List&lt;EmployeAgence&gt;</td>
+        <td>Retrieve all EmployeAgence records</td>
+      </tr>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/employes-agence/agence/{codeAgence}</td>
+        <td>List&lt;EmployeAgence&gt;</td>
+        <td>Find employees by agency code (`codeAgence` = Short)</td>
+      </tr>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/employes-agence/{matEmp}</td>
+        <td>ResponseEntity&lt;List&lt;EmployeAgence&gt;&gt;</td>
+        <td>Find all EmployeAgence rows for an employee (`matEmp` = Long). Returns 404 if none.</td>
+      </tr>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/employes-agence/{matEmp}/codes-agence</td>
+        <td>ResponseEntity&lt;List&lt;Short&gt;&gt;</td>
+        <td>Return distinct non-null/non-zero agency codes for `matEmp`. Returns 404 if none.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>ValidationOperationController</h2>
+  <table>
+    <thead>
+      <tr><th>HTTP</th><th>Path</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>POST</td>
+        <td class="path">/api/securite/validations</td>
+        <td>ResponseEntity&lt;ValidationOperation&gt;</td>
+        <td>Create a ValidationOperation from a `ValidationOperationRequest` payload</td>
+      </tr>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/securite/validations?matEmp={matEmp}&amp;dateValidation={yyyy-MM-dd}</td>
+        <td>ResponseEntity&lt;List&lt;ValidationOperation&gt;&gt;</td>
+        <td>Find validations by employee (`matEmp`=Integer) and validation date (ISO date)</td>
+      </tr>
+      <tr>
+        <td>GET</td>
+        <td class="path">/api/securite/validations/all</td>
+        <td>ResponseEntity&lt;List&lt;ValidationOperation&gt;&gt;</td>
+        <td>Return all ValidationOperation records</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <footer>
+    <p>Generated from project controllers on 2026-01-08.</p>
+  </footer>
+</body>
+</html>

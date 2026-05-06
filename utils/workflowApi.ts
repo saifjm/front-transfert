@@ -177,3 +177,83 @@ export async function continueClotureDecision(
   );
   return response.json();
 }
+
+// ─── Suspension workflow ──────────────────────────────────────────────────────
+
+export const WF_SUSPENSION_OPERATION_KEY = 'operations_suspension';
+
+export async function startSuspensionDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_SUSPENSION_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueSuspensionDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_SUSPENSION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfSuspensionTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_SUSPENSION_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
+// ─── Levée de Suspension workflow ────────────────────────────────────────────
+
+export const WF_LEVEE_SUSPENSION_OPERATION_KEY = 'operations_levee';
+
+export async function startLeveeSuspensionDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_LEVEE_SUSPENSION_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueLeveeSuspensionDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_LEVEE_SUSPENSION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfLeveeSuspensionTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_LEVEE_SUSPENSION_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
