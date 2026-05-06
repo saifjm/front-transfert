@@ -1,17 +1,17 @@
 import {
-  ArrowLeft,
-  FileText,
-  Filter,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  Search,
+    ArrowLeft,
+    FileText,
+    Filter,
+    RefreshCw,
+    RotateCcw,
+    Save,
+    Search,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
-import { startAlimentationBctDecision } from '../utils/workflowApi';
+import { continueAlimentationBctDecision, startAlimentationBctDecision } from '../utils/workflowApi';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -376,10 +376,14 @@ export function AVAAlimentationAccordBCT() {
           await fetchDossiers();
         } else if (msg === 'already updated') {
           toast.info('Accord BCT déjà mis à jour', {
-            description: `BCT N°${form.numeroBct}`,
+            description: `BCT N°${form.numeroBct} — Cet accord a déjà été consommé`,
           });
           handleRetourRecherche();
           await fetchDossiers();
+        } else if (msg === 'expired date') {
+          toast.error('Accord BCT expiré', {
+            description: `La date de fin d'application de cet accord BCT est dépassée`,
+          });
         } else if (msg === 'needs a manual verification') {
           // Portée * — demander confirmation avant d'utiliser flag=0
           setManualVerifBaseUrl(updateUrl);
@@ -408,16 +412,30 @@ export function AVAAlimentationAccordBCT() {
       setIsSubmitting(false);
     }
   };
+    // ── Refus vérification manuelle → flag=2 (mise à zéro) ────────────
+    const handleDeclineManualVerif = async () => {
+      setIsConfirmingVerif(true);
+      try {
+        const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=2`, { method: 'POST' });
+        const data = await safeJsonParse<{ message?: string }>(res);
+        if (data?.message === 'success') {
+          toast.success('Accord BCT enregistré avec succès', {
+            description: 'Validité consommée (mise à jour à "0")',
+          });
+          setShowManualVerifModal(false);
+          handleRetourRecherche();
+          await fetchDossiers();
+        } else {
+          toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+        }
+      } catch {
+        toast.error('Erreur lors de l\'enregistrement');
+      } finally {
+        setIsConfirmingVerif(false);
+      }
+    };
 
-  // ── Annulation vérification manuelle (fermer le modal sans action) ──────────
-  const handleCancelManualVerif = () => {
-    setShowManualVerifModal(false);
-    toast.info('Opération annulée', {
-      description: 'L\'accord BCT n\'a pas été mis à jour',
-    });
-  };
-
-  // ── Confirmation vérification manuelle → flag=1 (override) ────────────────
+  // ── Confirmation vérification manuelle → flag=1 (réutilisable) ────────────────
   const handleConfirmManualVerif = async () => {
     setIsConfirmingVerif(true);
     try {
@@ -425,7 +443,7 @@ export function AVAAlimentationAccordBCT() {
       const data = await safeJsonParse<{ message?: string }>(res);
       if (data?.message === 'success') {
         toast.success('Accord BCT enregistré avec succès', {
-          description: 'Validité mise à jour avec confirmation manuelle',
+          description: 'Validité maintenue à "*" (réutilisable)',
         });
         setShowManualVerifModal(false);
         handleRetourRecherche();
@@ -877,28 +895,29 @@ export function AVAAlimentationAccordBCT() {
       <Dialog open={showManualVerifModal} onOpenChange={setShowManualVerifModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Vérification manuelle requise</DialogTitle>
+            <DialogTitle>Accord BCT à portée générale (*)</DialogTitle>
             <DialogDescription>
-              Cet accord BCT a une portée générale (*) qui nécessite une vérification manuelle.
+              Cet accord BCT a une <strong>portée générale (*)</strong> qui peut être réutilisé.
               <br /><br />
-              <strong>Voulez-vous confirmer l'utilisation de cet accord BCT ?</strong>
+              <strong>Pouvez-vous réutiliser cette validité ?</strong>
               <br /><br />
-              • <strong>Oui</strong> : L'accord sera marqué comme utilisé (validité = N)
+              • <strong>Oui</strong> : La validité reste <strong>"*"</strong> (réutilisable)
               <br />
-              • <strong>Non</strong> : L'opération sera annulée
+              • <strong>Non</strong> : La validité devient <strong>"0"</strong> (consommé)
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={handleCancelManualVerif}
+              onClick={handleDeclineManualVerif}
               disabled={isConfirmingVerif}
             >
-              Non, annuler
+              {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+              Non (consommer)
             </Button>
             <Button onClick={handleConfirmManualVerif} disabled={isConfirmingVerif}>
               {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              Oui, confirmer
+              Oui (réutiliser)
             </Button>
           </DialogFooter>
         </DialogContent>
