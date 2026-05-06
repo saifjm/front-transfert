@@ -1,102 +1,97 @@
-<<<<<<< HEAD
-# Security and Validation Microservice
+# IBANSYS - Plateforme de Gestion de Collections
 
-This microservice handles security-related operations including operation validations and employee agency management.
+Plateforme complète de gestion de collections spécialisée dans le commerce extérieur, basée sur React, TypeScript et Tailwind CSS v4.
 
-## Technology Stack
-- Spring Boot 3.5.7
-- Java 17
-- Oracle Database
-- Maven
+## 🚀 Fonctionnalités
 
-## Configuration
-The service runs on port 8082 by default and connects to the SECURITE schema in the Oracle database.
+- **Ouverture de dossier AVA** : Formulaire complet avec validation métier et intégration API
+- **Mise à jour des bénéficiaires** : Gestion avancée des bénéficiaires avec règles conditionnelles
+- **Design professionnel** : Interface moderne avec palette de couleurs #435B7B
+- **APIs intégrées** : 6 APIs REST avec gestion d'erreur silencieuse et fallback
+- **Responsive** : Interface adaptative pour desktop et mobile
 
-## API Endpoints
-All endpoints are prefixed with `/api/securite/`
+## 📦 Installation
 
-### Main Entities
-- `/api/securite/validations` - Operation validation management
-- `/api/securite/employe-agences` - Employee agency management
+### Prérequis
+- Node.js 18.x ou supérieur
+- npm ou yarn
 
-## Running the Service
+### Étapes d'installation
+
+1. **Installer les dépendances**
 ```bash
-mvn spring-boot:run
+npm install
 ```
 
-## Building the Service
+2. **Lancer le serveur de développement**
 ```bash
-mvn clean package
-```
-=======
-(The file `c:\Users\Alaa\Desktop\IbansysPoc-Poc-Migration_Core\README.md` exists, but contains only whitespace)
-# Poc-Migration (trimmed to SECURITE microservice)
-
-This repository has been trimmed to keep only the `securite` module as a focused microservice. Other modules were moved to a backup folder on the desktop: `removed_services_backup_20260108`.
-
-## SECURITE - Overview
-The `securite` module exposes validation and employee-agency functionality.
-
-### Entities
-- `ValidationOperation` (table: `VALIDATION_OPERATION`, schema `SECURITE`)
-	- `id` (embedded `ValidationOperationId`): `codeProduitService` (Integer), `codeOperation` (Integer), `numDossier` (String), `dateDossier` (LocalDate)
-	- `matEmp` (Integer)
-	- `dateValidation` (LocalDate)
-	- `codeDevise` (Integer)
-	- `montant` (BigDecimal)
-	- `refOperation` (Long)
-	- `dateOperation` (LocalDate)
-
-- `ValidationOperationId` (embeddable id)
-
-- `EmployeAgence` (table: `EMPLOYE_AGENCE`)
-	- `id` (embedded `EmployeAgenceId`): `matEmp` (Long), `codeAgence` (Short)
-	- `numeroCaisse` (String, LOB)
-
-- `EmployeAgenceId` (embeddable id)
-
-### DTOs
-- `ValidationOperationRequest` - payload for creating a `ValidationOperation` (fields mirrored from `ValidationOperationId` and other columns)
-
-### Repositories
-- `EmployeAgenceRepository` extends `JpaRepository<EmployeAgence, EmployeAgenceId>` with custom finders:
-	- `findById_CodeAgence(Short codeAgence)`
-	- `findById_MatEmp(Long matEmp)`
-
-- `ValidationOperationRepository` extends `JpaRepository<ValidationOperation, ValidationOperationId>` and includes a finder `findByMatEmpAndDateValidation(Integer matEmp, LocalDate dateValidation)`.
-
-### Services
-- `EmployeAgenceService`
-	- `getAll()`
-	- `getByCodeAgence(Short)`
-	- `getByMatEmp(Long)`
-	- `getCodesAgenceByMatEmp(Long)` — returns distinct non-null/non-zero agency codes for an employee.
-
-### Controllers / API Endpoints
-All endpoints are under `/api`.
-
-- `EmployeAgenceController` (base path `/api/employes-agence`)
-	- `GET /api/employes-agence` — returns all `EmployeAgence` records
-	- `GET /api/employes-agence/agence/{codeAgence}` — find records by `codeAgence` (Short)
-	- `GET /api/employes-agence/{matEmp}` — find records for `matEmp` (Long); returns 404 if none
-	- `GET /api/employes-agence/{matEmp}/codes-agence` — returns distinct agency codes (Short) for `matEmp`; 404 if none
-
-- `ValidationOperationController` (base path `/api/securite/validations`)
-	- `POST /api/securite/validations` — create a `ValidationOperation` from `ValidationOperationRequest`
-	- `GET /api/securite/validations?matEmp={matEmp}&dateValidation={yyyy-MM-dd}` — find validations by employee and date
-	- `GET /api/securite/validations/all` — return all validation records
-
-For a machine-readable list, see `SECURITE_APIS.html` in the repository root.
-
-## Run (local)
-```bash
-mvn spring-boot:run
-# service listens on port 8080 by default (see application.properties)
+npm run dev
 ```
 
-## Notes
-- The original multi-module project was separated — non-securite modules are backed up in `removed_services_backup_20260108` on the desktop.
-- If you want DTOs instead of entities in responses, I can add them and update controllers.
+Le serveur démarrera automatiquement sur http://localhost:3000
 
+## 🛠️ Scripts disponibles
 
->>>>>>> origin/Micro_SECURITE
+- `npm run dev` - Démarre le serveur de développement
+- `npm run build` - Compile le projet pour la production
+- `npm run preview` - Prévisualise le build de production
+- `npm run lint` - Vérifie le code avec ESLint
+
+## 📁 Structure du projet
+
+```
+ibansys/
+├── src/
+│   ├── main.tsx              # Point d'entrée
+│   └── vite-env.d.ts         # Types Vite
+├── components/
+│   ├── ui/                   # Composants UI réutilisables
+│   ├── AVAMiseAJourBeneficiaires.tsx
+│   ├── Sidebar.tsx
+│   └── ...
+├── styles/
+│   └── globals.css           # Styles globaux Tailwind v4
+├── utils.ts                  # Utilitaires (cn function)
+├── App.tsx                   # Composant racine
+├── package.json
+├── vite.config.ts
+└── tsconfig.json
+```
+
+## 🎨 Technologies utilisées
+
+- **React 18** - Framework UI
+- **TypeScript** - Typage statique
+- **Vite** - Build tool ultra-rapide
+- **Tailwind CSS v4** - Framework CSS utility-first
+- **Radix UI** - Composants accessibles
+- **Lucide React** - Icônes
+- **Sonner** - Toast notifications
+
+## 🔌 Configuration API
+
+Les URLs d'API sont configurées en chemins relatifs pour fonctionner avec localhost :
+- `/api/agences`
+- `/api/type-dossier-ava`
+- `/api/type-piece-client`
+- `/api/operations-deleguees/dossiers-valides-avec-nom`
+- `/api/operations-deleguees/{numDossier}/summary`
+
+## 🎯 Règles métier
+
+### AVA - Mise à jour Bénéficiaires
+- **Nouveaux bénéficiaires** : État fixé à "AA" (À activer), possibilité de suppression
+- **Bénéficiaires actifs** : Seul état autorisé = "AD" (À désactiver)
+- **Bénéficiaires inactifs** : Seul état autorisé = "AA" (À activer)
+
+## 📝 License
+
+Propriété de Société le Monde Informatique
+
+## 👥 Support
+
+Pour toute question ou support, contactez l'équipe de développement.
+
+---
+
+**Powered by Société le Monde Informatique**

@@ -159,17 +159,29 @@ export async function getWfFvTaskList(): Promise<WfTask[]> {
   return Array.isArray(data) ? data : (data.content ?? []);
 }
 
+// ─── Clôture Dossier workflow ─────────────────────────────────────────────────
+// numDossier is always known upfront so we only need continueDecision (no TEMP key).
+
+export const WF_CLOTURE_OPERATION_KEY = 'operations_cloture';
+
+export async function continueClotureDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_CLOTURE_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
 // ─── Suspension workflow ──────────────────────────────────────────────────────
 
 export const WF_SUSPENSION_OPERATION_KEY = 'operations_suspension';
 
-/**
- * Démarre une nouvelle opération de suspension via le workflow
- * @param decisionTag - Tag de la décision (généralement 'SOUMETTRE')
- * @param payload - Données de la suspension
- * @param comment - Commentaire optionnel
- * @returns Réponse du workflow
- */
 export async function startSuspensionDecision(
   decisionTag: string,
   payload: Record<string, unknown>,
@@ -183,14 +195,6 @@ export async function startSuspensionDecision(
   return response.json();
 }
 
-/**
- * Continue une opération de suspension existante via le workflow
- * @param businessKey - Clé métier (numDossier)
- * @param decisionTag - Tag de la décision
- * @param payload - Données de la suspension
- * @param comment - Commentaire optionnel
- * @returns Réponse du workflow
- */
 export async function continueSuspensionDecision(
   businessKey: string,
   decisionTag: string,
@@ -218,13 +222,6 @@ export async function getWfSuspensionTaskList(): Promise<WfTask[]> {
 
 export const WF_LEVEE_SUSPENSION_OPERATION_KEY = 'operations_levee';
 
-/**
- * Démarre une nouvelle opération de levée de suspension via le workflow
- * @param decisionTag - Tag de la décision (généralement 'SOUMETTRE')
- * @param payload - Données de la levée de suspension
- * @param comment - Commentaire optionnel
- * @returns Réponse du workflow
- */
 export async function startLeveeSuspensionDecision(
   decisionTag: string,
   payload: Record<string, unknown>,
@@ -238,14 +235,6 @@ export async function startLeveeSuspensionDecision(
   return response.json();
 }
 
-/**
- * Continue une opération de levée de suspension existante via le workflow
- * @param businessKey - Clé métier (numDossier)
- * @param decisionTag - Tag de la décision
- * @param payload - Données de la levée de suspension
- * @param comment - Commentaire optionnel
- * @returns Réponse du workflow
- */
 export async function continueLeveeSuspensionDecision(
   businessKey: string,
   decisionTag: string,
@@ -263,6 +252,86 @@ export async function continueLeveeSuspensionDecision(
 export async function getWfLeveeSuspensionTaskList(): Promise<WfTask[]> {
   const response = await authenticatedFetch(
     `/api/wf/tasks?operationKey=${WF_LEVEE_SUSPENSION_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
+// ─── Réservation workflow ─────────────────────────────────────────────────────
+
+export const WF_RESERVATION_OPERATION_KEY = 'operations_reservation';
+
+export async function startReservationDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_RESERVATION_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueReservationDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_RESERVATION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfReservationTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_RESERVATION_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
+// ─── Annulation Réservation workflow ─────────────────────────────────────────
+
+export const WF_ANNULATION_RESERVATION_OPERATION_KEY = 'operations_annulation_reservation';
+
+export async function startAnnulationReservationDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_ANNULATION_RESERVATION_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueAnnulationReservationDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_ANNULATION_RESERVATION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfAnnulationReservationTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_ANNULATION_RESERVATION_OPERATION_KEY}`,
     { method: 'GET', headers: wfHeaders() },
   );
   const data = await response.json();

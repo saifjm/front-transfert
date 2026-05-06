@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { AlertCircle } from 'lucide-react';
 import { authenticatedFetch } from '../utils/api';
+import { continueClotureDecision } from '../utils/workflowApi';
 
 interface ApiError {
   status: number;
@@ -93,6 +94,8 @@ export function AVAClotureDossier() {
   const [cloture, setCloture] = useState<ClotureDTO>({
     dateCloture: new Date().toISOString().split('T')[0]
   });
+
+  const [wfClotureBusinessKey, setWfClotureBusinessKey] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState<ApiError | null>(null);
@@ -315,6 +318,8 @@ export function AVAClotureDossier() {
   };
 
   const handleSelectDossier = (dossier: DossierAVA) => {
+    const numDossier = dossier.numeroDossier.replace('AVA-', '');
+    setWfClotureBusinessKey(numDossier);
     setDossierSelectionne(dossier);
     setCloture({
       numeroDossier: dossier.numeroDossier,
@@ -325,6 +330,7 @@ export function AVAClotureDossier() {
   };
 
   const handleRetourRecherche = () => {
+    setWfClotureBusinessKey(null);
     setEtape('recherche');
     setDossierSelectionne(null);
     setCloture({
@@ -366,67 +372,50 @@ export function AVAClotureDossier() {
     if (!dossierSelectionne?.numeroDossier) return;
 
     setIsSubmitting(true);
-    // Extrait le vrai numéro de dossier s'il est préfixé d'AVA-
-    const rawDossierString = dossierSelectionne.numeroDossier.replace('AVA-', '');
-    const numDossierId = Number(rawDossierString);
 
-    if (isNaN(numDossierId) || numDossierId <= 0) {
-      toast.error("Impossible d'extraire le numéro de dossier valide.");
-      setIsSubmitting(false);
-      return;
-    }
+    const payload = {
+      motif: cloture.motifCloture,
+      dateCloture: cloture.dateCloture,
+      reference: cloture.reference,
+      observations: cloture.observations,
+    };
 
     try {
-      const response = await authenticatedFetch(`/api/cloture/${numDossierId}/true`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          motif: cloture.motifCloture,
-          dateCloture: cloture.dateCloture,
-          reference: cloture.reference,
-          observations: cloture.observations
-        })
-      });
+      toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      if (response.ok) {
-        // En cas de succès 200 ça retourne un OuvertureDossierDTO, on peut juste réagir
-        toast.success('Clôture enregistrée avec succès', {
-          description: `Dossier ${dossierSelectionne?.numeroDossier} clôturé`
+      console.log('[Cloture WF] Payload:', JSON.stringify(payload, null, 2));
+
+      const wfResponse = await continueClotureDecision(
+        wfClotureBusinessKey!,
+        'SOUMETTRE',
+        payload as unknown as Record<string, unknown>,
+      );
+
+      console.log('[Cloture WF] Réponse:', wfResponse);
+
+      if (wfResponse.result === 'OK') {
+        toast.success('Clôture soumise au Service Central', {
+          description: `Dossier ${dossierSelectionne?.numeroDossier} — Référence: ${wfResponse.state?.businessKey ?? wfClotureBusinessKey}`,
+          duration: 5000,
         });
         handleRetourRecherche();
         await fetchDossiers();
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Clôture rejetée', { description: wfResponse.errorMessage || 'Le dossier a été rejeté.' });
+      } else if (wfResponse.result === 'ERROR') {
+        setApiError({
+          status: 0,
+          message: wfResponse.errorMessage || 'Erreur du moteur de workflow',
+        });
+        setShowErrorModal(true);
       } else {
-        const errorData = await safeJsonParse<any>(response);
-        if (response.status === 422 || response.status === 400 || response.status === 409 || response.status === 404) {
-          if (errorData) {
-            setApiError({
-              status: response.status,
-              message: errorData.message || 'Erreur lors du traitement de la requête',
-              details: errorData.details || errorData.error,
-              code: errorData.code,
-              timestamp: errorData.timestamp || new Date().toISOString()
-            });
-          } else {
-            setApiError({
-              status: response.status,
-              message: 'Erreur inattendue de validation',
-              details: `Le serveur a retourné une erreur ${response.status} sans détails supplémentaires.`
-            });
-          }
-          setShowErrorModal(true);
-        } else {
-          throw new Error('Erreur inattendue serveur');
-        }
+        toast.warning(`Résultat inattendu: ${wfResponse.result}`, { description: wfResponse.errorMessage });
       }
     } catch (error) {
-      console.info('ℹ️ Mode démonstration');
-      toast.success('✓ Clôture enregistrée (mode démo)', {
-        description: `Dossier ${dossierSelectionne?.numeroDossier} clôturé`
+      console.error('[Cloture WF] Erreur:', error);
+      toast.error('Erreur de connexion au moteur de workflow', {
+        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
       });
-      setTimeout(() => {
-        handleRetourRecherche();
-        fetchDossiers();
-      }, 1000);
     } finally {
       setIsSubmitting(false);
     }
