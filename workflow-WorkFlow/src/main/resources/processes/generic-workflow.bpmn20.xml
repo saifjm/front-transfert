@@ -51,7 +51,6 @@
                 ${endProcess == false}
             </conditionExpression>
         </sequenceFlow>
-
         <!-- End Event -->
         <endEvent id="endEvent" name="End"/>
 

@@ -40,6 +40,10 @@ import {
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
+import {
+  startReservationDecision,
+  continueReservationDecision,
+} from "../utils/workflowApi";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -128,6 +132,8 @@ export function AVAReservation() {
       dateReservation: new Date().toISOString().split("T")[0],
       origine: "FRONT",
     });
+
+  const [wfReservationBusinessKey, setWfReservationBusinessKey] = useState<string | null>(null);
 
   // États de validation
   const [errors, setErrors] = useState<Record<string, string>>(
@@ -554,6 +560,7 @@ export function AVAReservation() {
       setLoading(false);
     }
 
+    setWfReservationBusinessKey(null);
     setReservation({
       numDossier: Number(
         dossier.numeroDossier.replace("AVA-", ""),
@@ -569,6 +576,7 @@ export function AVAReservation() {
   const handleRetourRecherche = () => {
     setEtape("recherche");
     setDossierSelectionne(null);
+    setWfReservationBusinessKey(null);
     setReservation({
       dateReservation: new Date().toISOString().split("T")[0],
       origine: "virement",
@@ -620,123 +628,64 @@ export function AVAReservation() {
 
     setIsSubmitting(true);
 
+    const payload = {
+      reference: reservation.reference,
+      numDossier: reservation.numDossier,
+      mntMvtAva: reservation.mntMvtAva,
+      origine: reservation.origine,
+    };
+
     try {
-      // Préparer les données pour l'API
-      const payload = {
-        reference: reservation.reference,
-        numDossier: reservation.numDossier,
-        mntMvtAva: reservation.mntMvtAva,
-        origine: reservation.origine,
-      };
+      toast.info('Soumission au Service Central...', {
+        description: 'Communication avec le moteur de workflow...',
+      });
 
-      console.log("📤 Envoi de la réservation:", payload);
+      const wfResponse = wfReservationBusinessKey
+        ? await continueReservationDecision(
+            wfReservationBusinessKey,
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>,
+          )
+        : await startReservationDecision(
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>,
+          );
 
-      const response = await authenticatedFetch(
-        "/api/reservation-operations",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) setWfReservationBusinessKey(newKey);
 
-      console.log("📥 Réponse API status:", response.status);
-
-      // Gestion du succès (200 OK)
-      if (response.ok) {
-        const result = await safeJsonParse<{
-          refOperation?: number;
-          numDossier?: number;
-          status?: string;
-          message?: string;
-        }>(response);
-        console.log(
-          "✅ Réservation créée, passage à la validation:",
-          result,
-        );
-
-        const refOperation = result?.refOperation;
-
-        // Deuxième étape : Validation via refOperation reçu
+        // Validate the reservation using the reference from the form
         try {
-          const validateResponse = await authenticatedFetch(
+          await authenticatedFetch(
             `/api/reservation-operations/validate/${reservation.reference}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-            },
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' } },
           );
-
-          console.log(
-            "📥 Réponse Validation API status:",
-            validateResponse.status,
-          );
-
-          if (validateResponse.ok) {
-            const validateResult =
-              await safeJsonParse<any>(validateResponse);
-            console.log("✅ Validation réussie:", validateResult);
-            setShowSuccessDialog(true);
-          } else {
-            const errData = await validateResponse.json().catch(() => null);
-            setApiError({
-              error: "Validation échouée",
-              message:
-                errData?.message ||
-                "La réservation a été créée mais la validation a échoué.",
-            });
-            setShowErrorDialog(true);
-          }
         } catch (valError) {
-          console.error(
-            "❌ Erreur lors de la validation:",
-            valError,
-          );
-          setApiError({
-            error: "Erreur technique de validation",
-            message:
-              "La réservation a été créée mais impossible de vérifier sa validité.",
-          });
-          setShowErrorDialog(true);
+          console.warn('⚠️ Validation call failed after WF submission:', valError);
         }
-        return;
-      }
 
-      // Gestion des erreurs
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => null);
-        console.error("❌ Erreur API Creation:", errorData);
-
+        toast.success('Réservation soumise avec succès', {
+          description: newKey ? `Référence: ${newKey}` : undefined,
+          duration: 5000,
+        });
+        setShowSuccessDialog(true);
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Réservation rejetée', {
+          description: wfResponse.errorMessage || 'La réservation a été rejetée par le workflow',
+        });
+      } else if (wfResponse.result === 'ERROR') {
         setApiError({
-          error: errorData?.error || "Erreur de création",
-          message:
-            errorData?.message ||
-            `Impossible de créer la réservation (Code HTTP: ${response.status})`,
+          error: 'Erreur workflow',
+          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
         });
         setShowErrorDialog(true);
-        return;
       }
     } catch (error: any) {
-      console.error("❌ Erreur globale handleSubmit:", error);
-
-      // Mode démonstration en cas d'erreur réseau sur la création
-      if (
-        error?.message === "Failed to fetch" ||
-        error?.name === "TypeError"
-      ) {
-        console.info("ℹ️ Mode démonstration");
-        setShowSuccessDialog(true);
-      } else {
-        setApiError({
-          error: "Erreur inattendue",
-          message:
-            error?.message ||
-            "Une erreur inattendue s'est produite",
-        });
-        setShowErrorDialog(true);
-      }
+      console.error('Erreur lors de la réservation:', error);
+      toast.error('Erreur de connexion au moteur de workflow', {
+        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      });
     } finally {
       setIsSubmitting(false);
     }

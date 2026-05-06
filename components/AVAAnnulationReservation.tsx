@@ -39,6 +39,10 @@ import {
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
+import {
+  startAnnulationReservationDecision,
+  continueAnnulationReservationDecision,
+} from "../utils/workflowApi";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -144,6 +148,8 @@ export function AVAAnnulationReservation() {
       dateAnnulation: new Date().toISOString().split("T")[0],
       origine: "FRONT",
     });
+
+  const [wfAnnulationBusinessKey, setWfAnnulationBusinessKey] = useState<string | null>(null);
 
   // Réservation sélectionnée pour annulation
   const [reservationSelectionnee, setReservationSelectionnee] =
@@ -555,6 +561,7 @@ export function AVAAnnulationReservation() {
       setLoading(false);
     }
 
+    setWfAnnulationBusinessKey(null);
     setAnnulation({
       numDossier: Number(
         dossier.numeroDossier.replace("AVA-", ""),
@@ -577,6 +584,7 @@ export function AVAAnnulationReservation() {
   const handleRetourRecherche = () => {
     setEtape("recherche");
     setDossierSelectionne(null);
+    setWfAnnulationBusinessKey(null);
     setAnnulation({
       dateAnnulation: new Date().toISOString().split("T")[0],
       origine: "virement",
@@ -632,135 +640,64 @@ export function AVAAnnulationReservation() {
 
     setIsSubmitting(true);
 
+    const payload = {
+      reference: annulation.reference,
+      numDossier: annulation.numDossier,
+      mntMvtAva: annulation.mntMvtAva,
+      origine: annulation.origine,
+    };
+
     try {
-      // Préparer les données pour l'API
-      const payload = {
-        reference: annulation.reference,
-        numDossier: annulation.numDossier,
-        mntMvtAva: annulation.mntMvtAva,
-        origine: annulation.origine,
-      };
+      toast.info('Soumission au Service Central...', {
+        description: 'Communication avec le moteur de workflow...',
+      });
 
-      console.log(
-        "📤 Envoi de l'annulation de réservation:",
-        payload,
-      );
-
-      const response = await authenticatedFetch(
-        "/api/reservation-operations/annulation",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      console.log("📥 Réponse API status:", response.status);
-
-      // Gestion du succès (200 OK)
-      if (response.ok) {
-        const result = await safeJsonParse<{
-          refOperation?: number;
-          numDossier?: number;
-          status?: string;
-          message?: string;
-        }>(response);
-        console.log("✅ Annulation créée, passage à la validation:", result);
-
-        // Validation immédiate via la référence du formulaire
-        try {
-          const validateResponse = await fetch(
-            `/api/reservation-operations/validate/${annulation.reference}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-            },
+      const wfResponse = wfAnnulationBusinessKey
+        ? await continueAnnulationReservationDecision(
+            wfAnnulationBusinessKey,
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>,
+          )
+        : await startAnnulationReservationDecision(
+            'SOUMETTRE',
+            payload as unknown as Record<string, unknown>,
           );
 
-          console.log("📥 Réponse validation status:", validateResponse.status);
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) setWfAnnulationBusinessKey(newKey);
 
-          if (validateResponse.ok) {
-            const validateResult = await safeJsonParse<any>(validateResponse);
-            console.log("✅ Validation réussie:", validateResult);
-            setShowSuccessDialog(true);
-            setTimeout(async () => {
-              setShowSuccessDialog(false);
-              handleRetourRecherche();
-              await fetchDossiers();
-            }, 3000);
-          } else {
-            const errData = await validateResponse.json().catch(() => null);
-            setApiError({
-              error: "Validation échouée",
-              message:
-                errData?.message ||
-                "L'annulation a été enregistrée mais la validation a échoué.",
-            });
-            setShowErrorDialog(true);
-          }
+        // Validate using the reference from the form
+        try {
+          await authenticatedFetch(
+            `/api/reservation-operations/validate/${annulation.reference}`,
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' } },
+          );
         } catch (valError) {
-          console.error("❌ Erreur validation:", valError);
-          setApiError({
-            error: "Erreur technique de validation",
-            message: "L'annulation a été créée mais impossible de la valider.",
-          });
-          setShowErrorDialog(true);
+          console.warn('⚠️ Validation call failed after WF submission:', valError);
         }
 
-        return;
-      }
-
-      // Gestion des erreurs
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => null);
-        console.error("❌ Erreur API:", errorData);
-
-        if (errorData) {
-          setApiError({
-            error: errorData.error || "Erreur",
-            message:
-              errorData.message ||
-              `Code: ${errorData.code || "UNKNOWN"}`,
-          });
-        } else {
-          setApiError({
-            error: "Erreur lors de l'enregistrement",
-            message: `Code HTTP: ${response.status}`,
-          });
-        }
-
-        setShowErrorDialog(true);
-
-        return;
-      }
-    } catch (error: any) {
-      console.error("❌ Erreur catch:", error);
-
-      // Mode démonstration en cas d'erreur réseau
-      if (
-        error?.message === "Failed to fetch" ||
-        error?.name === "TypeError"
-      ) {
-        console.info("ℹ️ Mode démonstration");
-
+        toast.success('Annulation de réservation soumise avec succès', {
+          description: newKey ? `Référence: ${newKey}` : undefined,
+          duration: 5000,
+        });
         setShowSuccessDialog(true);
-
-        setTimeout(async () => {
-          setShowSuccessDialog(false);
-          handleRetourRecherche();
-          await fetchDossiers();
-        }, 3000);
-      } else {
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Annulation rejetée', {
+          description: wfResponse.errorMessage || 'La demande a été rejetée par le workflow',
+        });
+      } else if (wfResponse.result === 'ERROR') {
         setApiError({
-          error: "Erreur inattendue",
-          message:
-            error?.message ||
-            "Une erreur inattendue s'est produite",
+          error: 'Erreur workflow',
+          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
         });
         setShowErrorDialog(true);
       }
+    } catch (error: any) {
+      console.error('Erreur lors de l\'annulation de réservation:', error);
+      toast.error('Erreur de connexion au moteur de workflow', {
+        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -804,73 +741,43 @@ export function AVAAnnulationReservation() {
     setIsSubmitting(true);
     setShowConfirmModal(false);
 
+    const payload = {
+      reference: reservationSelectionnee.referenceRes,
+      numDossier: Number(
+        dossierSelectionne.numeroDossier.replace("AVA-", ""),
+      ),
+      mntMvtAva: montantAnnulation,
+      origine: reservationSelectionnee.origine,
+    };
+
     try {
-      // Préparer les données pour l'API avec le montant saisi
-      const payload = {
-        reference: reservationSelectionnee.referenceRes,
-        numDossier: Number(
-          dossierSelectionne.numeroDossier.replace("AVA-", ""),
-        ),
-        mntMvtAva: montantAnnulation,
-        origine: reservationSelectionnee.origine,
-      };
+      toast.info('Soumission au Service Central...', {
+        description: 'Communication avec le moteur de workflow...',
+      });
 
-      console.log(
-        "📤 Envoi de l'annulation de réservation:",
-        payload,
+      const wfResponse = await startAnnulationReservationDecision(
+        'SOUMETTRE',
+        payload as unknown as Record<string, unknown>,
       );
 
-      const response = await authenticatedFetch(
-        "/api/reservation-operations/annulation",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
 
-      console.log("📥 Réponse API status:", response.status);
-
-      // Gestion du succès (200 OK)
-      if (response.ok) {
-        const result = await safeJsonParse<{
-          refOperation?: number;
-          numDossier?: number;
-          status?: string;
-          message?: string;
-        }>(response);
-        console.log("✅ Annulation créée, passage à la validation:", result);
-
-        // Validation immédiate via la référence de la réservation
+        // Validate using the reference of the selected reservation
         try {
-          console.log(`📤 Validation de l'annulation: ${reservationSelectionnee.referenceRes}`);
-
-          const validateResponse = await fetch(
+          await authenticatedFetch(
             `/api/reservation-operations/validate/${reservationSelectionnee.referenceRes}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-            },
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' } },
           );
-
-          console.log(
-            "📥 Réponse validation API status:",
-            validateResponse.status,
-          );
-
-          if (validateResponse.ok) {
-            const validateResult = await safeJsonParse<any>(validateResponse);
-            console.log("✅ Validation réussie:", validateResult);
-          } else {
-            console.warn("⚠️ Validation échouée après annulation");
-          }
-        } catch (validateError) {
-          console.warn("⚠️ Erreur validation:", validateError);
+        } catch (valError) {
+          console.warn('⚠️ Validation call failed after WF submission:', valError);
         }
 
-        // Afficher le dialog de succès dans tous les cas si l'annulation a réussi
+        toast.success('Annulation de réservation soumise avec succès', {
+          description: newKey ? `Référence: ${newKey}` : undefined,
+          duration: 5000,
+        });
         setShowSuccessDialog(true);
-
         setTimeout(async () => {
           setShowSuccessDialog(false);
           setReservationSelectionnee(null);
@@ -878,66 +785,22 @@ export function AVAAnnulationReservation() {
             dossierSelectionne?.numeroDossier.replace("AVA-", "");
           await fetchReservations(numDossierPure);
         }, 3000);
-
-        return;
-      }
-
-      // Gestion des erreurs (422 ou autres)
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => null);
-        console.error("❌ Erreur API:", errorData);
-
-        if (errorData) {
-          setApiError({
-            error: errorData.error || "Erreur",
-            message:
-              errorData.message ||
-              `Code: ${errorData.code || "UNKNOWN"}`,
-          });
-        } else {
-          setApiError({
-            error: "Erreur lors de l'enregistrement",
-            message: `Code HTTP: ${response.status}`,
-          });
-        }
-
-        setShowErrorDialog(true);
-
-        return;
-      }
-    } catch (error: any) {
-      console.error("❌ Erreur catch:", error);
-
-      // Mode démonstration en cas d'erreur réseau
-      if (
-        error?.message === "Failed to fetch" ||
-        error?.name === "TypeError"
-      ) {
-        console.info("ℹ️ Mode démonstration");
-
-        setShowSuccessDialog(true);
-
-        setTimeout(async () => {
-          setShowSuccessDialog(false);
-          setReservationSelectionnee(null);
-          const numDossierPure =
-            dossierSelectionne?.numeroDossier.replace(
-              "AVA-",
-              "",
-            );
-          await fetchReservations(numDossierPure);
-        }, 3000);
-      } else {
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Annulation rejetée', {
+          description: wfResponse.errorMessage || 'La demande a été rejetée par le workflow',
+        });
+      } else if (wfResponse.result === 'ERROR') {
         setApiError({
-          error: "Erreur inattendue",
-          message:
-            error?.message ||
-            "Une erreur inattendue s'est produite",
+          error: 'Erreur workflow',
+          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
         });
         setShowErrorDialog(true);
       }
+    } catch (error: any) {
+      console.error('Erreur lors de la confirmation d\'annulation:', error);
+      toast.error('Erreur de connexion au moteur de workflow', {
+        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      });
     } finally {
       setIsSubmitting(false);
     }
