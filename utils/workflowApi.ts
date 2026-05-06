@@ -268,3 +268,100 @@ export async function getWfLeveeSuspensionTaskList(): Promise<WfTask[]> {
   const data = await response.json();
   return Array.isArray(data) ? data : (data.content ?? []);
 }
+
+// ─── Alimentation BCT workflow ───────────────────────────────────────────────
+
+export const WF_ALIMENTATION_BCT_OPERATION_KEY = 'operations_alimentationbct';
+
+/**
+ * Démarre une nouvelle opération d'alimentation BCT via le workflow
+ * @param decisionTag - Tag de la décision (généralement 'SOUMETTRE')
+ * @param payload - Données de l'alimentation BCT
+ * @param comment - Commentaire optionnel
+ * @returns Réponse du workflow
+ */
+export async function startAlimentationBctDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  console.log('[WF] startAlimentationBctDecision - URL:', `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/decide/${decisionTag}`);
+  console.log('[WF] startAlimentationBctDecision - Body:', body);
+  
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  
+  console.log('[WF] startAlimentationBctDecision - Response status:', response.status);
+  console.log('[WF] startAlimentationBctDecision - Response ok:', response.ok);
+  
+  const text = await response.text();
+  console.log('[WF] startAlimentationBctDecision - Response text:', text);
+  
+  if (!text) {
+    throw new Error(`Empty response from workflow service (status: ${response.status})`);
+  }
+  
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[WF] Failed to parse response:', text);
+    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+  }
+}
+
+/**
+ * Continue une opération d'alimentation BCT existante via le workflow
+ * @param businessKey - Clé métier (numDossier)
+ * @param decisionTag - Tag de la décision
+ * @param payload - Données de l'alimentation BCT
+ * @param comment - Commentaire optionnel
+ * @returns Réponse du workflow
+ */
+export async function continueAlimentationBctDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  console.log('[WF] continueAlimentationBctDecision - URL:', `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`);
+  console.log('[WF] continueAlimentationBctDecision - Body:', body);
+  
+  const response = await authenticatedFetch(
+    `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  
+  console.log('[WF] continueAlimentationBctDecision - Response status:', response.status);
+  console.log('[WF] continueAlimentationBctDecision - Response ok:', response.ok);
+  
+  const text = await response.text();
+  console.log('[WF] continueAlimentationBctDecision - Response text:', text);
+  
+  if (!text) {
+    throw new Error(`Empty response from workflow service (status: ${response.status})`);
+  }
+  
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error('[WF] Failed to parse response:', text);
+    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
+  }
+}
+
+/**
+ * Récupère la liste des tâches d'alimentation BCT en attente
+ * @returns Liste des tâches workflow
+ */
+export async function getWfAlimentationBctTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_ALIMENTATION_BCT_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}

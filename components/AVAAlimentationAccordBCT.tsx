@@ -1,24 +1,24 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { authenticatedFetch } from '../utils/api';
 import {
   ArrowLeft,
   FileText,
-  Save,
-  RefreshCw,
   Filter,
-  Search,
+  RefreshCw,
   RotateCcw,
+  Save,
+  Search,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-
+import { authenticatedFetch } from '../utils/api';
+import { startAlimentationBctDecision } from '../utils/workflowApi';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface DossierAVA {
@@ -48,12 +48,14 @@ interface DossierAVA {
  * POST /api/operations-deleguees/{numDossier}/alimentation-bct/true
  *
  * Champs :
+ *   numDossier — number  — numéro du dossier AVA (business key)
  *   numeroBct  — number  — numéro d'accord BCT
  *   dateBct    — string  — date accord (ISO, passé ou aujourd'hui)
  *   typeBct    — string  — type BCT : "N" | "R" | "A" | "P"
  *   mntMvtAva  — number  — montant à cumuler sur mntAutoriseBct (> 0)
  */
 interface AutorisationBctDTO {
+  numDossier?: number;
   numeroBct?: number;
   dateBct?: string;
   typeBct?: string;
@@ -82,6 +84,9 @@ export function AVAAlimentationAccordBCT() {
   const [showManualVerifModal, setShowManualVerifModal] = useState(false);
   const [manualVerifBaseUrl, setManualVerifBaseUrl] = useState('');
   const [isConfirmingVerif, setIsConfirmingVerif] = useState(false);
+
+  // Workflow state
+  const [wfAlimentationBctBusinessKey, setWfAlimentationBctBusinessKey] = useState<string | null>(null);
 
   // Filtres
   const [searchNumeroDossier, setSearchNumeroDossier] = useState('');
@@ -268,6 +273,7 @@ export function AVAAlimentationAccordBCT() {
     setDossierSelectionne(dossier);
     setForm({});
     setErrors({});
+    setWfAlimentationBctBusinessKey(null); // Reset workflow state
     setEtape('alimentation');
   };
 
@@ -276,6 +282,7 @@ export function AVAAlimentationAccordBCT() {
     setDossierSelectionne(null);
     setForm({});
     setErrors({});
+    setWfAlimentationBctBusinessKey(null); // Reset workflow state
   };
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -319,66 +326,107 @@ export function AVAAlimentationAccordBCT() {
     setIsSubmitting(true);
     try {
       const payload: AutorisationBctDTO = {
+        numDossier: dossierSelectionne.numDossier, // Business key for workflow
         numeroBct: form.numeroBct,
         dateBct: form.dateBct,
         typeBct: form.typeBct,
         mntMvtAva: form.mntMvtAva,
       };
 
-      // Étape 1 — Alimentation BCT
-      const response = await authenticatedFetch(
-        `/api/alimentation-bct/${dossierSelectionne.numDossier}/true`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        },
-      );
+      // ═══════════════════════════════════════════════════════════════════════
+      // WORKFLOW INTEGRATION - Alimentation BCT
+      // ═══════════════════════════════════════════════════════════════════════
+      console.log('[WF] Alimentation BCT - Début soumission');
+      console.log('[WF] Business key actuelle:', wfAlimentationBctBusinessKey);
+      console.log('[WF] Payload:', payload);
 
-      if (!response.ok) {
-        const errorData = await safeJsonParse<{ message?: string; error?: string }>(response);
-        toast.error('Erreur', { description: errorData?.message || errorData?.error || `HTTP ${response.status}` });
-        return;
-      }
+      const wfResponse = wfAlimentationBctBusinessKey
+        ? await continueAlimentationBctDecision(
+            wfAlimentationBctBusinessKey,
+            'SOUMETTRE',
+            payload
+          )
+        : await startAlimentationBctDecision(
+            'SOUMETTRE',
+            payload
+          );
 
-      // Étape 2 — Mise à jour validité accord BCT (ref service — port 8090)
-      const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${form.numeroBct}&dateAccordBct=${form.dateBct}&typeAccordBct=${form.typeBct}`;
-      const updateRes = await authenticatedFetch(updateUrl, { method: 'POST' });
-      const updateData = await safeJsonParse<{ message?: string }>(updateRes);
-      const msg = updateData?.message || '';
+      console.log('[WF] Réponse workflow:', wfResponse);
 
-      if (msg === 'success') {
-        toast.success('Alimentation suite accord BCT enregistrée avec succès', {
-          description: `Dossier ${dossierSelectionne.numeroDossier} — BCT N°${form.numeroBct}`,
+      // Traiter la réponse du workflow
+      if (wfResponse.result === 'OK') {
+        // Sauvegarder la business key pour les soumissions futures
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          console.log('[WF] Business key sauvegardée:', newKey);
+          setWfAlimentationBctBusinessKey(newKey);
+        }
+
+        // Étape 2 — Mise à jour validité accord BCT (ref service — port 8090)
+        const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${form.numeroBct}&dateAccordBct=${form.dateBct}&typeAccordBct=${form.typeBct}`;
+        const updateRes = await authenticatedFetch(updateUrl, { method: 'POST' });
+        const updateData = await safeJsonParse<{ message?: string }>(updateRes);
+        const msg = updateData?.message || '';
+
+        if (msg === 'success') {
+          toast.success('Alimentation suite accord BCT enregistrée avec succès', {
+            description: `Dossier ${dossierSelectionne.numeroDossier} — BCT N°${form.numeroBct}`,
+          });
+          handleRetourRecherche();
+          await fetchDossiers();
+        } else if (msg === 'already updated') {
+          toast.info('Accord BCT déjà mis à jour', {
+            description: `BCT N°${form.numeroBct}`,
+          });
+          handleRetourRecherche();
+          await fetchDossiers();
+        } else if (msg === 'needs a manual verification') {
+          // Portée * — demander confirmation avant d'utiliser flag=0
+          setManualVerifBaseUrl(updateUrl);
+          setShowManualVerifModal(true);
+        } else {
+          toast.error('Erreur mise à jour validité', { description: msg || `HTTP ${updateRes.status}` });
+        }
+
+      } else if (wfResponse.result === 'REJECTED') {
+        console.error('[WF] Opération rejetée:', wfResponse.message);
+        toast.error('Opération rejetée par le workflow', {
+          description: wfResponse.message || 'Veuillez vérifier les données',
         });
-        handleRetourRecherche();
-        await fetchDossiers();
-      } else if (msg === 'already updated') {
-        toast.info('Accord BCT déjà mis à jour', {
-          description: `BCT N°${form.numeroBct}`,
+      } else if (wfResponse.result === 'ERROR') {
+        console.error('[WF] Erreur workflow:', wfResponse.message);
+        toast.error('Erreur workflow', {
+          description: wfResponse.message || 'Une erreur est survenue',
         });
-        handleRetourRecherche();
-        await fetchDossiers();
-      } else if (msg === 'needs a manual verification') {
-        // Portée * — demander confirmation avant d'utiliser flag=0
-        setManualVerifBaseUrl(updateUrl);
-        setShowManualVerifModal(true);
-      } else {
-        toast.error('Erreur mise à jour validité', { description: msg || `HTTP ${updateRes.status}` });
       }
+    } catch (error) {
+      console.error('[WF] Exception:', error);
+      toast.error('Erreur lors de la soumission', {
+        description: error instanceof Error ? error.message : 'Erreur inconnue',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ── Annulation vérification manuelle → flag=1 ────────────────────────────
-  const handleCancelManualVerif = async () => {
+  // ── Annulation vérification manuelle (fermer le modal sans action) ──────────
+  const handleCancelManualVerif = () => {
+    setShowManualVerifModal(false);
+    toast.info('Opération annulée', {
+      description: 'L\'accord BCT n\'a pas été mis à jour',
+    });
+  };
+
+  // ── Confirmation vérification manuelle → flag=1 (override) ────────────────
+  const handleConfirmManualVerif = async () => {
     setIsConfirmingVerif(true);
     try {
       const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=1`, { method: 'POST' });
       const data = await safeJsonParse<{ message?: string }>(res);
       if (data?.message === 'success') {
-        toast.success('Accord BCT enregistré avec succès');
+        toast.success('Accord BCT enregistré avec succès', {
+          description: 'Validité mise à jour avec confirmation manuelle',
+        });
         setShowManualVerifModal(false);
         handleRetourRecherche();
         await fetchDossiers();
@@ -387,27 +435,6 @@ export function AVAAlimentationAccordBCT() {
       }
     } catch {
       toast.error('Erreur lors de l\'enregistrement');
-    } finally {
-      setIsConfirmingVerif(false);
-    }
-  };
-
-  // ── Confirmation vérification manuelle → flag=0 ───────────────────────────
-  const handleConfirmManualVerif = async () => {
-    setIsConfirmingVerif(true);
-    try {
-      const res = await authenticatedFetch(`${manualVerifBaseUrl}&flag=0`, { method: 'POST' });
-      const data = await safeJsonParse<{ message?: string }>(res);
-      if (data?.message === 'success') {
-        toast.success('Accord BCT clôturé avec succès');
-        setShowManualVerifModal(false);
-        handleRetourRecherche();
-        await fetchDossiers();
-      } else {
-        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
-      }
-    } catch {
-      toast.error('Erreur lors de la clôture forcée');
     } finally {
       setIsConfirmingVerif(false);
     }
@@ -852,8 +879,13 @@ export function AVAAlimentationAccordBCT() {
           <DialogHeader>
             <DialogTitle>Vérification manuelle requise</DialogTitle>
             <DialogDescription>
-              Cet accord BCT (portée *) nécessite une vérification manuelle.
-              Voulez-vous continuer et clôturer l'accord BCT ?
+              Cet accord BCT a une portée générale (*) qui nécessite une vérification manuelle.
+              <br /><br />
+              <strong>Voulez-vous confirmer l'utilisation de cet accord BCT ?</strong>
+              <br /><br />
+              • <strong>Oui</strong> : L'accord sera marqué comme utilisé (validité = N)
+              <br />
+              • <strong>Non</strong> : L'opération sera annulée
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -862,11 +894,11 @@ export function AVAAlimentationAccordBCT() {
               onClick={handleCancelManualVerif}
               disabled={isConfirmingVerif}
             >
-              Non
+              Non, annuler
             </Button>
             <Button onClick={handleConfirmManualVerif} disabled={isConfirmingVerif}>
               {isConfirmingVerif && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              Oui, continuer
+              Oui, confirmer
             </Button>
           </DialogFooter>
         </DialogContent>

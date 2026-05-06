@@ -63,10 +63,27 @@ public class BusinessGatewayService {
         // Build the endpoint from the definition's template
         String endpoint;
         if (endpointTemplate != null && !endpointTemplate.isBlank()) {
-            // Use configured template — replace placeholders
-            endpoint = endpointTemplate
+            // Start with the template
+            endpoint = endpointTemplate;
+            log.info("Original endpoint template: {}", endpoint);
+            
+            // Replace custom placeholders from payload FIRST (e.g., {numDossier}, {refOperation}, etc.)
+            if (payload != null) {
+                for (Map.Entry<String, Object> entry : payload.entrySet()) {
+                    String placeholder = "{" + entry.getKey() + "}";
+                    if (endpoint.contains(placeholder)) {
+                        String value = entry.getValue() != null ? String.valueOf(entry.getValue()) : "";
+                        endpoint = endpoint.replace(placeholder, value);
+                        log.info("Replaced placeholder '{}' with value '{}'", placeholder, value);
+                    }
+                }
+            }
+
+            // Then replace standard placeholders
+            endpoint = endpoint
                     .replace("{businessKey}", businessKey)
                     .replace("{finalize}", String.valueOf(finalize));
+            log.info("Final endpoint after replacements: {}", endpoint);
         } else {
             throw new IllegalStateException(
                     "endpointTemplate is not configured on WfDefinition for operationKey=" + operationKey
@@ -124,10 +141,16 @@ public class BusinessGatewayService {
                 httpMethod = "POST";
             }
 
-            // Make HTTP call
-            WebClient.RequestBodySpec requestSpec = webClientBuilder.build()
+            log.info("HTTP Method: {}", httpMethod);
+            log.info("Full URL to call: {}", fullUrl);
+
+            // Make HTTP call - use fresh WebClient and URI object to avoid Spring URI template expansion issues
+            WebClient dedicated = WebClient.builder().build();
+            java.net.URI uri = java.net.URI.create(fullUrl);
+
+            WebClient.RequestBodySpec requestSpec = dedicated
                     .method(org.springframework.http.HttpMethod.valueOf(httpMethod.toUpperCase()))
-                    .uri(fullUrl)
+                    .uri(uri)
                     .header("Content-Type", "application/json")
                     .header("Idempotency-Key", idempotencyKey)
                     .header("X-WF-Operation-Id", String.valueOf(operation.getWfOpId()))
