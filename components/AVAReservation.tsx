@@ -355,11 +355,6 @@ export function AVAReservation() {
         })),
       );
 
-      console.log(
-        "✅ API: Dossiers AVA chargés avec succès (" +
-          dossiersTransformes.length +
-          " dossiers)",
-      );
     } catch (error: any) {
       setDossiers(mockDossiers);
       setDossiersFiltres(mockDossiers);
@@ -540,9 +535,6 @@ export function AVAReservation() {
       };
 
       setDossierSelectionne(dossierComplet);
-      console.log(
-        "✅ API: Résumé du dossier chargé avec succès",
-      );
     } catch (error: any) {
       setDossierSelectionne(dossier);
 
@@ -959,6 +951,12 @@ export function AVAReservation() {
   // ========== ÉTAPE 2 : FORMULAIRE RÉSERVATION ==========
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Réservation en cours...</p>
+        </div>
+      )}
       {/* En-tête avec retour */}
       <div className="flex items-center justify-between anim-fade-in-up delay-0">
         <div className="flex items-center gap-4">

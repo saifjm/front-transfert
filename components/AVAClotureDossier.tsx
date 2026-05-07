@@ -378,15 +378,11 @@ export function AVAClotureDossier() {
     try {
       toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      console.log('[Cloture WF] Payload:', JSON.stringify(payload, null, 2));
-
       const wfResponse = await continueClotureDecision(
         wfClotureBusinessKey!,
         'SOUMETTRE',
         payload as unknown as Record<string, unknown>,
       );
-
-      console.log('[Cloture WF] Réponse:', wfResponse);
 
       if (wfResponse.result === 'OK') {
         toast.success('Clôture soumise au Service Central', {
@@ -602,6 +598,12 @@ export function AVAClotureDossier() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Clôture en cours...</p>
+        </div>
+      )}
       <div className="flex items-center justify-between anim-fade-in-up delay-0">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={handleRetourRecherche} className="border-[#d1dce6] hover:bg-[#EEF3F7] transition-colors">

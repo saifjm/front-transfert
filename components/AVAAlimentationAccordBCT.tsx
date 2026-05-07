@@ -336,10 +336,6 @@ export function AVAAlimentationAccordBCT() {
       // ═══════════════════════════════════════════════════════════════════════
       // WORKFLOW INTEGRATION - Alimentation BCT
       // ═══════════════════════════════════════════════════════════════════════
-      console.log('[WF] Alimentation BCT - Début soumission');
-      console.log('[WF] Business key actuelle:', wfAlimentationBctBusinessKey);
-      console.log('[WF] Payload:', payload);
-
       const wfResponse = wfAlimentationBctBusinessKey
         ? await continueAlimentationBctDecision(
             wfAlimentationBctBusinessKey,
@@ -351,14 +347,11 @@ export function AVAAlimentationAccordBCT() {
             payload
           );
 
-      console.log('[WF] Réponse workflow:', wfResponse);
-
       // Traiter la réponse du workflow
       if (wfResponse.result === 'OK') {
         // Sauvegarder la business key pour les soumissions futures
         const newKey = wfResponse.state?.businessKey;
         if (newKey) {
-          console.log('[WF] Business key sauvegardée:', newKey);
           setWfAlimentationBctBusinessKey(newKey);
         }
 
@@ -627,6 +620,12 @@ export function AVAAlimentationAccordBCT() {
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Alimentation en cours...</p>
+        </div>
+      )}
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

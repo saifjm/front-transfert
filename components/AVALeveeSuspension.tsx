@@ -1002,6 +1002,12 @@ export function AVALeveeSuspension() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Levée de suspension en cours...</p>
+        </div>
+      )}
       <div className="flex items-center justify-between anim-fade-in-up delay-0">
         <div className="flex items-center gap-4">
           <Button

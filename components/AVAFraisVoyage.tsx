@@ -198,7 +198,6 @@ export function AVAFraisVoyage() {
           ),
         );
         if (paths.length > 0) {
-          console.log('🧹 [FV] Nettoyage à la fermeture (non enregistré):', paths);
           void Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
         }
       }
@@ -406,7 +405,6 @@ export function AVAFraisVoyage() {
         ),
       );
       
-      console.log('✅ API: Dossiers AVA chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
       setDossiers(mockDossiers);
       setDossiersFiltres(mockDossiers);
@@ -440,7 +438,6 @@ export function AVAFraisVoyage() {
       }
       
       setDevises(data);
-      console.log('✅ API: Devises chargées avec succès (' + data.length + ' devises)');
     } catch (error: any) {
       setDevises(mockDevises);
       
@@ -544,7 +541,6 @@ export function AVAFraisVoyage() {
       };
 
       setDossierSelectionne(dossierComplet);
-      console.log('✅ API: Résumé du dossier chargé avec succès (' + (summary.beneficiaires?.length || 0) + ' bénéficiaires)');
     } catch (error: any) {
       setDossierSelectionne(dossier);
       
@@ -634,7 +630,6 @@ export function AVAFraisVoyage() {
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error || `HTTP_${response.status}`);
       }
-      console.log('🧹 [FV] Fichier supprimé (draft cleanup):', payload.path || targetPath);
     } catch (error) {
       console.warn('⚠️ [FV] Suppression locale ignorée:', targetPath, error);
     }
@@ -649,7 +644,6 @@ export function AVAFraisVoyage() {
       ),
     );
     if (paths.length === 0) return;
-    console.log('🧹 [FV] Nettoyage des pièces jointes non enregistrées...', paths);
     await Promise.all(paths.map((p) => deleteLocalFileByPath(p)));
   };
 
@@ -778,13 +772,9 @@ export function AVAFraisVoyage() {
     try {
       toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      console.log('[FV WF] Payload:', JSON.stringify(operationFV, null, 2));
-
       const wfResponse = wfFvBusinessKey
         ? await continueFvDecision(wfFvBusinessKey, 'SOUMETTRE', operationFV as unknown as Record<string, unknown>)
         : await startFvDecision('SOUMETTRE', operationFV as unknown as Record<string, unknown>);
-
-      console.log('[FV WF] Réponse:', wfResponse);
 
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
@@ -875,13 +865,7 @@ export function AVAFraisVoyage() {
       // Nom original du fichier
       const nomImage = file.name;
       const defaultParts = getCurrentDocumentPathParts();
-      console.log('📎 [FV] Document sélectionné:', {
-        id,
-        nomImage,
-        size: file.size,
-        type: file.type || 'unknown',
-      });
-      
+
       // Mettre à jour tous les champs en une seule fois
       setDocuments(documents.map(d => 
         d.id === id ? { 
@@ -910,7 +894,6 @@ export function AVAFraisVoyage() {
         pathAnnee: defaultParts.pathAnnee,
         pathMois: defaultParts.pathMois,
       });
-      console.log('🗂️ [FV] Chemin cible calculé:', builtForSave.fullPath);
       if (
         previousPath &&
         previousPath !== builtForSave.fullPath &&
@@ -967,22 +950,18 @@ export function AVAFraisVoyage() {
       const picker = (window as any).showDirectoryPicker;
       if (!picker) {
         console.warn('⚠️ [FV] showDirectoryPicker non supporté, fallback via /__localfs/write...');
-        const writtenPath = await writeThroughDevServer();
-        console.log('✅ [FV] Document enregistré via serveur local Vite:', writtenPath);
+        await writeThroughDevServer();
         toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
         return;
       }
 
       let root = localStorageDirHandle;
       if (!root) {
-        console.log('📂 [FV] Demande de sélection du dossier local...');
         root = await picker({ mode: 'readwrite' });
         setLocalStorageDirHandle(root);
-        console.log('✅ [FV] Dossier local autorisé:', root?.name || '(inconnu)');
       }
       if (!root) return;
 
-      console.log('💾 [FV] Début écriture locale:', { pathAnnee, pathMois, file: file.name });
       const yearDir = await root.getDirectoryHandle(pathAnnee, { create: true });
       const monthDir = await yearDir.getDirectoryHandle(pathMois, { create: true });
       const fileHandle = await monthDir.getFileHandle(file.name, { create: true });
@@ -990,7 +969,6 @@ export function AVAFraisVoyage() {
       await writable.write(file);
       await writable.close();
 
-      console.log('✅ [FV] Document enregistré localement:', fullPath);
       toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
     } catch (error) {
       console.error('❌ [FV] Échec sauvegarde locale document:', error);
@@ -1170,6 +1148,12 @@ export function AVAFraisVoyage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Frais de voyage en cours...</p>
+        </div>
+      )}
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

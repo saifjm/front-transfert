@@ -495,7 +495,6 @@ export function AVAForm() {
           comptes: comptesData
         });
         setClientNotFound(false);
-        console.log('✅ API: Client trouvé:', { nom: personneData.nom, prenom: personneData.prenom, comptes: comptesData });
       } else {
         throw new Error('Comptes not found');
       }
@@ -1031,7 +1030,6 @@ export function AVAForm() {
       });
       const payload = await safeJsonParse<{ ok?: boolean; error?: string }>(response);
       if (!response.ok || !payload?.ok) throw new Error(payload?.error || `HTTP_${response.status}`);
-      console.log('🧹 [OUVERTURE] Fichier supprimé (draft cleanup):', targetPath);
     } catch (error) {
       console.warn('⚠️ [OUVERTURE] Suppression locale ignorée:', targetPath, error);
     }
@@ -1115,11 +1113,6 @@ export function AVAForm() {
   const handleWfDecision = async (
     decisionTag: 'APPROUVER' | 'RETOUR_AGENCE' = 'APPROUVER',
   ) => {
-    console.log('🔍 [WF] handleWfDecision appelé, decision:', decisionTag);
-    console.log('🔍 [WF] formData:', formData);
-    console.log('🔍 [WF] beneficiaires:', beneficiaires);
-    console.log('🔍 [WF] documents:', documents);
-
     if (true) { // always validate
     // Réinitialiser les erreurs
     const newErrors: Record<string, string> = {};
@@ -1152,11 +1145,8 @@ export function AVAForm() {
 
     // ✅ 2.1. Validation du RNE avant soumission
     if (formData.noPieceClient) {
-      console.log('🔍 [DEBUG] Validation RNE:', formData.noPieceClient);
       const rneValidation = validateRNE(formData.noPieceClient);
-      console.log('🔍 [DEBUG] Résultat validation RNE:', rneValidation);
       if (!rneValidation.valid) {
-        console.log('❌ [DEBUG] RNE invalide');
         newErrors.noPieceClient = rneValidation.message || 'Numéro RNE invalide';
       }
     }
@@ -1228,8 +1218,6 @@ export function AVAForm() {
       newErrors.beneficiaires = 'Au moins un bénéficiaire doit être ajouté au dossier';
     }
 
-    console.log('🔍 [DEBUG] Erreurs de validation:', newErrors);
-    
     // Si des erreurs existent, les afficher et arrêter
     if (Object.keys(newErrors).length > 0) {
       setFieldErrors(newErrors);
@@ -1374,8 +1362,6 @@ export function AVAForm() {
         banqueProvenance: Object.keys(banqueProvenance).length > 0 ? banqueProvenance : undefined,
       };
 
-      console.log('[WF] Payload:', JSON.stringify(dto, null, 2));
-
       const toastLabels: Record<string, { info: string; success: string }> = {
         APPROUVER:     { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
         RETOUR_AGENCE: { info: 'Retour en saisie agence...', success: 'Dossier retourné en saisie' },
@@ -1386,8 +1372,6 @@ export function AVAForm() {
       const wfResponse = wfBusinessKey
         ? await continueDecision(wfBusinessKey, decisionTag, dto as unknown as Record<string, unknown>)
         : await startDecision(decisionTag, dto as unknown as Record<string, unknown>);
-
-      console.log('[WF] Réponse:', wfResponse);
 
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
@@ -1438,7 +1422,6 @@ export function AVAForm() {
                 return r.json();
               })
               .then((summary: any) => {
-                console.log('[Modal] summary response:', summary);
                 if (summary) {
                   setDossierValide(prev => prev ? {
                     ...prev,
@@ -1509,6 +1492,12 @@ export function AVAForm() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Ouverture du dossier en cours...</p>
+        </div>
+      )}
       {/* En-tête */}
       <div className="flex items-center justify-between">
         <div>
