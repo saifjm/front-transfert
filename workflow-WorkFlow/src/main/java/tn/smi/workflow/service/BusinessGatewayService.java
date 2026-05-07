@@ -79,9 +79,19 @@ public class BusinessGatewayService {
                 }
             }
 
-            // Then replace standard placeholders
+            // Then replace standard placeholders.
+            // When businessKey is still TEMP and PAYLOAD_BK_FIELD is configured,
+            // substitute the real key from the payload so the URL is correct on first call.
+            String effectiveBk = businessKey;
+            String bkField = wfDefinition.getPayloadBusinessKeyField();
+            if (bkField != null && !bkField.isBlank()
+                    && businessKey != null && businessKey.startsWith("TEMP-")
+                    && payload != null && payload.get(bkField) != null) {
+                effectiveBk = String.valueOf(payload.get(bkField));
+                log.info("Using payload field '{}' = '{}' as effectiveBusinessKey (was TEMP)", bkField, effectiveBk);
+            }
             endpoint = endpoint
-                    .replace("{businessKey}", businessKey)
+                    .replace("{businessKey}", effectiveBk)
                     .replace("{finalize}", String.valueOf(finalize));
             log.info("Final endpoint after replacements: {}", endpoint);
         } else {

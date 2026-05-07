@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -104,7 +104,8 @@ interface Reservation {
   referenceRes: string;
 }
 
-export function AVAAnnulationReservation() {
+export function AVAAnnulationReservation({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<
     "recherche" | "annulation"
   >("recherche");
@@ -477,6 +478,13 @@ export function AVAAnnulationReservation() {
     setSearchClient("");
     setSearchAgence("");
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélectionner un dossier
   const handleSelectDossier = async (dossier: DossierAVA) => {

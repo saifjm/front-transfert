@@ -8,7 +8,7 @@ import {
   Save,
   Search
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
@@ -103,7 +103,8 @@ interface AgenceDetail {
   libelleAgence: string;
 }
 
-export function AVASuspension() {
+export function AVASuspension({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<
     "recherche" | "suspension"
   >("recherche");
@@ -403,6 +404,13 @@ export function AVASuspension() {
     setSearchClient("");
     setSearchAgence("");
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectDossier = async (dossier: DossierAVA) => {
     setLoading(true);

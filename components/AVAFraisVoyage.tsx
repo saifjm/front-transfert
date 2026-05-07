@@ -105,7 +105,8 @@ interface BeneficiaireFVDTO {
 
 // ============= COMPOSANT PRINCIPAL =============
 
-export function AVAFraisVoyage() {
+export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
   const [localStorageDirHandle, setLocalStorageDirHandle] = useState<any>(null);
   const [etape, setEtape] = useState<'recherche' | 'frais'>('recherche');
@@ -484,6 +485,13 @@ export function AVAFraisVoyage() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ============= GESTION DES ÉTATS =============
 

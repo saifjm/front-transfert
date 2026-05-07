@@ -7,7 +7,7 @@ import {
     Save,
     Search,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
@@ -74,7 +74,8 @@ const TYPE_DOSSIER_LABELS: Record<number, string> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AVAAlimentationAccordBCT() {
+export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'alimentation'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
@@ -267,6 +268,13 @@ export function AVAAlimentationAccordBCT() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sélection dossier ─────────────────────────────────────────────────────
   const handleSelectDossier = (dossier: DossierAVA) => {

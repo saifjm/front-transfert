@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -57,7 +57,8 @@ interface Agence {
   libelleAgence: string;
 }
 
-export function AlimentationDossierExportateur() {
+export function AlimentationDossierExportateur({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'alimentation'>('recherche');
   const [dossiers, setDossiers] = useState<DossierExportateur[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierExportateur[]>([]);
@@ -343,6 +344,13 @@ export function AlimentationDossierExportateur() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélectionner un dossier
   const handleSelectDossier = async (dossier: DossierExportateur) => {

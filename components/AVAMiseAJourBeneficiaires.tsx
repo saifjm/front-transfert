@@ -8,7 +8,7 @@ import {
   Search,
   Trash2
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
@@ -100,7 +100,8 @@ interface Agence {
   typeDossierAva?: number;
 }
 
-export function AVAMiseAJourBeneficiaires() {
+export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'mise-a-jour'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossierSelectionne, setDossierSelectionne] = useState<DossierAVA | null>(null);
@@ -470,6 +471,13 @@ export function AVAMiseAJourBeneficiaires() {
       return [];
     }
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; selectionnerDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélectionner un dossier et charger ses bénéficiaires
   const selectionnerDossier = async (dossier: DossierAVA) => {
