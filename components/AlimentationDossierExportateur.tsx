@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Badge } from './ui/badge';
-import { authenticatedFetch } from '../utils/api';
-import { 
-  ArrowLeft, 
-  FileText, 
+import {
   AlertTriangle,
+  ArrowLeft,
+  FileText,
   RefreshCw,
   Save
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-
+import { authenticatedFetch } from '../utils/api';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { startRapatriementDecision,continueRapatriementDecision } from '../utils/workflowApi';
 interface DossierExportateur {
   codeAgence: string;
   libelleAgence: string;
@@ -64,6 +64,9 @@ export function AlimentationDossierExportateur() {
   const [dossierSelectionne, setDossierSelectionne] = useState<DossierExportateur | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // État workflow
+  const [wfRapatriementBusinessKey, setWfRapatriementBusinessKey] = useState<string | null>(null);
 
   // État pour le modal d'erreur API
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -347,6 +350,7 @@ export function AlimentationDossierExportateur() {
   // Sélectionner un dossier
   const handleSelectDossier = async (dossier: DossierExportateur) => {
     setDossierSelectionne(dossier);
+    setWfRapatriementBusinessKey(null); // Reset workflow state
     
     let numeroCompte = dossier.numeroCompte;
     
@@ -443,33 +447,48 @@ export function AlimentationDossierExportateur() {
         numDossierNumber = Number(dossierSelectionne.numeroDossier.replace('AVA-', '').replace('EXP-', ''));
       }
 
+      // Préparer le payload pour le workflow
       const payload: OperationExportateurAVADTO = {
-        ...alimentation,
-        numDossierAva: numDossierNumber
+        numDossierAva: numDossierNumber,
+        dateDosRap: alimentation.dateDosRap,
+        mntRap: alimentation.mntRap,
+        codeDevise: alimentation.codeDevise,
+        codeProduitService: alimentation.codeProduitService,
+        numeroCompte: alimentation.numeroCompte,
+        typePieceBenef: alimentation.typePieceBenef,
+        noPieceBenef: alimentation.noPieceBenef
       };
 
-      const response = await authenticatedFetch('/api/operation-exportateur-ava/rapatriement/true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      console.log('[WF] Rapatriement Exportateur - Début soumission');
+      console.log('[WF] Business key actuelle:', wfRapatriementBusinessKey);
+      console.log('[WF] Payload:', payload);
 
-      if (response.ok) {
-        // Si la réponse est un PDF (quand Finalize=true on attend parfois un PDF)
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/pdf')) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `Rapatriement_AVA_${payload.numDossierAva}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
+      // Appel workflow
+      const wfResponse = wfRapatriementBusinessKey
+        ? await continueRapatriementDecision(
+            wfRapatriementBusinessKey,
+            'SOUMETTRE',
+            payload
+          )
+        : await startRapatriementDecision(
+            'SOUMETTRE',
+            payload
+          );
+
+      console.log('[WF] Réponse workflow:', wfResponse);
+
+      // Traiter la réponse du workflow
+      if (wfResponse.result === 'OK') {
+        // Sauvegarder la business key pour les soumissions futures
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          console.log('[WF] Business key sauvegardée:', newKey);
+          setWfRapatriementBusinessKey(newKey);
         }
 
-        toast.success('Rapatriement enregistré avec succès', {
-          description: `Dossier ${dossierSelectionne.numeroDossier} rapatrié`
+        toast.success('Rapatriement exportateur soumis avec succès', {
+          description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} rapatrié`,
+          duration: 5000,
         });
         
         // Retour à la recherche
@@ -477,37 +496,24 @@ export function AlimentationDossierExportateur() {
         
         // Recharger les dossiers
         await fetchDossiers();
-      } else {
-        const errorData = await safeJsonParse<any>(response);
-        
-        if (errorData) {
-          setApiError({
-            status: response.status,
-            message: errorData.message || 'Erreur lors du traitement de la requête',
-            details: errorData.details || errorData.error,
-            code: errorData.code,
-            timestamp: errorData.timestamp || new Date().toISOString()
-          });
-        } else {
-          setApiError({
-            status: response.status,
-            message: 'Erreur inattendue du serveur',
-            details: `HTTP ${response.status}`
-          });
-        }
-        setShowErrorModal(true);
+
+      } else if (wfResponse.result === 'REJECTED') {
+        console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
+        toast.error('Opération rejetée par le workflow', {
+          description: wfResponse.errorMessage || 'Veuillez vérifier les données',
+        });
+
+      } else if (wfResponse.result === 'ERROR') {
+        console.error('[WF] Erreur workflow:', wfResponse.errorMessage);
+        toast.error('Erreur workflow', {
+          description: wfResponse.errorMessage || 'Une erreur est survenue',
+        });
       }
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Rapatriement simulé (Erreur réseau)');
-      toast.success('✓ Rapatriement enregistré (mode démo)', {
-        description: `Dossier ${dossierSelectionne.numeroDossier} rapatrié`
+      console.error('[WF] Exception:', error);
+      toast.error('Erreur lors de la soumission', {
+        description: error instanceof Error ? error.message : 'Erreur inconnue',
       });
-      
-      // Retour à la recherche après un délai
-      setTimeout(() => {
-        handleRetourRecherche();
-        fetchDossiers();
-      }, 1000);
     } finally {
       setIsSubmitting(false);
     }
