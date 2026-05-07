@@ -267,6 +267,48 @@ export async function getWfLeveeSuspensionTaskList(): Promise<WfTask[]> {
   return Array.isArray(data) ? data : (data.content ?? []);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MAJ BENEFICIAIRE WORKFLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const WF_MAJ_BENEFICIAIRE_OPERATION_KEY = 'operations_beneficiaire';
+
+export async function startMajBeneficiaireDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueMajBeneficiaireDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfMajBeneficiaireTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
 // ─── Réservation workflow ─────────────────────────────────────────────────────
 
 export const WF_RESERVATION_OPERATION_KEY = 'operations_reservation';

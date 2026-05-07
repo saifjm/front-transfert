@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { continueMajBeneficiaireDecision, startMajBeneficiaireDecision } from '../utils/workflowApi';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -106,6 +107,9 @@ export function AVAMiseAJourBeneficiaires() {
   const [dossierSelectionne, setDossierSelectionne] = useState<DossierAVA | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // État workflow
+  const [wfMajBeneficiaireBusinessKey, setWfMajBeneficiaireBusinessKey] = useState<string | null>(null);
   
   // Liste des agences
   const [agences, setAgences] = useState<Agence[]>([]);
@@ -474,6 +478,7 @@ export function AVAMiseAJourBeneficiaires() {
   // Sélectionner un dossier et charger ses bénéficiaires
   const selectionnerDossier = async (dossier: DossierAVA) => {
     setLoading(true);
+    setWfMajBeneficiaireBusinessKey(null); // Reset workflow state
     
     try {
       // 1. Charger le résumé du dossier depuis l'API
@@ -687,45 +692,84 @@ export function AVAMiseAJourBeneficiaires() {
     setIsSubmitting(true);
 
     try {
-      // Préparation des données pour l'API
-      const beneficiairesAPayload = beneficiaires.map(benef => ({
-        numDossier: dossierSelectionne?.numDossier,
-        dateDossier: dossierSelectionne?.dateDossier,
-        typePieceBenef: benef.typePieceBenef,
-        noPieceBenef: benef.noPieceBenef,
-        codeTypeDos: dossierSelectionne?.codeTypeDossier,
-        nomBenef: benef.nomBenef,
-        adresseBenef: benef.adresseBenef,
-        qualite: benef.qualite,
-        datePiece: benef.datePiece,
-        etat: benef.etat
-      }));
-
-      console.log('Envoi bénéficiaires API:', beneficiairesAPayload);
-
-      // Envoyer chaque bénéficiaire à l'API
-      for (const benefPayload of beneficiairesAPayload) {
-        const response = await authenticatedFetch('/api/beneficiaires/true', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(benefPayload),
-        });
+      // Envoyer chaque bénéficiaire via le workflow
+      for (let i = 0; i < beneficiaires.length; i++) {
+        const benef = beneficiaires[i];
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `Erreur API: ${response.status}`);
+        // Préparation du payload pour le workflow (UN SEUL bénéficiaire)
+        const payload = {
+          numDossier: dossierSelectionne?.numDossier,
+          dateDossier: dossierSelectionne?.dateDossier,
+          typePieceBenef: benef.typePieceBenef,
+          noPieceBenef: benef.noPieceBenef,
+          codeTypeDos: dossierSelectionne?.codeTypeDossier,
+          nomBenef: benef.nomBenef,
+          adresseBenef: benef.adresseBenef,
+          qualite: benef.qualite,
+          datePiece: benef.datePiece,
+          etat: benef.etat
+        };
+
+        console.log(`[WF] Maj Beneficiaire ${i + 1}/${beneficiaires.length} - Début soumission`);
+        console.log('[WF] Business key actuelle:', wfMajBeneficiaireBusinessKey);
+        console.log('[WF] Payload:', payload);
+
+        // Appel workflow
+        const wfResponse = wfMajBeneficiaireBusinessKey
+          ? await continueMajBeneficiaireDecision(
+              wfMajBeneficiaireBusinessKey,
+              'SOUMETTRE',
+              payload
+            )
+          : await startMajBeneficiaireDecision(
+              'SOUMETTRE',
+              payload
+            );
+
+        console.log('[WF] Réponse workflow:', wfResponse);
+
+        // Traiter la réponse du workflow
+        if (wfResponse.result === 'OK') {
+          // Sauvegarder la business key pour les soumissions futures
+          const newKey = wfResponse.state?.businessKey;
+          if (newKey) {
+            console.log('[WF] Business key sauvegardée:', newKey);
+            setWfMajBeneficiaireBusinessKey(newKey);
+          }
+
+          console.log(`[WF] Bénéficiaire ${i + 1}/${beneficiaires.length} soumis avec succès`);
+
+        } else if (wfResponse.result === 'REJECTED') {
+          console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
+          toast.error(`Bénéficiaire ${i + 1} rejeté par le workflow`, {
+            description: wfResponse.errorMessage || 'Veuillez vérifier les données',
+          });
+          return; // Arrêter le traitement
+
+        } else if (wfResponse.result === 'ERROR') {
+          console.error('[WF] Erreur workflow:', wfResponse.errorMessage);
+          toast.error(`Erreur workflow pour bénéficiaire ${i + 1}`, {
+            description: wfResponse.errorMessage || 'Une erreur est survenue',
+          });
+          return; // Arrêter le traitement
         }
       }
 
-      toast.success('Bénéficiaires mis à jour avec succès');
-      retourListe();
-    } catch (error: any) {
-      toast.error('Erreur lors de la mise à jour', {
-        description: error.message || 'Une erreur inconnue est survenue'
+      // Tous les bénéficiaires ont été soumis avec succès
+      toast.success('Mise à jour bénéficiaires soumise avec succès', {
+        description: `${beneficiaires.length} bénéficiaire(s) traité(s)`,
+        duration: 5000,
       });
-      console.error('Erreur:', error);
+
+      // Retour à la liste et rafraîchissement
+      retourListe();
+      await fetchDossiers();
+
+    } catch (error: any) {
+      console.error('[WF] Exception:', error);
+      toast.error('Erreur lors de la soumission', {
+        description: error instanceof Error ? error.message : 'Erreur inconnue',
+      });
     } finally {
       setIsSubmitting(false);
     }
