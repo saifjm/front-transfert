@@ -97,6 +97,7 @@ const localFsWriterPlugin = {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), localFsWriterPlugin],
+  publicDir: 'components/public',
   server: {
     port: 3000,
     open: true,

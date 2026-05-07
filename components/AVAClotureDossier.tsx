@@ -354,11 +354,6 @@ export function AVAClotureDossier() {
       newErrors.reference = 'La référence est obligatoire';
     }
 
-    // Vérifier que le montant utilisé est 0
-    if (dossierSelectionne && dossierSelectionne.montantUtilise > 0) {
-      newErrors.general = 'Impossible de clôturer : le montant utilisé doit être 0';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -411,10 +406,10 @@ export function AVAClotureDossier() {
       } else {
         toast.warning(`Résultat inattendu: ${wfResponse.result}`, { description: wfResponse.errorMessage });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Cloture WF] Erreur:', error);
-      toast.error('Erreur de connexion au moteur de workflow', {
-        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      toast.error('Erreur du moteur de workflow', {
+        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
       });
     } finally {
       setIsSubmitting(false);
@@ -588,7 +583,6 @@ export function AVAClotureDossier() {
                           <Button
                             size="sm"
                             onClick={() => handleSelectDossier(dossier)}
-                           disabled={dossier.montantUtilise > 0}
                           >
                             <Search className="w-4 h-4 mr-2" />
                             Sélectionner

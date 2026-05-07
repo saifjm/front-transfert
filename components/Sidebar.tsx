@@ -183,13 +183,12 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
             {/* Brand */}
             <div className="px-5 pt-5 pb-3 flex items-center gap-3">
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+                className="w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden"
                 style={{
-                  background: 'linear-gradient(135deg, #6B8CAE 0%, #435B7B 100%)',
                   boxShadow: '0 2px 8px rgba(107,140,174,0.35)',
                 }}
               >
-                <span style={{ color: '#fff', fontSize: 14, fontWeight: 800, letterSpacing: '0.5px' }}>IB</span>
+                <img src="/logo.png" alt="IBANSYS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div className="flex-1 min-w-0">
                 <div style={{ color: '#f4f7f9', fontSize: 16, fontWeight: 800, letterSpacing: '0.5px', lineHeight: 1.2 }}>

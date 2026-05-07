@@ -666,17 +666,6 @@ export function AVAAnnulationReservation() {
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
         if (newKey) setWfAnnulationBusinessKey(newKey);
-
-        // Validate using the reference from the form
-        try {
-          await authenticatedFetch(
-            `/api/reservation-operations/validate/${annulation.reference}`,
-            { method: 'PUT', headers: { 'Content-Type': 'application/json' } },
-          );
-        } catch (valError) {
-          console.warn('⚠️ Validation call failed after WF submission:', valError);
-        }
-
         toast.success('Annulation de réservation soumise avec succès', {
           description: newKey ? `Référence: ${newKey}` : undefined,
           duration: 5000,
@@ -695,8 +684,8 @@ export function AVAAnnulationReservation() {
       }
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation de réservation:', error);
-      toast.error('Erreur de connexion au moteur de workflow', {
-        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      toast.error('Erreur du moteur de workflow', {
+        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
       });
     } finally {
       setIsSubmitting(false);
@@ -762,17 +751,6 @@ export function AVAAnnulationReservation() {
 
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
-
-        // Validate using the reference of the selected reservation
-        try {
-          await authenticatedFetch(
-            `/api/reservation-operations/validate/${reservationSelectionnee.referenceRes}`,
-            { method: 'PUT', headers: { 'Content-Type': 'application/json' } },
-          );
-        } catch (valError) {
-          console.warn('⚠️ Validation call failed after WF submission:', valError);
-        }
-
         toast.success('Annulation de réservation soumise avec succès', {
           description: newKey ? `Référence: ${newKey}` : undefined,
           duration: 5000,
@@ -798,8 +776,8 @@ export function AVAAnnulationReservation() {
       }
     } catch (error: any) {
       console.error('Erreur lors de la confirmation d\'annulation:', error);
-      toast.error('Erreur de connexion au moteur de workflow', {
-        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
+      toast.error('Erreur du moteur de workflow', {
+        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
       });
     } finally {
       setIsSubmitting(false);

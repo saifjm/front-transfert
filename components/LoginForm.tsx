@@ -63,13 +63,12 @@ export function LoginForm({ onLogin }: LoginFormProps) {
         {/* Brand */}
         <div className="text-center mb-8">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            className="w-14 h-14 rounded-2xl overflow-hidden mx-auto mb-4"
             style={{
-              background: 'linear-gradient(135deg, #6B8CAE 0%, #435B7B 100%)',
               boxShadow: '0 6px 24px rgba(67,91,123,0.30)',
             }}
           >
-            <span style={{ color: '#fff', fontSize: 19, fontWeight: 800, letterSpacing: 0.8 }}>IB</span>
+            <img src="/logo.png" alt="IBANSYS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <h1 style={{ color: '#2D3E54', fontSize: 22, fontWeight: 800, letterSpacing: 0.4, marginBottom: 4 }}>
             IBANSYS

@@ -2,6 +2,15 @@ import { authenticatedFetch } from './api';
 
 export const WF_OPERATION_KEY = 'operations_agence_service_central';
 
+async function wfFetch(url: string, options: RequestInit): Promise<Response> {
+  const response = await authenticatedFetch(url, options);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error((err as any).message || `HTTP ${response.status}`);
+  }
+  return response;
+}
+
 // ─── Types mirroring backend DTOs ────────────────────────────────────────────
 
 export interface DecisionRequest {
@@ -76,7 +85,7 @@ export async function startDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -92,7 +101,7 @@ export async function continueDecision(
   justification?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment, justification };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -129,7 +138,7 @@ export async function startFvDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_FV_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -143,7 +152,7 @@ export async function continueFvDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_FV_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -171,7 +180,7 @@ export async function continueClotureDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_CLOTURE_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -188,7 +197,7 @@ export async function startSuspensionDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_SUSPENSION_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -202,7 +211,7 @@ export async function continueSuspensionDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_SUSPENSION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -228,7 +237,7 @@ export async function startLeveeSuspensionDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_LEVEE_SUSPENSION_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -242,7 +251,7 @@ export async function continueLeveeSuspensionDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_LEVEE_SUSPENSION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -268,7 +277,7 @@ export async function startReservationDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_RESERVATION_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -282,7 +291,7 @@ export async function continueReservationDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_RESERVATION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -308,7 +317,7 @@ export async function startAnnulationReservationDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_ANNULATION_RESERVATION_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
@@ -322,7 +331,7 @@ export async function continueAnnulationReservationDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_ANNULATION_RESERVATION_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
