@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -76,7 +76,8 @@ interface Agence {
   libelleAgence: string;
 }
 
-export function AVAClotureDossier() {
+export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'cloture'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierAVA[]>([]);
@@ -316,6 +317,13 @@ export function AVAClotureDossier() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectDossier = (dossier: DossierAVA) => {
     const numDossier = dossier.numeroDossier.replace('AVA-', '');

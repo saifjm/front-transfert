@@ -1,21 +1,21 @@
-import {
+import { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Badge } from './ui/badge';
+import { authenticatedFetch } from '../utils/api';
+import { 
+  ArrowLeft, 
+  FileText, 
   AlertTriangle,
-  ArrowLeft,
-  FileText,
   RefreshCw,
   Save
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-import { authenticatedFetch } from '../utils/api';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { startRapatriementDecision,continueRapatriementDecision } from '../utils/workflowApi';
 interface DossierExportateur {
   codeAgence: string;
@@ -57,7 +57,8 @@ interface Agence {
   libelleAgence: string;
 }
 
-export function AlimentationDossierExportateur() {
+export function AlimentationDossierExportateur({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'alimentation'>('recherche');
   const [dossiers, setDossiers] = useState<DossierExportateur[]>([]);
   const [dossiersFiltres, setDossiersFiltres] = useState<DossierExportateur[]>([]);
@@ -346,6 +347,13 @@ export function AlimentationDossierExportateur() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélectionner un dossier
   const handleSelectDossier = async (dossier: DossierExportateur) => {

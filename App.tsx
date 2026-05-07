@@ -105,25 +105,25 @@ function renderContent(
     case 'ava-form':
       return <AVAForm />;
     case 'ava-beneficiaires':
-      return <AVAMiseAJourBeneficiaires />;
+      return <AVAMiseAJourBeneficiaires initialDossierNum={deepLinkDossier} />;
     case 'ava-alimentation':
-      return <AlimentationDossierExportateur />;
+      return <AlimentationDossierExportateur initialDossierNum={deepLinkDossier} />;
     case 'ava-frais-voyage':
-      return <AVAFraisVoyage />;
+      return <AVAFraisVoyage initialDossierNum={deepLinkDossier} />;
     case 'ava-retrocession':
-      return <AVARetrocession />;
+      return <AVARetrocession initialDossierNum={deepLinkDossier} />;
     case 'ava-reservation':
-      return <AVAReservation />;
+      return <AVAReservation initialDossierNum={deepLinkDossier} />;
     case 'ava-annulation-reservation':
-      return <AVAAnnulationReservation />;
+      return <AVAAnnulationReservation initialDossierNum={deepLinkDossier} />;
     case 'ava-suspension':
-      return <AVASuspension />;
+      return <AVASuspension initialDossierNum={deepLinkDossier} />;
     case 'ava-levee-suspension':
-      return <AVALeveeSuspension />;
+      return <AVALeveeSuspension initialDossierNum={deepLinkDossier} />;
     case 'ava-alimentation-accord-bct':
-      return <AVAAlimentationAccordBCT />;
+      return <AVAAlimentationAccordBCT initialDossierNum={deepLinkDossier} />;
     case 'ava-cloture-dossier':
-      return <AVAClotureDossier />;
+      return <AVAClotureDossier initialDossierNum={deepLinkDossier} />;
     case 'ava-consultation-dossier':
       return <ConsultationDossierAVA initialNumeroDossier={deepLinkDossier} />;
     case 'ava-generation-diverses':

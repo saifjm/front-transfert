@@ -448,30 +448,11 @@ export async function startAlimentationBctDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  console.log('[WF] startAlimentationBctDecision - URL:', `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/decide/${decisionTag}`);
-  console.log('[WF] startAlimentationBctDecision - Body:', body);
-  
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
-  
-  console.log('[WF] startAlimentationBctDecision - Response status:', response.status);
-  console.log('[WF] startAlimentationBctDecision - Response ok:', response.ok);
-  
-  const text = await response.text();
-  console.log('[WF] startAlimentationBctDecision - Response text:', text);
-  
-  if (!text) {
-    throw new Error(`Empty response from workflow service (status: ${response.status})`);
-  }
-  
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('[WF] Failed to parse response:', text);
-    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
-  }
+  return response.json();
 }
 
 /**
@@ -489,30 +470,11 @@ export async function continueAlimentationBctDecision(
   comment?: string,
 ): Promise<DecisionResponse> {
   const body: DecisionRequest = { payload, comment };
-  console.log('[WF] continueAlimentationBctDecision - URL:', `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`);
-  console.log('[WF] continueAlimentationBctDecision - Body:', body);
-  
-  const response = await authenticatedFetch(
+  const response = await wfFetch(
     `/api/wf/operations/${WF_ALIMENTATION_BCT_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
     { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
   );
-  
-  console.log('[WF] continueAlimentationBctDecision - Response status:', response.status);
-  console.log('[WF] continueAlimentationBctDecision - Response ok:', response.ok);
-  
-  const text = await response.text();
-  console.log('[WF] continueAlimentationBctDecision - Response text:', text);
-  
-  if (!text) {
-    throw new Error(`Empty response from workflow service (status: ${response.status})`);
-  }
-  
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('[WF] Failed to parse response:', text);
-    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}`);
-  }
+  return response.json();
 }
 
 /**

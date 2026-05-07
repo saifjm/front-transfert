@@ -68,7 +68,8 @@ interface Agence {
   libelleAgence: string;
 }
 
-export function AVARetrocession() {
+export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const deepLinked = useRef(false);
   const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
   const [etape, setEtape] = useState<'recherche' | 'retrocession'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
@@ -344,6 +345,13 @@ export function AVARetrocession() {
     setSearchClient('');
     setSearchAgence('');
   };
+
+  // Deep-link: auto-select dossier navigated from dashboard
+  useEffect(() => {
+    if (!initialDossierNum || deepLinked.current || dossiers.length === 0) return;
+    const found = dossiers.find(d => d.numeroDossier === initialDossierNum);
+    if (found) { deepLinked.current = true; handleSelectDossier(found); }
+  }, [dossiers, initialDossierNum]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sélectionner un dossier
   const handleSelectDossier = (dossier: DossierAVA) => {
