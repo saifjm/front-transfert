@@ -1,33 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "./ui/dialog";
-import { 
-  Search, 
-  ArrowLeft, 
-  FileText, 
-  Save,
-  FolderX,
-  Building2,
-  Filter,
-  RotateCcw,
+    AlertCircle,
+    ArrowLeft,
+    Building2,
+    FileText,
+    Filter,
+    FolderX,
+    RotateCcw,
+    Save,
+    Search,
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-import { AlertCircle } from 'lucide-react';
 import { authenticatedFetch } from '../utils/api';
 import { continueClotureDecision } from '../utils/workflowApi';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "./ui/dialog";
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface ApiError {
   status: number;
@@ -109,34 +109,6 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
 
   const fetchDossiers = async () => {
     setLoading(true);
-
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'AVA-1',
-        dateDossier: '2024-01-15',
-        noPieceClient: '1695881M',
-        nomClient: 'Dupont',
-        prenomClient: 'Jean',
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 0,
-        mntUtilise: 0,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 0,
-        mntBlocage: 0,
-        solde: 150000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-12-31',
-        typePieceClient: 1
-      }
-    ];
 
     try {
       const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
@@ -270,9 +242,12 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Clôture Dossier');
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Une erreur est survenue lors du chargement des dossiers'
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }

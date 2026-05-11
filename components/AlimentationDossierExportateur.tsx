@@ -108,56 +108,6 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
   const fetchDossiers = async () => {
     setLoading(true);
 
-    // Données mock par défaut
-    const mockDossiers: DossierExportateur[] = [
-      {
-        codeAgence: '100',
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: '1',
-        codeTypeDossier: '1',
-        libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'AVA-2026-001',
-        dateDossier: '2026-01-15',
-        nomClient: 'Dupont Jean',
-        prenomClient: 'Jean',
-        noPieceClient: '1234567A',
-        numeroCompte: '123456789012345678901234',
-        montantAutorise: 500000,
-        mntAutorise: 500000,
-        montantUtilise: 150000,
-        mntUtilise: 150000,
-        mntAvance: 250000,
-        mntAutorisationBct: 100000,
-        mntReserve: 50000,
-        solde: 350000,
-        devise: 'TND',
-        statut: 'ACTIF'
-      },
-      {
-        codeAgence: '300',
-        libelleAgence: 'Agence Sousse',
-        typeDossier: '2',
-        codeTypeDossier: '2',
-        libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numeroDossier: 'AVA-2026-002',
-        dateDossier: '2026-01-20',
-        nomClient: 'Martin Sophie',
-        prenomClient: 'Sophie',
-        noPieceClient: '7654321B',
-        numeroCompte: '987654321098765432109876',
-        montantAutorise: 300000,
-        mntAutorise: 300000,
-        montantUtilise: 280000,
-        mntUtilise: 280000,
-        mntAvance: 150000,
-        mntAutorisationBct: 60000,
-        mntReserve: 20000,
-        solde: 20000,
-        devise: 'TND',
-        statut: 'ACTIF'
-      }
-    ];
-
     try {
       const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       if (!response.ok) {
@@ -302,9 +252,13 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Dossiers Exportateurs');
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
+      console.error('Erreur lors du chargement des dossiers exportateurs:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
+      setAgences([]);
     } finally {
       setLoading(false);
     }

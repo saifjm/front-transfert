@@ -1,49 +1,49 @@
-import React, { useState, useEffect, useRef } from "react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Button } from "./ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Badge } from "./ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import {
-  Search,
-  ArrowLeft,
-  FileText,
-  Save,
-  CheckCircle2,
-  AlertCircle,
-  BookmarkPlus,
-  Building2,
-  Filter,
-  RotateCcw,
+    AlertCircle,
+    ArrowLeft,
+    BookmarkPlus,
+    Building2,
+    CheckCircle2,
+    FileText,
+    Filter,
+    RotateCcw,
+    Save,
+    Search,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
 import {
-  startReservationDecision,
-  continueReservationDecision,
+    continueReservationDecision,
+    startReservationDecision,
 } from "../utils/workflowApi";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "./ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "./ui/select";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -150,84 +150,6 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
   // Charger les dossiers AVA
   const fetchDossiers = async () => {
     setLoading(true);
-
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: "Agence Tunis Centre",
-        typeDossier: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: "EXPORTATEUR",
-        numeroDossier: "AVA-1",
-        dateDossier: "2024-01-15",
-        noPieceClient: "1695881M",
-        nomClient: "Dupont",
-        prenomClient: "Jean",
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 45000,
-        mntUtilise: 45000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        devise: "TND",
-        statut: "ACTIF",
-        echeance: "2024-12-31",
-        typePieceClient: 1,
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: "Agence Sfax",
-        typeDossier: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: "MARCHE REALISABLE A L'ETRANGER",
-        numeroDossier: "AVA-2",
-        dateDossier: "2024-02-10",
-        noPieceClient: "2345678M",
-        nomClient: "Martin",
-        prenomClient: "Sophie",
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 60000,
-        mntUtilise: 60000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        devise: "TND",
-        statut: "ACTIF",
-        echeance: "2024-11-30",
-        typePieceClient: 1,
-      },
-      {
-        codeAgence: 300,
-        libelleAgence: "Agence Sousse",
-        typeDossier: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: "AUTRES ACTIVITES (ANNEXE N.2)",
-        numeroDossier: "AVA-3",
-        dateDossier: "2024-03-05",
-        noPieceClient: "3456789M",
-        nomClient: "Ben Ali",
-        prenomClient: "Ahmed",
-        montantAutorise: 250000,
-        mntAutorise: 250000,
-        montantUtilise: 75000,
-        mntUtilise: 75000,
-        mntAvance: 125000,
-        mntAutorisationBct: 50000,
-        mntReserve: 50000,
-        mntBlocage: 0,
-        solde: 125000,
-        devise: "TND",
-        statut: "ACTIF",
-        echeance: "2024-10-31",
-        typePieceClient: 1,
-      },
-    ];
 
     // Labels pour les types de dossiers et agences
     const typeDossierLabels: Record<number, string> = {
@@ -357,17 +279,12 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
       );
 
     } catch (error: any) {
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
-
-      if (
-        error?.message &&
-        !error.message.includes("HTTP_ERROR") &&
-        error.message !== "NOT_JSON" &&
-        error.message !== "Failed to fetch"
-      ) {
-        console.info("ℹ️ Mode démonstration - Réservation");
-      }
+      console.error("Erreur lors du chargement des dossiers:", error);
+      toast.error("Impossible de charger les dossiers", {
+        description: "Une erreur est survenue lors du chargement des dossiers"
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }

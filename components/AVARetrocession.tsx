@@ -1,22 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { 
-  Search, 
-  ArrowLeft, 
-  FileText, 
-  Save,
-  AlertCircle
+import {
+    AlertCircle,
+    ArrowLeft,
+    FileText,
+    Save,
+    Search
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { DocumentsManager } from './DocumentsManager';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { DocumentsManager } from './DocumentsManager';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -146,59 +146,6 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   const fetchDossiers = async () => {
     setLoading(true);
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numeroDossier: '22360500',
-        dateDossier: '2026-01-02',
-        noPieceClient: '1695881M',
-        nomClient: 'Ben Ali',
-        prenomClient: 'Ahmed',
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 45000,
-        mntUtilise: 45000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-12-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: 'Agence Sfax',
-        typeDossier: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numeroDossier: '22360542',
-        dateDossier: '2026-01-02',
-        noPieceClient: '2345678M',
-        nomClient: 'Martin',
-        prenomClient: 'Sophie',
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 60000,
-        mntUtilise: 60000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-11-30',
-        typePieceClient: 1
-      }
-    ];
-
     const typeDossierLabels: Record<number, string> = {
       1: 'EXPORTATEUR',
       2: "MARCHE REALISABLE A L'ETRANGER",
@@ -298,9 +245,12 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
       }
       throw new Error('PARSE_ERROR');
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Rétrocession');
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Une erreur est survenue lors du chargement des dossiers'
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }
@@ -463,39 +413,6 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   const fetchOperations = async (numDossier: string) => {
     setLoadingOperations(true);
 
-    const mockOperations: OperationMouvement[] = [
-      {
-        id: {
-          refOperation: 740063,
-          dateOperation: '2026-01-15'
-        },
-        codeTypeDosAva: 3,
-        mntReserve: 15000,
-        codeOperation: 250,
-        mntMvtAva: 15000
-      },
-      {
-        id: {
-          refOperation: 740068,
-          dateOperation: '2026-01-20'
-        },
-        codeTypeDosAva: 3,
-        mntReserve: 8500,
-        codeOperation: 250,
-        mntMvtAva: 8500
-      },
-      {
-        id: {
-          refOperation: 740075,
-          dateOperation: '2026-02-05'
-        },
-        codeTypeDosAva: 3,
-        mntReserve: 6500,
-        codeOperation: 250,
-        mntMvtAva: 6500
-      }
-    ];
-
     try {
       // Calculer les dates : end = aujourd'hui, start = aujourd'hui - 1 mois
       const endDate = new Date();
@@ -528,8 +445,9 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
       }
       throw new Error('API_ERROR');
     } catch (error) {
-      console.info('ℹ️ Mode démonstration - Opérations du dossier');
-      setOperations(mockOperations);
+      console.error('Erreur lors du chargement des opérations:', error);
+      toast.error('Impossible de charger les opérations');
+      setOperations([]);
     } finally {
       setLoadingOperations(false);
     }

@@ -1,14 +1,14 @@
 import {
-  ArrowLeft,
-  FileText,
-  Filter,
-  PlusCircle,
-  RotateCcw,
-  Save,
-  Search,
-  Trash2
+    ArrowLeft,
+    FileText,
+    Filter,
+    PlusCircle,
+    RotateCcw,
+    Save,
+    Search,
+    Trash2
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
@@ -166,120 +166,6 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
   const fetchDossiers = async () => {
     setLoading(true);
     
-    // Données mock par défaut
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossierAva: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numDossier: 1,
-        numeroDossier: 'AVA-1',
-        dateDossier: '2024-01-15',
-        noPieceClient: '1695881M',
-        nomClient: 'Dupont Jean',
-        prenomClient: 'Jean',
-        mntAutorise: 150000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntUtilise: 45000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        echeance: '2024-12-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: 'Agence Sfax',
-        typeDossierAva: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numDossier: 2,
-        numeroDossier: 'AVA-2',
-        dateDossier: '2024-02-10',
-        noPieceClient: '2345678M',
-        nomClient: 'Martin Sophie',
-        prenomClient: 'Sophie',
-        mntAutorise: 200000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntUtilise: 60000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        echeance: '2024-11-30',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 300,
-        libelleAgence: 'Agence Sousse',
-        typeDossierAva: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numDossier: 3,
-        numeroDossier: 'AVA-3',
-        dateDossier: '2024-03-05',
-        noPieceClient: '3456789M',
-        nomClient: 'Ben Ali Ahmed',
-        prenomClient: 'Ahmed',
-        mntAutorise: 250000,
-        mntAvance: 125000,
-        mntAutorisationBct: 50000,
-        mntUtilise: 75000,
-        mntReserve: 50000,
-        mntBlocage: 0,
-        solde: 125000,
-        echeance: '2024-10-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossierAva: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numDossier: 4,
-        numeroDossier: 'AVA-4',
-        dateDossier: '2024-04-12',
-        noPieceClient: '4567890M',
-        nomClient: 'Trabelsi Leila',
-        prenomClient: 'Leila',
-        mntAutorise: 180000,
-        mntAvance: 90000,
-        mntAutorisationBct: 35000,
-        mntUtilise: 55000,
-        mntReserve: 35000,
-        mntBlocage: 0,
-        solde: 90000,
-        echeance: '2025-01-15',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 400,
-        libelleAgence: 'Agence Monastir',
-        typeDossierAva: 5,
-        codeTypeDossier: 5,
-        libelleTypeDossier: 'A. ACT. (PROM.-NOUV. PROJ.)',
-        numDossier: 5,
-        numeroDossier: 'AVA-5',
-        dateDossier: '2024-05-20',
-        noPieceClient: '5678901M',
-        nomClient: 'Hamdi Mohamed',
-        prenomClient: 'Mohamed',
-        mntAutorise: 300000,
-        mntAvance: 150000,
-        mntAutorisationBct: 60000,
-        mntUtilise: 90000,
-        mntReserve: 60000,
-        mntBlocage: 0,
-        solde: 150000,
-        echeance: '2024-09-30',
-        typePieceClient: 1
-      }
-    ] as any[];
-    
     try {
       // Appel API réel
       const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
@@ -383,13 +269,12 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
       
       console.log('✅ API: Dossiers chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
-      // Mode démonstration silencieux - pas d'alerte utilisateur
-      setDossiers(mockDossiers);
-      
-      // Log discret uniquement si ce n'est pas une erreur réseau classique
-      if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
-        console.info('ℹ️ Mode démonstration activé');
-      }
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setAgences([]);
     } finally {
       setLoading(false);
     }
