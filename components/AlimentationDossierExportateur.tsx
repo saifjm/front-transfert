@@ -1,22 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Badge } from './ui/badge';
-import { authenticatedFetch } from '../utils/api';
-import { 
-  ArrowLeft, 
-  FileText, 
-  AlertTriangle,
-  RefreshCw,
-  Save
+import {
+    AlertTriangle,
+    ArrowLeft,
+    FileText,
+    RefreshCw,
+    Save
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
-import { startRapatriementDecision,continueRapatriementDecision } from '../utils/workflowApi';
+import { authenticatedFetch } from '../utils/api';
+import { continueRapatriementDecision, startRapatriementDecision } from '../utils/workflowApi';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 interface DossierExportateur {
   codeAgence: string;
   libelleAgence: string;
@@ -494,10 +494,34 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
           setWfRapatriementBusinessKey(newKey);
         }
 
-        toast.success('Rapatriement exportateur soumis avec succès', {
-          description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} rapatrié`,
-          duration: 5000,
-        });
+        // AUTO-APPROVAL: Automatically approve after submission
+        console.log('[WF] Auto-approval - Début approbation automatique');
+        try {
+          const approvalResponse = await continueRapatriementDecision(
+            newKey || wfRapatriementBusinessKey!,
+            'APPROUVER',
+            payload
+          );
+
+          console.log('[WF] Réponse approbation:', approvalResponse);
+
+          if (approvalResponse.result === 'OK') {
+            toast.success('Rapatriement exportateur approuvé avec succès', {
+              description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} rapatrié`,
+              duration: 5000,
+            });
+          } else {
+            console.error('[WF] Erreur approbation:', approvalResponse.errorMessage);
+            toast.warning('Soumis mais erreur lors de l\'approbation', {
+              description: approvalResponse.errorMessage || 'Veuillez approuver manuellement',
+            });
+          }
+        } catch (approvalError) {
+          console.error('[WF] Exception approbation:', approvalError);
+          toast.warning('Soumis mais erreur lors de l\'approbation automatique', {
+            description: 'Veuillez approuver manuellement',
+          });
+        }
         
         // Retour à la recherche
         handleRetourRecherche();

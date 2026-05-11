@@ -53,6 +53,21 @@ public class BusinessGatewayService {
         String baseUrl = wfDefinition.getBaseUrl();
         String endpointTemplate = wfDefinition.getEndpointTemplate();
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // DETAILED LOGGING FOR FINALIZE PARAMETER TRACKING
+        // ═══════════════════════════════════════════════════════════════════════════
+        log.info("═══════════════════════════════════════════════════════════");
+        log.info("BUSINESS GATEWAY SERVICE - CALL START");
+        log.info("═══════════════════════════════════════════════════════════");
+        log.info("Operation Key: {}", operationKey);
+        log.info("Business Key: {}", businessKey);
+        log.info("Node Key: {}", nodeKey);
+        log.info("Decision Tag: {}", decisionTag);
+        log.info("FINALIZE parameter received: {}", finalize);
+        log.info("Base URL: {}", baseUrl);
+        log.info("Endpoint Template: {}", endpointTemplate);
+        log.info("═══════════════════════════════════════════════════════════");
+
         // Validate downstream config
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalStateException(
@@ -91,8 +106,23 @@ public class BusinessGatewayService {
                 log.info("Using payload field '{}' = '{}' as effectiveBusinessKey (was TEMP)", bkField, effectiveBk);
             }
             endpoint = endpoint
-                    .replace("{businessKey}", effectiveBk)
-                    .replace("{finalize}", String.valueOf(finalize));
+                    .replace("{businessKey}", effectiveBk);
+            
+            // ═══════════════════════════════════════════════════════════════════════════
+            // DETAILED LOGGING FOR {finalize} REPLACEMENT
+            // ═══════════════════════════════════════════════════════════════════════════
+            log.info("Replacing {finalize} placeholder...");
+            log.info("  - finalize boolean value: {}", finalize);
+            log.info("  - finalize string value: '{}'", String.valueOf(finalize));
+            log.info("  - Endpoint before replacement: {}", endpoint);
+            
+            endpoint = endpoint.replace("{finalize}", String.valueOf(finalize));
+            
+            log.info("After {finalize} replacement:");
+            log.info("  - Endpoint: {}", endpoint);
+            log.info("  - Full URL will be: {}", baseUrl + endpoint);
+            log.info("═══════════════════════════════════════════════════════════");
+            
             log.info("Final endpoint after replacements: {}", endpoint);
         } else {
             throw new IllegalStateException(
@@ -208,6 +238,16 @@ public class BusinessGatewayService {
             call.setResponseStatus(200);
             call.setResponseBody(responseBody);
             downstreamCallRepository.save(call);
+
+            // ═══════════════════════════════════════════════════════════════════════════
+            // DETAILED LOGGING FOR CALL COMPLETION
+            // ═══════════════════════════════════════════════════════════════════════════
+            log.info("═══════════════════════════════════════════════════════════");
+            log.info("BUSINESS GATEWAY SERVICE - CALL COMPLETE");
+            log.info("Response Status: {}", call.getResponseStatus());
+            log.info("Response Status Enum: {}", call.getStatus());
+            log.info("Response Body Length: {} chars", responseBody != null ? responseBody.length() : 0);
+            log.info("═══════════════════════════════════════════════════════════");
 
             // Extract real businessKey from response if configured
             String respBkPath = wfDefinition.getResponseBusinessKeyPath();
