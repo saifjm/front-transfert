@@ -1,61 +1,43 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@radix-ui/react-select";
 import {
-    AlertCircle,
-    ArrowLeft,
-    BookmarkPlus,
-    Building2,
-    CheckCircle2,
-    FileText,
-    Filter,
-    RotateCcw,
-    Save,
-    Search,
+  ArrowLeft,
+  BookmarkPlus,
+  Building2,
+  CheckCircle2,
+  FileText,
+  Filter,
+  RotateCcw,
+  Save,
+  Search
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
 import {
-    continueReservationDecision,
-    startReservationDecision,
+  continueReservationDecision,
+  startReservationDecision,
 } from "../utils/workflowApi";
+import { useErrorHandler } from './ErrorContext';
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "./ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import {
-  Search,
-  ArrowLeft,
-  FileText,
-  Save,
-  CheckCircle2,
-  BookmarkPlus,
-  Building2,
-  Filter,
-  RotateCcw,
-} from "lucide-react";
-import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
-import { authenticatedFetch } from "../utils/api";
-import {
-  startReservationDecision,
-  continueReservationDecision,
-} from "../utils/workflowApi";
-import { useErrorHandler } from './ErrorContext';
 
 interface DossierAVA {
   codeAgence: string | number;

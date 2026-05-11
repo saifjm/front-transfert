@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { AlertCircle, FileText, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { authenticatedFetch } from '../utils/api';
+import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { AlertCircle, Save, FileText } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface DeclarationFiscaleDTO {
   noPieceClient: string;
@@ -99,69 +100,11 @@ export function DeclarationChiffreAffairesFiscal() {
             setClientName('');
           }
         } catch (error: any) {
-          console.info('ℹ️ Mode démonstration', error);
-          // Données mock en mode démo
-          const mockClients: PersonneResponse[] = [
-            {
-              dateDelPiece: null,
-              lieuDelPiece: null,
-              nom: 'SOCIETE DE TEST',
-              prenom: null,
-              adrRes1: 'TUNIS',
-              adrRes2: null,
-              adrRes3: null,
-              adrRes4: null,
-              nationalite: null,
-              telephone: null,
-              email: null,
-              dateCreation: null,
-              typRefCltInt: null,
-              numRefCltInt: '112501A223',
-              npMigration: null,
-              tpMigration: null,
-              activite: null,
-              fax: null,
-              adrCor4: null,
-              adrCor1: null,
-              adrCor2: null,
-              adrCor3: null,
-              noPiecePersonne: '1086189H',
-              typePiecePersonne: 3
-            },
-            {
-              dateDelPiece: null,
-              lieuDelPiece: null,
-              nom: 'STE SANCELLA  S A',
-              prenom: null,
-              adrRes1: 'TUNISIE',
-              adrRes2: null,
-              adrRes3: null,
-              adrRes4: null,
-              nationalite: null,
-              telephone: null,
-              email: null,
-              dateCreation: null,
-              typRefCltInt: null,
-              numRefCltInt: null,
-              npMigration: null,
-              tpMigration: null,
-              activite: null,
-              fax: null,
-              adrCor4: null,
-              adrCor1: null,
-              adrCor2: null,
-              adrCor3: null,
-              noPiecePersonne: '0496781S',
-              typePiecePersonne: 3
-            }
-          ];
-          
-          // Simuler une recherche aléatoire
-          const randomClient = mockClients[Math.floor(Math.random() * mockClients.length)];
-          const fullName = randomClient.prenom 
-            ? `${randomClient.nom} ${randomClient.prenom}` 
-            : randomClient.nom;
-          setClientName(fullName);
+          console.error('Erreur lors du chargement:', error);
+          toast.error('Impossible de charger les données', {
+            description: 'Veuillez vérifier votre connexion et réessayer',
+          });
+          setClientName('');
         } finally {
           setIsLoadingClient(false);
         }
@@ -195,24 +138,11 @@ export function DeclarationChiffreAffairesFiscal() {
             setOperationsDelegues([]);
           }
         } catch (error: any) {
-          console.info('ℹ️ Mode démonstration', error);
-          // Données mock en mode démo
-          const mockOperations: OperationDelegueResponse[] = [
-            {
-              numDossier: 'D001',
-              dateDossier: '2023-01-15',
-              numeroCompte: '123456789',
-              solde: 50000
-            },
-            {
-              numDossier: 'D002',
-              dateDossier: '2023-02-20',
-              numeroCompte: '987654321',
-              solde: 75000
-            }
-          ];
-          
-          setOperationsDelegues(mockOperations);
+          console.error('Erreur lors du chargement:', error);
+          toast.error('Impossible de charger les données', {
+            description: 'Veuillez vérifier votre connexion et réessayer',
+          });
+          setOperationsDelegues([]);
         } finally {
           setIsLoadingOperations(false);
         }
