@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { continueAlimentationBctDecision, startAlimentationBctDecision } from '../utils/workflowApi';
+import { useErrorHandler } from './ErrorContext';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -75,6 +76,7 @@ const TYPE_DOSSIER_LABELS: Record<number, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'alimentation'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
@@ -373,15 +375,9 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
         }
 
       } else if (wfResponse.result === 'REJECTED') {
-        console.error('[WF] Opération rejetée:', wfResponse.message);
-        toast.error('Opération rejetée par le workflow', {
-          description: wfResponse.message || 'Veuillez vérifier les données',
-        });
+        showError(wfResponse.errorMessage || 'Veuillez vérifier les données', undefined, 'Opération rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        console.error('[WF] Erreur workflow:', wfResponse.message);
-        toast.error('Erreur workflow', {
-          description: wfResponse.message || 'Une erreur est survenue',
-        });
+        showError(wfResponse.errorMessage || 'Une erreur est survenue');
       }
     } catch (error) {
       console.error('[WF] Exception:', error);

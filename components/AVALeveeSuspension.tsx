@@ -16,6 +16,7 @@ import {
     continueLeveeSuspensionDecision,
     startLeveeSuspensionDecision,
 } from "../utils/workflowApi";
+import { useErrorHandler } from './ErrorContext';
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -111,6 +112,7 @@ interface AgenceDetail {
 }
 
 export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<"recherche" | "levee">(
     "recherche",
@@ -713,14 +715,9 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
         }
 
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Levée de suspension rejetée', {
-          description: wfResponse.errorMessage || 'La levée de suspension a été rejetée par le workflow',
-        });
-
+        showError(wfResponse.errorMessage || 'La levée de suspension a été rejetée par le workflow', undefined, 'Levée de suspension rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        toast.error('Erreur workflow', {
-          description: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
-        });
+        showError(wfResponse.errorMessage || 'Une erreur est survenue lors du traitement');
       }
     } catch (error) {
       console.error('Erreur lors de la levée de suspension:', error);

@@ -1091,7 +1091,6 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             { label: 'Levée de Suspension',     section: 'ava-levee-suspension',        Icon: Play,        color: '#10B981' },
             { label: 'Alimentation BCT',        section: 'ava-alimentation-accord-bct', Icon: Banknote,    color: '#06B6D4' },
             { label: 'Rétrocession',            section: 'ava-retrocession',            Icon: Repeat2,     color: '#6366F1' },
-            { label: 'Ouverture Dossier',       section: 'ava-ouverture',               Icon: FilePlus,    color: '#435B7B' },
             { label: 'Mise à jour Bénéf.',      section: 'ava-beneficiaires',           Icon: Users,       color: '#0EA5E9' },
             { label: 'Clôture Dossier',         section: 'ava-cloture-dossier',         Icon: Lock,        color: '#64748B' },
             { label: 'Alimentation Export.',    section: 'ava-alimentation',            Icon: FileOutput,  color: '#D97706' },

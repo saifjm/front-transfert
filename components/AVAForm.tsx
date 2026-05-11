@@ -26,6 +26,7 @@ import { DossierValidatedModal } from './DossierValidatedModal';
 import { controleRne } from '../utils/controleRne';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { startDecision, continueDecision } from '../utils/workflowApi';
+import { useErrorHandler } from './ErrorContext';
 import { authenticatedFetch } from '../utils/api';
 
 interface BeneficiaireMvtDTO {
@@ -180,6 +181,7 @@ interface   InitiationOuvertureDTO {
 }
 
 export function AVAForm() {
+  const { showError } = useErrorHandler();
   const documentStorageBasePath = String(
     import.meta.env.VITE_DOCUMENTS_BASE_PATH || '',
   ).trim();
@@ -227,16 +229,6 @@ export function AVAForm() {
   const [showDossierModal, setShowDossierModal] = useState(false);
   const [dossierValide, setDossierValide] = useState<OuvertureDossierDTO | null>(null);
   const [banqueProvenanceError, setBanqueProvenanceError] = useState<string>('');
-  
-  // État pour le modal d'erreur API
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [apiError, setApiError] = useState<{
-    code?: string;
-    error?: string;
-    message?: string;
-    timestamp?: string;
-    status?: number;
-  } | null>(null);
   
   const [banqueProvenanceFieldErrors, setBanqueProvenanceFieldErrors] = useState<{
     mntAvance?: string;
@@ -1363,7 +1355,7 @@ export function AVAForm() {
       };
 
       const toastLabels: Record<string, { info: string; success: string }> = {
-        APPROUVER:     { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
+        SUBMIT_DIRECT: { info: 'Soumission au Service Central...', success: 'Dossier soumis au Service Central' },
         RETOUR_AGENCE: { info: 'Retour en saisie agence...', success: 'Dossier retourné en saisie' },
       };
 
@@ -1386,7 +1378,7 @@ export function AVAForm() {
           duration: 5000,
         });
 
-        if (decisionTag === 'APPROUVER') {
+        if (decisionTag === 'SUBMIT_DIRECT') {
           const numDossier = newKey ? Number(newKey) : undefined;
           const modalDocuments = cleanDocuments.map(d => ({
             typeDocument: d.typeDocument,
@@ -1440,16 +1432,13 @@ export function AVAForm() {
           }
         }
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Opération rejetée par le moteur de workflow', {
-          description: wfResponse.errorMessage || 'Le dossier a été rejeté.',
-        });
+        showError(wfResponse.errorMessage || 'Le dossier a été rejeté.', undefined, 'Opération rejetée');
       } else if (wfResponse.result === 'WARN_REQUIRED') {
         toast.warning('Justification SoD requise', {
           description: 'Une vérification a détecté un conflit. Veuillez contacter votre administrateur.',
         });
       } else if (wfResponse.result === 'ERROR') {
-        setApiError({ message: wfResponse.errorMessage ?? 'Erreur workflow inconnue' });
-        setShowErrorModal(true);
+        showError(wfResponse.errorMessage ?? 'Erreur workflow inconnue');
       } else {
         toast.error('Réponse inattendue du moteur de workflow', { description: String(wfResponse.result) });
       }
@@ -1514,7 +1503,7 @@ export function AVAForm() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => handleWfDecision('APPROUVER')}
+            onClick={() => handleWfDecision('SUBMIT_DIRECT')}
             disabled={isSubmitting}
           >
             <Send className="w-4 h-4 mr-2" />
@@ -2659,7 +2648,7 @@ export function AVAForm() {
                 Réinitialiser
               </Button>
               <Button
-                onClick={() => handleWfDecision('APPROUVER')}
+                onClick={() => handleWfDecision('SUBMIT_DIRECT')}
                 disabled={isSubmitting}
               >
                 <Send className="w-4 h-4 mr-2" />
@@ -2676,68 +2665,6 @@ export function AVAForm() {
         dossier={dossierValide}
         onClose={handleCloseModal}
       />
-
-      {/* Modal d'erreur API */}
-      <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              Erreur lors de l'initialisation du dossier
-            </DialogTitle>
-            <DialogDescription>
-              Une erreur s'est produite lors de la création du dossier. Veuillez consulter les détails ci-dessous.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {apiError && (
-            <div className="space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
-                {apiError.code && (
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Code :</span>
-                    <span className="text-sm text-red-800 font-mono">{apiError.code}</span>
-                  </div>
-                )}
-                
-                {apiError.error && (
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Erreur :</span>
-                    <span className="text-sm text-red-800">{apiError.error}</span>
-                  </div>
-                )}
-                
-                {apiError.message && (
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Message :</span>
-                    <span className="text-sm text-red-800">{apiError.message}</span>
-                  </div>
-                )}
-                
-                {apiError.status && (
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Statut HTTP :</span>
-                    <span className="text-sm text-red-800">{apiError.status}</span>
-                  </div>
-                )}
-                
-                {apiError.timestamp && (
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold text-sm text-red-900 min-w-[100px]">Horodatage :</span>
-                    <span className="text-sm text-red-800 font-mono">{apiError.timestamp}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end">
-                <Button onClick={() => setShowErrorModal(false)} variant="outline">
-                  Fermer
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog de prévisualisation des documents */}
       <Dialog open={!!previewDocument} onOpenChange={(open) => !open && closePreview()}>

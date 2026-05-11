@@ -31,7 +31,6 @@ import {
   FileText,
   XCircle,
   CheckCircle2,
-  AlertCircle,
   Building2,
   Filter,
   RotateCcw,
@@ -43,6 +42,7 @@ import {
   startAnnulationReservationDecision,
   continueAnnulationReservationDecision,
 } from "../utils/workflowApi";
+import { useErrorHandler } from './ErrorContext';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -105,6 +105,7 @@ interface Reservation {
 }
 
 export function AVAAnnulationReservation({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<
     "recherche" | "annulation"
@@ -121,11 +122,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] =
     useState(false);
-  const [showErrorDialog, setShowErrorDialog] = useState(false);
-  const [apiError, setApiError] = useState<{
-    error: string;
-    message: string;
-  } | null>(null);
+
 
   // Filtres de recherche
   const [searchNumeroDossier, setSearchNumeroDossier] =
@@ -672,15 +669,9 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
         });
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Annulation rejetée', {
-          description: wfResponse.errorMessage || 'La demande a été rejetée par le workflow',
-        });
+        showError(wfResponse.errorMessage || 'La demande a été rejetée par le workflow', undefined, 'Annulation rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        setApiError({
-          error: 'Erreur workflow',
-          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
-        });
-        setShowErrorDialog(true);
+        showError(wfResponse.errorMessage || 'Une erreur est survenue lors du traitement');
       }
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation de réservation:', error);
@@ -764,15 +755,9 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
           await fetchReservations(numDossierPure);
         }, 3000);
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Annulation rejetée', {
-          description: wfResponse.errorMessage || 'La demande a été rejetée par le workflow',
-        });
+        showError(wfResponse.errorMessage || 'La demande a été rejetée par le workflow', undefined, 'Annulation rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        setApiError({
-          error: 'Erreur workflow',
-          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
-        });
-        setShowErrorDialog(true);
+        showError(wfResponse.errorMessage || 'Une erreur est survenue lors du traitement');
       }
     } catch (error: any) {
       console.error('Erreur lors de la confirmation d\'annulation:', error);
@@ -1279,43 +1264,6 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
         </DialogContent>
       </Dialog>
 
-      {/* Dialog d'erreur */}
-      <Dialog
-        open={showErrorDialog}
-        onOpenChange={setShowErrorDialog}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/20">
-                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
-              </div>
-              <DialogTitle className="text-xl">
-                Échec
-              </DialogTitle>
-            </div>
-          </DialogHeader>
-          <DialogDescription className="text-base py-4">
-            {apiError && (
-              <>
-                <span className="font-medium">
-                  {apiError.error}
-                </span>
-                <br />
-                {apiError.message}
-              </>
-            )}
-          </DialogDescription>
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              onClick={() => setShowErrorDialog(false)}
-            >
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* En-tête avec retour */}
       <div className="flex items-center gap-4">

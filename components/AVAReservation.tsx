@@ -38,12 +38,24 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "./ui/select";
+  Search,
+  ArrowLeft,
+  FileText,
+  Save,
+  CheckCircle2,
+  BookmarkPlus,
+  Building2,
+  Filter,
+  RotateCcw,
+} from "lucide-react";
+import { toast } from "sonner";
+import { safeJsonParse } from "../utils";
+import { authenticatedFetch } from "../utils/api";
+import {
+  startReservationDecision,
+  continueReservationDecision,
+} from "../utils/workflowApi";
+import { useErrorHandler } from './ErrorContext';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -96,6 +108,7 @@ interface RefAgenceDTO {
 }
 
 export function AVAReservation({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<
     "recherche" | "reservation"
@@ -110,11 +123,7 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] =
     useState(false);
-  const [showErrorDialog, setShowErrorDialog] = useState(false);
-  const [apiError, setApiError] = useState<{
-    error: string;
-    message: string;
-  } | null>(null);
+
 
   // Filtres de recherche
   const [searchNumeroDossier, setSearchNumeroDossier] =
@@ -588,15 +597,9 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
         });
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Réservation rejetée', {
-          description: wfResponse.errorMessage || 'La réservation a été rejetée par le workflow',
-        });
+        showError(wfResponse.errorMessage || 'La réservation a été rejetée par le workflow', undefined, 'Réservation rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        setApiError({
-          error: 'Erreur workflow',
-          message: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
-        });
-        setShowErrorDialog(true);
+        showError(wfResponse.errorMessage || 'Une erreur est survenue lors du traitement');
       }
     } catch (error: any) {
       console.error('Erreur lors de la réservation:', error);
@@ -612,10 +615,6 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
     setShowSuccessDialog(false);
     handleRetourRecherche();
     fetchDossiers();
-  };
-
-  const handleErrorClose = () => {
-    setShowErrorDialog(false);
   };
 
   // ========== ÉTAPE 1 : RECHERCHE ==========
@@ -1295,34 +1294,6 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
         </DialogContent>
       </Dialog>
 
-      {/* Dialog d'erreur */}
-      <Dialog
-        open={showErrorDialog}
-        onOpenChange={setShowErrorDialog}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="w-6 h-6" />
-              Erreur lors de l'enregistrement
-            </DialogTitle>
-            <DialogDescription>
-              <span className="font-bold">
-                {apiError?.error}
-              </span>
-              <p className="mt-1">{apiError?.message}</p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleErrorClose}
-            >
-              Fermer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

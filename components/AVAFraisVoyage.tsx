@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { startFvDecision, continueFvDecision } from '../utils/workflowApi';
+import { useErrorHandler } from './ErrorContext';
 
 // ============= INTERFACES =============
 
@@ -106,6 +107,7 @@ interface BeneficiaireFVDTO {
 // ============= COMPOSANT PRINCIPAL =============
 
 export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const documentsBasePath = String(import.meta.env.VITE_DOCUMENTS_BASE_PATH || '').trim();
   const [localStorageDirHandle, setLocalStorageDirHandle] = useState<any>(null);
@@ -799,13 +801,9 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
         });
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Opération rejetée par le moteur de workflow', {
-          description: wfResponse.errorMessage || 'Le dossier a été rejeté.',
-        });
+        showError(wfResponse.errorMessage || 'Le dossier a été rejeté.', undefined, 'Opération rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        toast.error('Erreur du moteur de workflow', {
-          description: wfResponse.errorMessage || 'Une erreur est survenue.',
-        });
+        showError(wfResponse.errorMessage || 'Une erreur est survenue.');
       } else {
         toast.warning(`Résultat inattendu: ${wfResponse.result}`, {
           description: wfResponse.errorMessage,

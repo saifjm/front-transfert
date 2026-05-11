@@ -14,28 +14,7 @@ import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { continueClotureDecision } from '../utils/workflowApi';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "./ui/dialog";
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
-interface ApiError {
-  status: number;
-  message: string;
-  details?: string;
-  code?: string;
-  timestamp?: string;
-}
+import { useErrorHandler } from './ErrorContext';
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -77,6 +56,7 @@ interface Agence {
 }
 
 export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<'recherche' | 'cloture'>('recherche');
   const [dossiers, setDossiers] = useState<DossierAVA[]>([]);
@@ -99,8 +79,7 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
   const [wfClotureBusinessKey, setWfClotureBusinessKey] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [apiError, setApiError] = useState<ApiError | null>(null);
-  const [showErrorModal, setShowErrorModal] = useState(false);
+
 
   useEffect(() => {
     fetchDossiers();
@@ -375,13 +354,9 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
         handleRetourRecherche();
         await fetchDossiers();
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Clôture rejetée', { description: wfResponse.errorMessage || 'Le dossier a été rejeté.' });
+        showError(wfResponse.errorMessage || 'Le dossier a été rejeté.', undefined, 'Clôture rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        setApiError({
-          status: 0,
-          message: wfResponse.errorMessage || 'Erreur du moteur de workflow',
-        });
-        setShowErrorModal(true);
+        showError(wfResponse.errorMessage || 'Erreur du moteur de workflow');
       } else {
         toast.warning(`Résultat inattendu: ${wfResponse.result}`, { description: wfResponse.errorMessage });
       }
@@ -814,54 +789,6 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
           </div>
         </CardContent>
       </Card>
-      
-      {/* Modal d'erreur API - similaire à l'exportateur */}
-      <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl text-red-600">Action impossible</DialogTitle>
-                <DialogDescription>
-                  La clôture n'a pas pu être effectuée en raison d'un blocage de validation ou règle métier.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <div className="space-y-4">
-              {apiError?.message && (
-                <div>
-                  <h4 className="font-medium text-slate-900 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                    Motif du rejet
-                  </h4>
-                  <p className="mt-1 text-sm text-slate-700 bg-white p-3 rounded border border-slate-200 whitespace-pre-wrap">
-                    {apiError.message}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {((apiError?.status && apiError.status !== 200) || apiError?.code) && (
-              <div className="mt-6 pt-4 border-t border-slate-200 flex items-center gap-4 text-xs text-slate-500">
-                {apiError.status && <span>Code HTTP: {apiError.status}</span>}
-                {apiError.code && <span>Code métier: {apiError.code}</span>}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="mt-6 border-t border-slate-200 pt-4">
-            <Button onClick={() => setShowErrorModal(false)} variant="outline">
-              Fermer l'alerte
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -223,11 +223,24 @@ public class BusinessGatewayService {
                                     .flatMap(errBody -> {
                                         log.error("Downstream {} error {}: body={}",
                                                 fullUrl, resp.statusCode().value(), errBody);
-                                        return reactor.core.publisher.Mono.error(
-                                                new org.springframework.web.reactive.function.client.WebClientResponseException(
-                                                        resp.statusCode().value(),
-                                                        resp.statusCode().toString(),
-                                                        null, errBody.getBytes(), null));
+                                        // Extract user-friendly message from JSON body if possible
+                                        String userMessage = errBody;
+                                        if (errBody != null && !errBody.isBlank()) {
+                                            try {
+                                                com.fasterxml.jackson.databind.JsonNode node =
+                                                        new com.fasterxml.jackson.databind.ObjectMapper().readTree(errBody);
+                                                com.fasterxml.jackson.databind.JsonNode msgNode =
+                                                        node.has("message") ? node.get("message") :
+                                                        node.has("error")   ? node.get("error")   :
+                                                        node.has("detail")  ? node.get("detail")  : null;
+                                                if (msgNode != null && !msgNode.isNull()) {
+                                                    userMessage = msgNode.asText();
+                                                }
+                                            } catch (Exception ignored) { /* keep raw body */ }
+                                        } else {
+                                            userMessage = "HTTP " + resp.statusCode().value();
+                                        }
+                                        return reactor.core.publisher.Mono.error(new RuntimeException(userMessage));
                                     });
                         }
                         return resp.bodyToMono(String.class);
@@ -290,7 +303,7 @@ public class BusinessGatewayService {
             call.setStatus(CallStatus.FAILED);
             call.setError(e.getMessage());
             downstreamCallRepository.save(call);
-            throw new RuntimeException("Business service call failed: " + e.getMessage(), e);
+            throw new RuntimeException(e.getMessage(), e);
         }
     }
 

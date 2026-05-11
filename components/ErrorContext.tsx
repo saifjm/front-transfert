@@ -5,11 +5,12 @@ export interface ErrorState {
   isOpen: boolean;
   message: string;
   details?: string;
+  title?: string;
 }
 
 interface ErrorContextType {
   error: ErrorState;
-  showError: (message: string, details?: string) => void;
+  showError: (message: string, details?: string, title?: string) => void;
   hideError: () => void;
 }
 
@@ -26,11 +27,12 @@ export function ErrorProvider({ children }: ErrorProviderProps) {
     details: undefined,
   });
 
-  const showError = useCallback((message: string, details?: string) => {
+  const showError = useCallback((message: string, details?: string, title?: string) => {
     setError({
       isOpen: true,
       message,
       details,
+      title,
     });
   }, []);
 
@@ -39,6 +41,7 @@ export function ErrorProvider({ children }: ErrorProviderProps) {
       isOpen: false,
       message: '',
       details: undefined,
+      title: undefined,
     });
   }, []);
 
