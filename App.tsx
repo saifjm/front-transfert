@@ -164,6 +164,7 @@ function GlobalErrorDialog() {
       }}
       errorMessage={error.message}
       errorDetails={error.details}
+      title={error.title}
     />
   );
 }

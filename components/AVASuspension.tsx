@@ -16,6 +16,7 @@ import {
   continueSuspensionDecision,
   startSuspensionDecision,
 } from "../utils/workflowApi";
+import { useErrorHandler } from './ErrorContext';
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -104,6 +105,7 @@ interface AgenceDetail {
 }
 
 export function AVASuspension({ initialDossierNum }: { initialDossierNum?: string } = {}) {
+  const { showError } = useErrorHandler();
   const deepLinked = useRef(false);
   const [etape, setEtape] = useState<
     "recherche" | "suspension"
@@ -619,14 +621,9 @@ export function AVASuspension({ initialDossierNum }: { initialDossierNum?: strin
         setShowSuccessModal(true);
 
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Suspension rejetée', {
-          description: wfResponse.errorMessage || 'La suspension a été rejetée par le workflow',
-        });
-
+        showError(wfResponse.errorMessage || 'La suspension a été rejetée par le workflow', undefined, 'Suspension rejetée');
       } else if (wfResponse.result === 'ERROR') {
-        toast.error('Erreur workflow', {
-          description: wfResponse.errorMessage || 'Une erreur est survenue lors du traitement',
-        });
+        showError(wfResponse.errorMessage || 'Une erreur est survenue lors du traitement');
       }
     } catch (error) {
       console.error('Erreur lors de la suspension:', error);

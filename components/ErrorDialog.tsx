@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -16,6 +15,7 @@ interface ErrorDialogProps {
   onOpenChange: (open: boolean) => void;
   errorMessage: string;
   errorDetails?: string;
+  title?: string;
 }
 
 export function ErrorDialog({
@@ -23,6 +23,7 @@ export function ErrorDialog({
   onOpenChange,
   errorMessage,
   errorDetails,
+  title,
 }: ErrorDialogProps) {
   const [copied, setCopied] = React.useState(false);
 
@@ -45,14 +46,8 @@ export function ErrorDialog({
             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
               <AlertCircle className="w-6 h-6 text-red-600" />
             </div>
-            <DialogTitle className="text-xl">Erreur Technique</DialogTitle>
+            <DialogTitle className="text-xl">{title || 'Erreur Technique'}</DialogTitle>
           </div>
-          <DialogDescription className="text-base pt-2">
-            Une erreur technique est survenue lors de l'exécution de l'opération.
-            <br />
-            Veuillez contacter l'administrateur du système avec les informations
-            ci-dessous.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -80,23 +75,7 @@ export function ErrorDialog({
             </Card>
           )}
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <div className="text-blue-600 mt-0.5">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <div className="text-sm text-blue-900">
-                <div className="font-semibold mb-1">
-                  Que faire maintenant ?
-                </div>
-                <ul className="list-disc list-inside space-y-1 text-blue-800">
-                  <li>Copiez le message d'erreur avec le bouton ci-dessous</li>
-                  <li>Contactez l'administrateur système</li>
-                  <li>Transmettez-lui le message copié</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
