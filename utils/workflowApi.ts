@@ -168,6 +168,46 @@ export async function getWfFvTaskList(): Promise<WfTask[]> {
   return Array.isArray(data) ? data : (data.content ?? []);
 }
 
+// ─── Rétrocession (RC) workflow ───────────────────────────────────────────────
+
+export const WF_RC_OPERATION_KEY = 'operations_retrocession';
+
+export async function startRcDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RC_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueRcDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RC_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfRcTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_RC_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
 // ─── Clôture Dossier workflow ─────────────────────────────────────────────────
 // numDossier is always known upfront so we only need continueDecision (no TEMP key).
 

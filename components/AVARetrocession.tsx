@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { startRcDecision, continueRcDecision } from '../utils/workflowApi';
 import { DocumentsManager } from './DocumentsManager';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -110,6 +111,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   const [operations, setOperations] = useState<OperationMouvement[]>([]);
   const [loadingOperations, setLoadingOperations] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [wfRcBusinessKey, setWfRcBusinessKey] = useState<string | null>(null);
   const [operationSelectionnee, setOperationSelectionnee] = useState<OperationMouvement | null>(null);
   const localStorageDirHandleRef = useRef<any>(null);
   const skipDraftCleanupRef = useRef(false);
@@ -306,6 +308,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   // Sélectionner un dossier
   const handleSelectDossier = (dossier: DossierAVA) => {
     setDossierSelectionne(dossier);
+    setWfRcBusinessKey(null);
     setRetrocession({
       typeMouvement: 'RAV' // Par défaut RAV
     });
@@ -325,6 +328,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
     skipDraftCleanupRef.current = false;
     setEtape('recherche');
     setDossierSelectionne(null);
+    setWfRcBusinessKey(null);
     setRetrocession({
       typeMouvement: 'RAV'
     });
@@ -548,43 +552,49 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
         }));
       }
 
-      const response = await authenticatedFetch('/api/operations-rc?finalize=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      if (response.ok) {
+      let wfResponse = wfRcBusinessKey
+        ? await continueRcDecision(wfRcBusinessKey, 'SOUMETTRE', payload as unknown as Record<string, unknown>)
+        : await startRcDecision('SOUMETTRE', payload as unknown as Record<string, unknown>);
+
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          setWfRcBusinessKey(newKey);
+          
+          // Approbation automatique
+          toast.info('Approbation automatique...', { description: 'Validation définitive en cours...' });
+          wfResponse = await continueRcDecision(newKey, 'APPROUVER', payload as unknown as Record<string, unknown>);
+          
+          if (wfResponse.result !== 'OK') {
+            if (wfResponse.result === 'REJECTED') {
+              toast.error('Approbation rejetée', { description: wfResponse.errorMessage });
+            } else {
+              toast.error('Erreur workflow lors de l\'approbation', { description: wfResponse.errorMessage });
+            }
+            setIsSubmitting(false);
+            return;
+          }
+        }
+        
         documents.forEach((d) => {
           if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
         });
         skipDraftCleanupRef.current = true;
-        toast.success('Rétrocession enregistrée avec succès', {
-          description: `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
+        
+        toast.success('Opération soumise et validée avec succès', {
+          description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
         });
+        
         handleRetourRecherche();
         await fetchDossiers();
-      } else {
-        const errorData = await response.json().catch(() => null);
-        
-        // Gérer le format d'erreur de l'API
-        if (errorData && errorData.erreurs && Array.isArray(errorData.erreurs)) {
-          // Afficher toutes les erreurs
-          errorData.erreurs.forEach((erreur: string) => {
-            toast.error('Erreur de validation', {
-              description: erreur
-            });
-          });
-        } else if (errorData?.message) {
-          toast.error('Erreur', {
-            description: errorData.message
-          });
-        } else {
-          toast.error('Erreur', {
-            description: 'Une erreur est survenue lors de l\'enregistrement'
-          });
-        }
-        
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Opération rejetée', { description: wfResponse.errorMessage });
+        setIsSubmitting(false);
+        return;
+      } else if (wfResponse.result === 'ERROR') {
+        toast.error('Erreur workflow', { description: wfResponse.errorMessage });
         setIsSubmitting(false);
         return;
       }
@@ -708,6 +718,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
     skipDraftCleanupRef.current = false;
     setOpenDialog(false);
     setOperationSelectionnee(null);
+    setWfRcBusinessKey(null);
     setRetrocession({
       typeMouvement: 'RAV'
     });
@@ -765,43 +776,49 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
         }));
       }
 
-      const response = await authenticatedFetch('/api/operations-rc?finalize=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      toast.info('Soumission au Service Central...', { description: 'Communication avec le moteur de workflow...' });
 
-      if (response.ok) {
+      let wfResponse = wfRcBusinessKey
+        ? await continueRcDecision(wfRcBusinessKey, 'SOUMETTRE', payload as unknown as Record<string, unknown>)
+        : await startRcDecision('SOUMETTRE', payload as unknown as Record<string, unknown>);
+
+      if (wfResponse.result === 'OK') {
+        const newKey = wfResponse.state?.businessKey;
+        if (newKey) {
+          setWfRcBusinessKey(newKey);
+          
+          // Approbation automatique
+          toast.info('Approbation automatique...', { description: 'Validation définitive en cours...' });
+          wfResponse = await continueRcDecision(newKey, 'APPROUVER', payload as unknown as Record<string, unknown>);
+          
+          if (wfResponse.result !== 'OK') {
+            if (wfResponse.result === 'REJECTED') {
+              toast.error('Approbation rejetée', { description: wfResponse.errorMessage });
+            } else {
+              toast.error('Erreur workflow lors de l\'approbation', { description: wfResponse.errorMessage });
+            }
+            setIsSubmitting(false);
+            return;
+          }
+        }
+        
         documents.forEach((d) => {
           if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
         });
         skipDraftCleanupRef.current = true;
-        toast.success('Rétrocession enregistrée avec succès', {
-          description: `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
+        
+        toast.success('Opération soumise et validée avec succès', {
+          description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
         });
+        
         handleCloseDialog();
         await fetchOperations(dossierSelectionne.numeroDossier);
-      } else {
-        const errorData = await response.json().catch(() => null);
-        
-        // Gérer le format d'erreur de l'API
-        if (errorData && errorData.erreurs && Array.isArray(errorData.erreurs)) {
-          // Afficher toutes les erreurs
-          errorData.erreurs.forEach((erreur: string) => {
-            toast.error('Erreur de validation', {
-              description: erreur
-            });
-          });
-        } else if (errorData?.message) {
-          toast.error('Erreur', {
-            description: errorData.message
-          });
-        } else {
-          toast.error('Erreur', {
-            description: 'Une erreur est survenue lors de l\'enregistrement'
-          });
-        }
-        
+      } else if (wfResponse.result === 'REJECTED') {
+        toast.error('Opération rejetée', { description: wfResponse.errorMessage });
+        setIsSubmitting(false);
+        return;
+      } else if (wfResponse.result === 'ERROR') {
+        toast.error('Erreur workflow', { description: wfResponse.errorMessage });
         setIsSubmitting(false);
         return;
       }
