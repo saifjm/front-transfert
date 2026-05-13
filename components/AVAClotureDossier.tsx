@@ -1,5 +1,4 @@
 import {
-    AlertCircle,
     ArrowLeft,
     Building2,
     FileText,
@@ -7,7 +6,7 @@ import {
     FolderX,
     RotateCcw,
     Save,
-    Search,
+    Search
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +14,12 @@ import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { continueClotureDecision } from '../utils/workflowApi';
 import { useErrorHandler } from './ErrorContext';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface DossierAVA {
   codeAgence: string | number;

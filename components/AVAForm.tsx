@@ -315,7 +315,12 @@ export function AVAForm() {
   // Charger les types de pièce
   const fetchTypesPiece = async () => {
     setLoadingTypesPiece(true);
-    setTypesPiece([]);
+    // Types de pièce pour bénéficiaires selon l'API spec
+    setTypesPiece([
+      { codeTypePiece: 1, libelleTypePiece: 'CIN' },
+      { codeTypePiece: 4, libelleTypePiece: 'Matricule fiscale' },
+      { codeTypePiece: 7, libelleTypePiece: 'RNE' }
+    ]);
     setLoadingTypesPiece(false);
   };
 
