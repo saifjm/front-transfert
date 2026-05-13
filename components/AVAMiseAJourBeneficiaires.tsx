@@ -1,12 +1,12 @@
 import {
-    ArrowLeft,
-    FileText,
-    Filter,
-    PlusCircle,
-    RotateCcw,
-    Save,
-    Search,
-    Trash2
+  ArrowLeft,
+  FileText,
+  Filter,
+  PlusCircle,
+  RotateCcw,
+  Save,
+  Search,
+  Trash2
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -607,7 +607,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
         console.log('[WF] Business key actuelle:', wfMajBeneficiaireBusinessKey);
         console.log('[WF] Payload:', payload);
 
-        // Appel workflow
+        // Appel workflow - SOUMETTRE
         const wfResponse = wfMajBeneficiaireBusinessKey
           ? await continueMajBeneficiaireDecision(
               wfMajBeneficiaireBusinessKey,
@@ -619,7 +619,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
               payload
             );
 
-        console.log('[WF] Réponse workflow:', wfResponse);
+        console.log('[WF] Réponse workflow SOUMETTRE:', wfResponse);
 
         // Traiter la réponse du workflow
         if (wfResponse.result === 'OK') {
@@ -631,6 +631,32 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
           }
 
           console.log(`[WF] Bénéficiaire ${i + 1}/${beneficiaires.length} soumis avec succès`);
+
+          // AUTO-APPROVAL: Automatically approve after submission
+          console.log('[WF] Auto-approval - Début approbation automatique');
+          try {
+            const approvalResponse = await continueMajBeneficiaireDecision(
+              newKey || wfMajBeneficiaireBusinessKey!,
+              'APPROUVER',
+              payload
+            );
+
+            console.log('[WF] Réponse approbation:', approvalResponse);
+
+            if (approvalResponse.result === 'OK') {
+              console.log(`[WF] Bénéficiaire ${i + 1}/${beneficiaires.length} approuvé avec succès`);
+            } else {
+              console.error('[WF] Erreur approbation:', approvalResponse.errorMessage);
+              toast.warning(`Bénéficiaire ${i + 1} soumis mais erreur lors de l'approbation`, {
+                description: approvalResponse.errorMessage || 'Veuillez approuver manuellement',
+              });
+            }
+          } catch (approvalError) {
+            console.error('[WF] Exception approbation:', approvalError);
+            toast.warning(`Bénéficiaire ${i + 1} soumis mais erreur lors de l'approbation automatique`, {
+              description: 'Veuillez approuver manuellement',
+            });
+          }
 
         } else if (wfResponse.result === 'REJECTED') {
           console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
@@ -648,8 +674,8 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
         }
       }
 
-      // Tous les bénéficiaires ont été soumis avec succès
-      toast.success('Mise à jour bénéficiaires soumise avec succès', {
+      // Tous les bénéficiaires ont été soumis et approuvés avec succès
+      toast.success('Mise à jour bénéficiaires approuvée avec succès', {
         description: `${beneficiaires.length} bénéficiaire(s) traité(s)`,
         duration: 5000,
       });

@@ -602,10 +602,36 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
         if (newKey) setWfAnnulationBusinessKey(newKey);
-        toast.success('Annulation de réservation soumise avec succès', {
-          description: newKey ? `Référence: ${newKey}` : undefined,
-          duration: 5000,
-        });
+
+        // AUTO-APPROVAL: Automatically approve after submission
+        console.log('[WF] Auto-approval - Début approbation automatique');
+        try {
+          const approvalResponse = await continueAnnulationReservationDecision(
+            newKey || wfAnnulationBusinessKey!,
+            'APPROUVER',
+            payload as unknown as Record<string, unknown>
+          );
+
+          console.log('[WF] Réponse approbation:', approvalResponse);
+
+          if (approvalResponse.result === 'OK') {
+            toast.success('Annulation de réservation approuvée avec succès', {
+              description: newKey ? `Référence: ${newKey}` : undefined,
+              duration: 5000,
+            });
+          } else {
+            console.error('[WF] Erreur approbation:', approvalResponse.errorMessage);
+            toast.warning('Soumise mais erreur lors de l\'approbation', {
+              description: approvalResponse.errorMessage || 'Veuillez approuver manuellement',
+            });
+          }
+        } catch (approvalError) {
+          console.error('[WF] Exception approbation:', approvalError);
+          toast.warning('Soumise mais erreur lors de l\'approbation automatique', {
+            description: 'Veuillez approuver manuellement',
+          });
+        }
+
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
         showError(wfResponse.errorMessage || 'La demande a été rejetée par le workflow', undefined, 'Annulation rejetée');
@@ -681,10 +707,36 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
 
       if (wfResponse.result === 'OK') {
         const newKey = wfResponse.state?.businessKey;
-        toast.success('Annulation de réservation soumise avec succès', {
-          description: newKey ? `Référence: ${newKey}` : undefined,
-          duration: 5000,
-        });
+
+        // AUTO-APPROVAL: Automatically approve after submission
+        console.log('[WF] Auto-approval - Début approbation automatique');
+        try {
+          const approvalResponse = await continueAnnulationReservationDecision(
+            newKey!,
+            'APPROUVER',
+            payload as unknown as Record<string, unknown>
+          );
+
+          console.log('[WF] Réponse approbation:', approvalResponse);
+
+          if (approvalResponse.result === 'OK') {
+            toast.success('Annulation de réservation approuvée avec succès', {
+              description: newKey ? `Référence: ${newKey}` : undefined,
+              duration: 5000,
+            });
+          } else {
+            console.error('[WF] Erreur approbation:', approvalResponse.errorMessage);
+            toast.warning('Soumise mais erreur lors de l\'approbation', {
+              description: approvalResponse.errorMessage || 'Veuillez approuver manuellement',
+            });
+          }
+        } catch (approvalError) {
+          console.error('[WF] Exception approbation:', approvalError);
+          toast.warning('Soumise mais erreur lors de l\'approbation automatique', {
+            description: 'Veuillez approuver manuellement',
+          });
+        }
+
         setShowSuccessDialog(true);
         setTimeout(async () => {
           setShowSuccessDialog(false);
