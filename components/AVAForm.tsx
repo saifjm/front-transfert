@@ -728,34 +728,27 @@ export function AVAForm() {
 
   // Calcul automatique du solde
   useEffect(() => {
-    if (banqueProvenance.codeBanqueProvenance) {
-      // Vérifier si tous les champs sont renseignés
-      if (
-        banqueProvenance.mntAvance === undefined ||
-        banqueProvenance.mntUtilise === undefined ||
-        banqueProvenance.mntAutorise === undefined ||
-        banqueProvenance.mntAutoriseBct === undefined ||
-        banqueProvenance.solde === undefined
-      ) {
-        setBanqueProvenanceError('Tous les montants doivent être renseignés si une banque est sélectionnée');
-      } else {
-        // Vérifier la formule du solde
-        const soldeCalcule = 
-          banqueProvenance.mntAutorise + 
-          banqueProvenance.mntAvance - 
-          banqueProvenance.mntUtilise + 
-          banqueProvenance.mntAutoriseBct;
-        
-        if (Math.abs(banqueProvenance.solde - soldeCalcule) > 0.01) {
-          setBanqueProvenanceError(
-            `Le solde doit respecter la formule : ${banqueProvenance.mntAutorise} + ${banqueProvenance.mntAvance} - ${banqueProvenance.mntUtilise} + ${banqueProvenance.mntAutoriseBct} = ${soldeCalcule.toFixed(2)}`
-          );
-        } else {
-          setBanqueProvenanceError('');
-        }
+    const allFilled =
+      banqueProvenance.mntAvance !== undefined &&
+      banqueProvenance.mntUtilise !== undefined &&
+      banqueProvenance.mntAutorise !== undefined &&
+      banqueProvenance.mntAutoriseBct !== undefined;
+
+    if (allFilled) {
+      const soldeCalcule =
+        banqueProvenance.mntAutorise! +
+        banqueProvenance.mntAvance! -
+        banqueProvenance.mntUtilise! +
+        banqueProvenance.mntAutoriseBct!;
+      setBanqueProvenance(prev => ({ ...prev, solde: soldeCalcule }));
+      if (banqueProvenance.codeBanqueProvenance) {
+        setBanqueProvenanceError('');
       }
     } else {
-      setBanqueProvenanceError('');
+      setBanqueProvenance(prev => ({ ...prev, solde: undefined }));
+      if (banqueProvenance.codeBanqueProvenance) {
+        setBanqueProvenanceError('Tous les montants doivent être renseignés si une banque est sélectionnée');
+      }
     }
   }, [
     banqueProvenance.codeBanqueProvenance,
@@ -763,7 +756,6 @@ export function AVAForm() {
     banqueProvenance.mntUtilise,
     banqueProvenance.mntAutorise,
     banqueProvenance.mntAutoriseBct,
-    banqueProvenance.solde
   ]);
 
   // Contrôle cohérence Numéro BCT / Date BCT
@@ -2011,23 +2003,16 @@ export function AVAForm() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="solde">Solde</Label>
+                  <Label htmlFor="solde">Solde (calculé automatiquement)</Label>
                   <Input
                     id="solde"
                     type="number"
                     step="0.01"
                     value={banqueProvenance.solde ?? ''}
-                    onChange={(e) => updateBanqueProvenanceField('solde', e.target.value === '' ? undefined : Number(e.target.value))}
-                    placeholder="0.00"
+                    readOnly
+                    placeholder="—"
+                    className="bg-muted cursor-not-allowed"
                   />
-                  {banqueProvenanceFieldErrors.solde && (
-                    <p className="text-xs text-red-500">
-                      {banqueProvenanceFieldErrors.solde}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Formule à respecter : Montant Autorisé + Montant Avance - Montant Utilisé + Montant Autorisé BCT
-                  </p>
                 </div>
               </div>
 

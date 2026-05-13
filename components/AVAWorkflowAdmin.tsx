@@ -581,10 +581,10 @@ function DecisionModal({ data, nodeId, onSave, onClose }: {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">SoD Mode</Label>
-            <Select value={form.sodMode ?? ''} onValueChange={v => set('sodMode', v || undefined)}>
+            <Select value={form.sodMode ?? '__NONE__'} onValueChange={v => set('sodMode', v === '__NONE__' ? undefined : v)}>
               <SelectTrigger><SelectValue placeholder="Aucun" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Aucun</SelectItem>
+                <SelectItem value="__NONE__">Aucun</SelectItem>
                 <SelectItem value="INITIATOR_CANNOT_APPROVE">INITIATOR_CANNOT_APPROVE</SelectItem>
                 <SelectItem value="SAME_USER_FORBIDDEN">SAME_USER_FORBIDDEN</SelectItem>
                 <SelectItem value="SAME_ORGNODE_FORBIDDEN">SAME_ORGNODE_FORBIDDEN</SelectItem>
@@ -795,10 +795,10 @@ function SodRuleModal({ defId, nodeKeys, onSave, onClose }: {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Nœud cible</Label>
-              <Select value={form.toNodeKey ?? ''} onValueChange={v => set('toNodeKey', v || undefined)}>
+              <Select value={form.toNodeKey ?? '__ALL__'} onValueChange={v => set('toNodeKey', v === '__ALL__' ? undefined : v)}>
                 <SelectTrigger><SelectValue placeholder="Tous" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tous les nœuds</SelectItem>
+                  <SelectItem value="__ALL__">Tous les nœuds</SelectItem>
                   {nodeKeys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                 </SelectContent>
               </Select>
