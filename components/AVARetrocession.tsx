@@ -1383,37 +1383,73 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
 
       {/* Dialog du formulaire de rétrocession */}
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Formulaire Rétrocession</DialogTitle>
-            <DialogDescription>
-              Opération sélectionnée : Réf. {operationSelectionnee?.id.refOperation || 'N/A'} - Renseignez les informations selon le type de mouvement
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Type de mouvement */}
-            <div className="space-y-2">
-              <Label htmlFor="dialog-typeMouvement">Type de mouvement *</Label>
-              <Select
-                value={retrocession.typeMouvement}
-                onValueChange={(value: 'RAV' | 'RRV') => setRetrocession({ ...retrocession, typeMouvement: value })}
-              >
-                <SelectTrigger className={errors.typeMouvement ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Sélectionnez un type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="RAV">RAV - Rétrocession d'Avance sur Voyage</SelectItem>
-                  <SelectItem value="RRV">RRV - Remboursement de Reliquat de Voyage</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.typeMouvement && (
-                <p className="text-xs text-red-600">{errors.typeMouvement}</p>
-              )}
+        <DialogContent className="sm:max-w-[860px] max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0">
+          {/* Colored header */}
+          <div className="bg-[#435B7B] text-white px-6 py-5 flex-shrink-0">
+            <div className="flex items-start gap-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white/20 flex-shrink-0">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-xl font-bold text-white">Formulaire Rétrocession</DialogTitle>
+                <p className="text-blue-100 text-sm mt-1">
+                  Opération Réf.{' '}
+                  <span className="font-semibold text-white">{operationSelectionnee?.id.refOperation || 'N/A'}</span>
+                  {' '}— Renseignez les informations selon le type de mouvement
+                </p>
+              </div>
             </div>
+          </div>
 
+          {/* Operation summary strip */}
+          <div className="bg-slate-50 border-b px-6 py-3 flex flex-wrap gap-6 text-sm flex-shrink-0">
+            <div>
+              <span className="text-muted-foreground">Date opération : </span>
+              <span className="font-medium">
+                {operationSelectionnee?.id.dateOperation
+                  ? new Date(operationSelectionnee.id.dateOperation).toLocaleDateString('fr-FR')
+                  : '-'}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Montant réservé : </span>
+              <span className="font-semibold text-blue-700">
+                {((operationSelectionnee?.mntMvtAva || operationSelectionnee?.mntReserve) ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} TND
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Dossier : </span>
+              <span className="font-medium">{dossierSelectionne?.numeroDossier}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Client : </span>
+              <span className="font-medium">{dossierSelectionne?.prenomClient} {dossierSelectionne?.nomClient}</span>
+            </div>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {/* Type de mouvement + Référence Opération */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Référence Opération */}
+              <div className="space-y-2">
+                <Label htmlFor="dialog-typeMouvement">Type de mouvement *</Label>
+                <Select
+                  value={retrocession.typeMouvement}
+                  onValueChange={(value: 'RAV' | 'RRV') => setRetrocession({ ...retrocession, typeMouvement: value })}
+                >
+                  <SelectTrigger className={errors.typeMouvement ? 'border-red-500' : ''}>
+                    <SelectValue placeholder="Sélectionnez un type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RAV">RAV - Rétrocession d'Avance sur Voyage</SelectItem>
+                    <SelectItem value="RRV">RRV - Remboursement de Reliquat de Voyage</SelectItem>
+                  </SelectContent>
+                </Select>
+                {errors.typeMouvement && (
+                  <p className="text-xs text-red-600">{errors.typeMouvement}</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="dialog-refOperation">Référence Opération *</Label>
                 <Input
@@ -1429,11 +1465,15 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
                   <p className="text-xs text-red-600">{errors.refOperation}</p>
                 )}
               </div>
+            </div>
 
-              {/* Champs conditionnels pour RRV */}
-              {retrocession.typeMouvement === 'RRV' && (
-                <>
-                  {/* Numéro Déclaration */}
+            {/* RRV extra fields */}
+            {retrocession.typeMouvement === 'RRV' && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 p-5 space-y-4">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Informations supplémentaires RRV
+                </p>
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="dialog-numeroDeclaration">Numéro Déclaration *</Label>
                     <Input
@@ -1450,7 +1490,6 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
                     )}
                   </div>
 
-                  {/* Date Déclaration */}
                   <div className="space-y-2">
                     <Label htmlFor="dialog-dateDeclaration">Date Déclaration *</Label>
                     <Input
@@ -1465,9 +1504,8 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
                     )}
                   </div>
 
-                  {/* Montant (mntMvt) */}
                   <div className="space-y-2">
-                    <Label htmlFor="dialog-mntMvt">Montant (mntMvt) *</Label>
+                    <Label htmlFor="dialog-mntMvt">Montant *</Label>
                     <Input
                       id="dialog-mntMvt"
                       type="number"
@@ -1481,24 +1519,26 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
                     {errors.mntMvt && (
                       <p className="text-xs text-red-600">{errors.mntMvt}</p>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      Format: avec 3 décimales (ex: 2000.000)
-                    </p>
+                    <p className="text-xs text-muted-foreground">3 décimales (ex: 2000.000)</p>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
 
             {/* Documents Scannés */}
-            <div className="space-y-2">
-              <Label>
-                Documents Scannés {retrocession.typeMouvement === 'RRV' && '*'}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {retrocession.typeMouvement === 'RRV' 
-                  ? 'Au moins un document scanné est requis pour les opérations de type RRV'
-                  : 'Documents scannés optionnels pour les opérations de type RAV'}
-              </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold">
+                    Documents Scannés {retrocession.typeMouvement === 'RRV' && <span className="text-red-500">*</span>}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {retrocession.typeMouvement === 'RRV'
+                      ? 'Au moins un document scanné est requis pour les opérations de type RRV'
+                      : 'Documents scannés optionnels pour les opérations de type RAV'}
+                  </p>
+                </div>
+              </div>
               <DocumentsManager
                 documents={documents}
                 onAddDocument={addDocument}
@@ -1507,20 +1547,28 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
                 onFileChange={handleFileChange}
               />
               {errors.documents && (
-                <p className="text-xs text-red-600 mt-2">{errors.documents}</p>
+                <p className="text-xs text-red-600">{errors.documents}</p>
               )}
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
-              Annuler
-            </Button>
-            <Button onClick={handleSubmitDialog} disabled={isSubmitting}>
-              <Save className="w-4 h-4 mr-2" />
-              {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
-            </Button>
-          </DialogFooter>
+          {/* Sticky footer */}
+          <div className="border-t bg-gray-50 dark:bg-gray-900/50 px-6 py-4 flex items-center justify-between flex-shrink-0">
+            <p className="text-xs text-muted-foreground">* Champs obligatoires</p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={handleCloseDialog} disabled={isSubmitting}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSubmitDialog}
+                disabled={isSubmitting}
+                className="bg-[#435B7B] hover:bg-[#2D3E54] min-w-[140px]"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

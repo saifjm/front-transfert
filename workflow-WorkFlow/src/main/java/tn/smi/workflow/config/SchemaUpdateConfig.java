@@ -38,6 +38,7 @@ public class SchemaUpdateConfig {
             // WF_TRANSITION_RULE — dual finalize columns
             // finalize      = metierFinalize (passed to downstream MS)
             // wf_finalize   = workflowFinalize (true=continue, false=close as REJECTED)
+            addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "FINALIZE",    "NUMBER(1) DEFAULT 0 NOT NULL");
             addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "WF_FINALIZE", "NUMBER(1) DEFAULT 1 NOT NULL");
 
         } catch (Exception e) {
