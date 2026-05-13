@@ -1,64 +1,51 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from 'recharts';
-import {
-  FolderOpen, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
-  Clock, Globe, Building2, RefreshCw, FileText, ArrowUpRight,
-  ArrowDownRight, DollarSign, BarChart3, ShieldAlert, Plane,
-  Calendar, ChevronRight, Activity, PauseCircle, RotateCcw, Sparkles, PlusCircle,
-  Users, Search, Lock, Play, XCircle, Banknote, Repeat2, FileOutput, FilePlus
+    Activity,
+    AlertTriangle,
+    ArrowDownRight,
+    ArrowUpRight,
+    Banknote,
+    BarChart3,
+    Building2,
+    Calendar,
+    CheckCircle2,
+    ChevronRight,
+    Clock,
+    DollarSign,
+    FileOutput,
+    FileText,
+    FolderOpen,
+    Globe,
+    Lock,
+    PauseCircle,
+    Plane,
+    Play,
+    RefreshCw,
+    Repeat2,
+    Search,
+    ShieldAlert,
+    Users,
+    XCircle
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Area,
+    AreaChart,
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis, YAxis
+} from 'recharts';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 
 // ── Mocked Data ───────────────────────────────────────────────────────────────
-
-const kpiData = [
-  {
-    label: 'Dossiers AVA Actifs',
-    value: 1247, display: '1 247',
-    sub: '+83 ce mois',
-    trend: 'up', pct: '+7.1%',
-    icon: FolderOpen,
-    color: '#435B7B', bg: '#EEF3F7',
-    accent: '#435B7B',
-    gradStart: '#6B8CAE', gradEnd: '#435B7B',
-  },
-  {
-    label: 'Montant Total Engagé',
-    value: 48392650, display: '48 392 650',
-    unit: 'TND',
-    sub: '+12.4% vs mois préc.',
-    trend: 'up', pct: '+12.4%',
-    icon: DollarSign,
-    color: '#435B7B', bg: '#EEF3F7',
-    accent: '#435B7B',
-    gradStart: '#6B8CAE', gradEnd: '#435B7B',
-  },
-  {
-    label: 'Clôtures ce mois',
-    value: 89, display: '89',
-    sub: '+15 vs mois préc.',
-    trend: 'up', pct: '+20.2%',
-    icon: CheckCircle2,
-    color: '#435B7B', bg: '#EEF3F7',
-    accent: '#435B7B',
-    gradStart: '#6B8CAE', gradEnd: '#435B7B',
-  },
-  {
-    label: 'Dossiers Suspendus',
-    value: 23, display: '23',
-    sub: '−5 depuis 30 jours',
-    trend: 'down', pct: '−17.9%',
-    icon: PauseCircle,
-    color: '#435B7B', bg: '#EEF3F7',
-    accent: '#435B7B',
-    gradStart: '#6B8CAE', gradEnd: '#435B7B',
-  },
-];
 
 const evolutionMensuelle = [
   { mois: 'Mai', ouvertures: 94,  clotures: 61, suspensions: 8  },
@@ -560,10 +547,51 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   }, [apiDossiers, monthlyKeys, agenceMap, clientMapByDossier]);
 
   const liveKpiData = [
-    { ...kpiData[0], value: dataDriven.active, display: dataDriven.active.toLocaleString('fr-TN') },
-    { ...kpiData[1], value: dataDriven.totalEngaged, display: fmtTND(dataDriven.totalEngaged) },
-    { ...kpiData[2], value: dataDriven.closed, display: dataDriven.closed.toLocaleString('fr-TN') },
-    { ...kpiData[3], value: dataDriven.suspended, display: dataDriven.suspended.toLocaleString('fr-TN') },
+    {
+      label: 'Dossiers AVA Actifs',
+      value: dataDriven.active,
+      display: dataDriven.active.toLocaleString('fr-TN'),
+      sub: '+83 ce mois',
+      trend: 'up', pct: '+7.1%',
+      icon: FolderOpen,
+      color: '#435B7B', bg: '#EEF3F7',
+      accent: '#435B7B',
+      gradStart: '#6B8CAE', gradEnd: '#435B7B',
+    },
+    {
+      label: 'Montant Total Engagé',
+      value: dataDriven.totalEngaged,
+      display: fmtTND(dataDriven.totalEngaged),
+      unit: 'TND',
+      sub: '+12.4% vs mois préc.',
+      trend: 'up', pct: '+12.4%',
+      icon: DollarSign,
+      color: '#435B7B', bg: '#EEF3F7',
+      accent: '#435B7B',
+      gradStart: '#6B8CAE', gradEnd: '#435B7B',
+    },
+    {
+      label: 'Clôtures ce mois',
+      value: dataDriven.closed,
+      display: dataDriven.closed.toLocaleString('fr-TN'),
+      sub: '+15 vs mois préc.',
+      trend: 'up', pct: '+20.2%',
+      icon: CheckCircle2,
+      color: '#435B7B', bg: '#EEF3F7',
+      accent: '#435B7B',
+      gradStart: '#6B8CAE', gradEnd: '#435B7B',
+    },
+    {
+      label: 'Dossiers Suspendus',
+      value: dataDriven.suspended,
+      display: dataDriven.suspended.toLocaleString('fr-TN'),
+      sub: '−5 depuis 30 jours',
+      trend: 'down', pct: '−17.9%',
+      icon: PauseCircle,
+      color: '#435B7B', bg: '#EEF3F7',
+      accent: '#435B7B',
+      gradStart: '#6B8CAE', gradEnd: '#435B7B',
+    },
   ];
 
   const liveAlertes = [

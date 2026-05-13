@@ -1,48 +1,46 @@
-import React, { useState, useEffect, useRef } from "react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Button } from "./ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Badge } from "./ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import {
-  Search,
-  ArrowLeft,
-  FileText,
-  XCircle,
-  CheckCircle2,
-  Building2,
-  Filter,
-  RotateCcw,
+    ArrowLeft,
+    CheckCircle2,
+    FileText,
+    Filter,
+    Search,
+    XCircle
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
 import {
-  startAnnulationReservationDecision,
-  continueAnnulationReservationDecision,
+    continueAnnulationReservationDecision,
+    startAnnulationReservationDecision,
 } from "../utils/workflowApi";
 import { useErrorHandler } from './ErrorContext';
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "./ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "./ui/select";
 
 interface DossierAVA {
   codeAgence: string | number;
@@ -173,59 +171,6 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
   const fetchDossiers = async () => {
     setLoading(true);
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: "Agence Tunis Centre",
-        typeDossier: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: "EXPORTATEUR",
-        numeroDossier: "AVA-1",
-        dateDossier: "2024-01-15",
-        noPieceClient: "1695881M",
-        nomClient: "Dupont",
-        prenomClient: "Jean",
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 45000,
-        mntUtilise: 45000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        devise: "TND",
-        statut: "ACTIF",
-        echeance: "2024-12-31",
-        typePieceClient: 1,
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: "Agence Sfax",
-        typeDossier: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: "MARCHE REALISABLE A L'ETRANGER",
-        numeroDossier: "AVA-2",
-        dateDossier: "2024-02-10",
-        noPieceClient: "2345678M",
-        nomClient: "Martin",
-        prenomClient: "Sophie",
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 60000,
-        mntUtilise: 60000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        devise: "TND",
-        statut: "ACTIF",
-        echeance: "2024-11-30",
-        typePieceClient: 1,
-      },
-    ];
-
     const typeDossierLabels: Record<number, string> = {
       1: "EXPORTATEUR",
       2: "MARCHE REALISABLE A L'ETRANGER",
@@ -353,19 +298,13 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
       );
 
     } catch (error: any) {
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
-
-      if (
-        error?.message &&
-        !error.message.includes("HTTP_ERROR") &&
-        error.message !== "NOT_JSON" &&
-        error.message !== "Failed to fetch"
-      ) {
-        console.info(
-          "ℹ️ Mode démonstration - Annulation Réservation",
-        );
-      }
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
+      setAgences([]);
     } finally {
       setLoading(false);
     }
@@ -775,8 +714,6 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
   ) => {
     setLoadingReservations(true);
 
-    const mockReservations: Reservation[] = [];
-
     try {
       const numDossier =
         explicitNumDossier ||
@@ -813,16 +750,11 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
       setReservations(reservationsFiltrees);
 
     } catch (error: any) {
-      setReservations(mockReservations);
-
-      if (
-        error?.message &&
-        !error.message.includes("HTTP_ERROR") &&
-        error.message !== "NOT_JSON" &&
-        error.message !== "Failed to fetch"
-      ) {
-        console.info("ℹ️ Mode démonstration - Réservations");
-      }
+      console.error('Erreur lors du chargement des réservations:', error);
+      toast.error('Impossible de charger les réservations', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setReservations([]);
     } finally {
       setLoadingReservations(false);
     }

@@ -168,6 +168,46 @@ export async function getWfFvTaskList(): Promise<WfTask[]> {
   return Array.isArray(data) ? data : (data.content ?? []);
 }
 
+// ─── Rétrocession (RC) workflow ───────────────────────────────────────────────
+
+export const WF_RC_OPERATION_KEY = 'operations_retrocession';
+
+export async function startRcDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RC_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueRcDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RC_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfRcTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_RC_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
 // ─── Clôture Dossier workflow ─────────────────────────────────────────────────
 // numDossier is always known upfront so we only need continueDecision (no TEMP key).
 
@@ -261,6 +301,90 @@ export async function continueLeveeSuspensionDecision(
 export async function getWfLeveeSuspensionTaskList(): Promise<WfTask[]> {
   const response = await authenticatedFetch(
     `/api/wf/tasks?operationKey=${WF_LEVEE_SUSPENSION_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAJ BENEFICIAIRE WORKFLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const WF_MAJ_BENEFICIAIRE_OPERATION_KEY = 'operations_beneficiaire';
+
+export async function startMajBeneficiaireDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueMajBeneficiaireDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfMajBeneficiaireTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_MAJ_BENEFICIAIRE_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RAPATRIEMENT EXPORTATEUR WORKFLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const WF_RAPATRIEMENT_OPERATION_KEY = 'operations_exportateur';
+
+export async function startRapatriementDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RAPATRIEMENT_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function continueRapatriementDecision(
+  businessKey: string,
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_RAPATRIEMENT_OPERATION_KEY}/${businessKey}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfRapatriementTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_RAPATRIEMENT_OPERATION_KEY}`,
     { method: 'GET', headers: wfHeaders() },
   );
   const data = await response.json();

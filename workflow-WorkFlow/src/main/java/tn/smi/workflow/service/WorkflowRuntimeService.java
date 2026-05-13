@@ -293,16 +293,36 @@ public class WorkflowRuntimeService {
         // 11. Determine metier finalize (passed to downstream MS)
         //     FinalizePolicy on the node can override the transition rule value.
         boolean shouldMetierFinalize = routeResult.isMetierFinalize();
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // WORKFLOW RUNTIME SERVICE - FINALIZE POLICY APPLICATION
+        // ═══════════════════════════════════════════════════════════════════════════
+        log.info("═══════════════════════════════════════════════════════════");
+        log.info("WORKFLOW RUNTIME - FINALIZE DETERMINATION");
+        log.info("═══════════════════════════════════════════════════════════");
+        log.info("From RoutingService:");
+        log.info("  routeResult.metierFinalize: {}", routeResult.isMetierFinalize());
+        log.info("  routeResult.wfFinalize: {}", routeResult.isWfFinalize());
+        log.info("Current Node FinalizePolicy: {}", currentNode.getFinalizePolicy());
+        log.info("Initial shouldMetierFinalize: {}", shouldMetierFinalize);
+        
         if (currentNode.getFinalizePolicy() == FinalizePolicy.ALWAYS) {
+            log.info("FinalizePolicy is ALWAYS → overriding metierFinalize to TRUE");
             shouldMetierFinalize = true;
         } else if (currentNode.getFinalizePolicy() == FinalizePolicy.NEVER) {
+            log.info("FinalizePolicy is NEVER → overriding metierFinalize to FALSE");
             shouldMetierFinalize = false;
+        } else {
+            log.info("FinalizePolicy is BY_DECISION → using value from transition rule");
         }
 
         // Workflow finalize: if false, the operation will be closed as REJECTED after the downstream call.
         boolean shouldWfFinalize = routeResult.isWfFinalize();
 
-        log.info("Finalize flags — metierFinalize={}, wfFinalize={}", shouldMetierFinalize, shouldWfFinalize);
+        log.info("FINAL VALUES:");
+        log.info("  shouldMetierFinalize (passed to business service): {}", shouldMetierFinalize);
+        log.info("  shouldWfFinalize (workflow continuation): {}", shouldWfFinalize);
+        log.info("═══════════════════════════════════════════════════════════");
 
         // 12. Call business service
         log.info("Before downstream call: businessKey='{}', respBkPath='{}', payloadBkField='{}'",

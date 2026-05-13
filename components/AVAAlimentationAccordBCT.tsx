@@ -7,7 +7,7 @@ import {
     Save,
     Search,
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
@@ -110,30 +110,6 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
   const fetchDossiers = async () => {
     setLoading(true);
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        numDossier: 9360426,
-        codeAgence: 17,
-        libelleAgence: 'Agence Principale',
-        typeDossierAva: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numeroDossier: '9360426',
-        dateDossier: '2026-04-14',
-        noPieceClient: '1695881M',
-        nomClient: 'STE ACSI NEGOCE',
-        prenomClient: '',
-        mntAutorise: 200,
-        mntAutoriseBct: 0,
-        mntAvance: 0,
-        mntUtilise: 0,
-        mntReserve: 0,
-        mntBlocage: 0,
-        solde: 200,
-        etatDossier: 'V',
-      },
-    ];
-
     try {
       const response = await authenticatedFetch('/api/operations-deleguees');
       if (!response.ok) throw new Error(`HTTP_ERROR_${response.status}`);
@@ -229,11 +205,14 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
       setAgences(agencesFiltre);
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
-    } catch {
-      console.info('ℹ️ Mode démonstration - Alimentation Accord BCT');
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
-      setAgences([{ codeAgence: 17, libelleAgence: 'Agence Principale' }]);
+    } catch (error) {
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
+      setAgences([]);
     } finally {
       setLoading(false);
     }

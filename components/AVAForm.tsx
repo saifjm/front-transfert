@@ -1,33 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    Eye,
+    FileText,
+    PlusCircle,
+    Search,
+    Send,
+    Trash2,
+    Upload
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
+import { authenticatedFetch } from '../utils/api';
+import { controleRne } from '../utils/controleRne';
+import { continueDecision, startDecision } from '../utils/workflowApi';
+import { DossierValidatedModal } from './DossierValidatedModal';
+import { useErrorHandler } from './ErrorContext';
+import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Textarea } from './ui/textarea';
-import { Badge } from './ui/badge';
-import { Alert, AlertDescription } from './ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { 
-  PlusCircle, 
-  Trash2, 
-  Upload, 
-  FileText,
-  AlertTriangle,
-  CheckCircle2,
-  Save,
-  Send,
-  Search,
-  Eye
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { DossierValidatedModal } from './DossierValidatedModal';
-import { controleRne } from '../utils/controleRne';
-import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
-import { startDecision, continueDecision } from '../utils/workflowApi';
-import { useErrorHandler } from './ErrorContext';
-import { authenticatedFetch } from '../utils/api';
 
 interface BeneficiaireMvtDTO {
   id?: string;
@@ -317,23 +315,13 @@ export function AVAForm() {
   // Charger les types de pièce
   const fetchTypesPiece = async () => {
     setLoadingTypesPiece(true);
-    const mockTypesPiece: TypePiece[] = [
-      { codeTypePiece: 1, libelleTypePiece: "Carte d'identité nationale" },
-      { codeTypePiece: 4, libelleTypePiece: "Carte de séjour" },
-      { codeTypePiece: 7, libelleTypePiece: "Passeport" }
-    ];
-      setTypesPiece(mockTypesPiece);
+    setTypesPiece([]);
     setLoadingTypesPiece(false);
   };
 
   // Charger les banques
   const fetchBanques = async () => {
     setLoadingBanques(true);
-    const mockBanques: Banque[] = [
-      { codeBanque: 1, libBanque: 'Banque A' },
-      { codeBanque: 2, libBanque: 'Banque B' },
-      { codeBanque: 3, libBanque: 'Banque C' }
-    ];
     try {
       const response = await fetch('/api/ref/banques');
       const data = await safeJsonParse<Banque[]>(response);
@@ -343,7 +331,11 @@ export function AVAForm() {
         throw new Error('NO_DATA');
       }
     } catch (error) {
-      setBanques(mockBanques);
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setBanques([]);
     } finally {
       setLoadingBanques(false);
     }
@@ -352,12 +344,6 @@ export function AVAForm() {
   // Charger les activités
   const fetchActivites = async () => {
     setLoadingActivites(true);
-    const mockActivites: Activite[] = [
-      { codeActivite: 1, libActivite: "PROFESSIONS LIBERALES ORGANISEES DANS LE CADRE D'UN ORDRE OU D'UN CONSEIL NATIONAL" },
-      { codeActivite: 2, libActivite: "ETUDES ET CONSEILS (BUREAUX D'ETUDES, BUREAUX DE CONTROLE, CONSEILLERS, ...)" },
-      { codeActivite: 24, libActivite: "IMPORTATION DE MARCHANDISES" },
-      { codeActivite: 26, libActivite: "AUTRES ACTIVITES" }
-    ];
     try {
       const response = await fetch('/api/ref/activites');
       const data = await safeJsonParse<Activite[]>(response);
@@ -367,7 +353,11 @@ export function AVAForm() {
         throw new Error('NO_DATA');
       }
     } catch (error) {
-      setActivites(mockActivites);
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setActivites([]);
     } finally {
       setLoadingActivites(false);
     }
@@ -376,11 +366,6 @@ export function AVAForm() {
   // Charger les sous-activités
   const fetchSousActivites = async () => {
     setLoadingSousActivites(true);
-    const mockSousActivites: Activite[] = [
-      { codeActivite: 1, libActivite: "Sous-activité 1" },
-      { codeActivite: 2, libActivite: "Sous-activité 2" },
-      { codeActivite: 3, libActivite: "Sous-activité 3" }
-    ];
     try {
       const response = await fetch('/api/ref/activites');
       const data = await safeJsonParse<Activite[]>(response);
@@ -390,7 +375,11 @@ export function AVAForm() {
         throw new Error('NO_DATA');
       }
     } catch (error) {
-      setSousActivites(mockSousActivites);
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setSousActivites([]);
     } finally {
       setLoadingSousActivites(false);
     }
@@ -399,11 +388,6 @@ export function AVAForm() {
   // Charger les pièces justificatives
   const fetchPieces = async () => {
     setLoadingPieces(true);
-    const mockPieces: Piece[] = [
-      { codePiece: 1, libPiece: 'Facture' },
-      { codePiece: 2, libPiece: 'Bon de commande' },
-      { codePiece: 3, libPiece: 'Contrat' }
-    ];
     try {
       const response = await fetch('/api/ref/pieces');
       const data = await safeJsonParse<Piece[]>(response);
@@ -413,7 +397,11 @@ export function AVAForm() {
         throw new Error('NO_DATA');
       }
     } catch (error) {
-      setPieces(mockPieces);
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setPieces([]);
     } finally {
       setLoadingPieces(false);
     }
@@ -422,11 +410,6 @@ export function AVAForm() {
   // Charger les devises
   const fetchDevises = async () => {
     setLoadingDevises(true);
-    const mockDevises: Devise[] = [
-      { codeDevise: 1, sigleDevise: 'EUR', libDevise: 'Euro' },
-      { codeDevise: 2, sigleDevise: 'USD', libDevise: 'Dollar' },
-      { codeDevise: 3, sigleDevise: 'GBP', libDevise: 'Livre Sterling' }
-    ];
     try {
       const response = await fetch('/api/ref/devises/getall');
       const data = await safeJsonParse<Devise[]>(response);
@@ -436,7 +419,11 @@ export function AVAForm() {
         throw new Error('NO_DATA');
       }
     } catch (error) {
-      setDevises(mockDevises);
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDevises([]);
     } finally {
       setLoadingDevises(false);
     }
@@ -556,12 +543,6 @@ export function AVAForm() {
       // Recharger les activités depuis /api/activites
       const fetchActivitesSpecial = async () => {
         setLoadingActivites(true);
-        const mockActivites: Activite[] = [
-          { codeActivite: 1, libActivite: "PROFESSIONS LIBERALES ORGANISEES DANS LE CADRE D'UN ORDRE OU D'UN CONSEIL NATIONAL" },
-          { codeActivite: 2, libActivite: "ETUDES ET CONSEILS (BUREAUX D'ETUDES, BUREAUX DE CONTROLE, CONSEILLERS, ...)" },
-          { codeActivite: 24, libActivite: "IMPORTATION DE MARCHANDISES" },
-          { codeActivite: 26, libActivite: "AUTRES ACTIVITES" }
-        ];
         try {
           const response = await fetch('/api/activites');
           const data = await safeJsonParse<Activite[]>(response);
@@ -571,7 +552,11 @@ export function AVAForm() {
             throw new Error('NO_DATA');
           }
         } catch (error) {
-          setActivites(mockActivites);
+          console.error('Erreur lors du chargement:', error);
+          toast.error('Impossible de charger les données', {
+            description: 'Veuillez vérifier votre connexion et réessayer',
+          });
+          setActivites([]);
         } finally {
           setLoadingActivites(false);
         }

@@ -1,34 +1,34 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Badge } from './ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import { 
-  Search, 
-  ArrowLeft, 
-  FileText, 
-  Save,
-  Upload,
-  PlusCircle,
-  Trash2,
-  CheckCircle2,
-  AlertCircle
+    AlertCircle,
+    ArrowLeft,
+    CheckCircle2,
+    FileText,
+    PlusCircle,
+    Save,
+    Search,
+    Trash2,
+    Upload
 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
-import { startFvDecision, continueFvDecision } from '../utils/workflowApi';
+import { continueFvDecision, startFvDecision } from '../utils/workflowApi';
 import { useErrorHandler } from './ErrorContext';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 // ============= INTERFACES =============
 
@@ -220,84 +220,6 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       5: 'A. ACT. (PROM.-NOUV. PROJ.)'
     };
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossier: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numeroDossier: 'AVA-1',
-        dateDossier: '2024-01-15',
-        noPieceClient: '1695881M',
-        nomClient: 'Dupont',
-        prenomClient: 'Jean',
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 45000,
-        mntUtilise: 45000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-12-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: 'Agence Sfax',
-        typeDossier: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numeroDossier: 'AVA-2',
-        dateDossier: '2024-02-10',
-        noPieceClient: '2345678M',
-        nomClient: 'Martin',
-        prenomClient: 'Sophie',
-        montantAutorise: 200000,
-        mntAutorise: 200000,
-        montantUtilise: 60000,
-        mntUtilise: 60000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-11-30',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 300,
-        libelleAgence: 'Agence Sousse',
-        typeDossier: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numeroDossier: 'AVA-3',
-        dateDossier: '2024-03-05',
-        noPieceClient: '3456789M',
-        nomClient: 'Ben Ali',
-        prenomClient: 'Ahmed',
-        montantAutorise: 250000,
-        mntAutorise: 250000,
-        montantUtilise: 75000,
-        mntUtilise: 75000,
-        mntAvance: 125000,
-        mntAutorisationBct: 50000,
-        mntReserve: 50000,
-        mntBlocage: 0,
-        solde: 125000,
-        devise: 'TND',
-        statut: 'ACTIF',
-        echeance: '2024-10-31',
-        typePieceClient: 1
-      }
-    ];
-
     try {
       const response = await authenticatedFetch('/api/operations-deleguees/dossiers-valides-avec-nom');
       
@@ -409,24 +331,18 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       );
       
     } catch (error: any) {
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
-      
-      if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
-        console.info('ℹ️ Mode démonstration - Frais de Voyage');
-      }
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchDevises = async () => {
-    const mockDevises: Devise[] = [
-      { codeDevise: 788, sigleDevise: 'TND', libDevise: 'Dinar tunisien' },
-      { codeDevise: 978, sigleDevise: 'EUR', libDevise: 'Euro' },
-      { codeDevise: 840, sigleDevise: 'USD', libDevise: 'Dollar américain' }
-    ];
-
     try {
       const response = await fetch('/api/ref/devises/getall');
       
@@ -442,11 +358,11 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       
       setDevises(data);
     } catch (error: any) {
-      setDevises(mockDevises);
-      
-      if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
-        console.info('ℹ️ Mode démonstration - Devises');
-      }
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDevises([]);
     }
   };
 
@@ -552,30 +468,12 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
 
       setDossierSelectionne(dossierComplet);
     } catch (error: any) {
+      console.error('Erreur lors du chargement:', error);
+      toast.error('Impossible de charger les données', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
       setDossierSelectionne(dossier);
-      
-      // Données mock pour les bénéficiaires en cas d'erreur
-      const mockBeneficiaires: BeneficiaireSummaryDTO[] = [
-        {
-          adresseBenef: '123 Rue Exemple, Tunis',
-          noPieceBenef: dossier.noPieceClient,
-          nomBenef: `${dossier.prenomClient} ${dossier.nomClient}`,
-          qualite: 'Titulaire',
-          typePieceBenef: dossier.typePieceClient || 1
-        },
-        {
-          adresseBenef: '45 Avenue Test, Sfax',
-          noPieceBenef: '9876543M',
-          nomBenef: 'Marie Dupont',
-          qualite: 'Bénéficiaire',
-          typePieceBenef: 1
-        }
-      ];
-      setBeneficiaires(mockBeneficiaires);
-      
-      if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
-        console.info('ℹ️ Mode démonstration - Résumé du dossier avec bénéficiaires');
-      }
+      setBeneficiaires([]);
     } finally {
       setLoading(false);
     }

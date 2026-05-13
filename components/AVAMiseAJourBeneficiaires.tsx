@@ -1,17 +1,18 @@
 import {
-  ArrowLeft,
-  FileText,
-  Filter,
-  PlusCircle,
-  RotateCcw,
-  Save,
-  Search,
-  Trash2
+    ArrowLeft,
+    FileText,
+    Filter,
+    PlusCircle,
+    RotateCcw,
+    Save,
+    Search,
+    Trash2
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from '../utils/api';
+import { continueMajBeneficiaireDecision, startMajBeneficiaireDecision } from '../utils/workflowApi';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -108,6 +109,9 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // État workflow
+  const [wfMajBeneficiaireBusinessKey, setWfMajBeneficiaireBusinessKey] = useState<string | null>(null);
+  
   // Liste des agences
   const [agences, setAgences] = useState<Agence[]>([]);
 
@@ -161,120 +165,6 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
   // Charger les dossiers valides
   const fetchDossiers = async () => {
     setLoading(true);
-    
-    // Données mock par défaut
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossierAva: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numDossier: 1,
-        numeroDossier: 'AVA-1',
-        dateDossier: '2024-01-15',
-        noPieceClient: '1695881M',
-        nomClient: 'Dupont Jean',
-        prenomClient: 'Jean',
-        mntAutorise: 150000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntUtilise: 45000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        echeance: '2024-12-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 200,
-        libelleAgence: 'Agence Sfax',
-        typeDossierAva: 2,
-        codeTypeDossier: 2,
-        libelleTypeDossier: 'MARCHE REALISABLE A L\'ETRANGER',
-        numDossier: 2,
-        numeroDossier: 'AVA-2',
-        dateDossier: '2024-02-10',
-        noPieceClient: '2345678M',
-        nomClient: 'Martin Sophie',
-        prenomClient: 'Sophie',
-        mntAutorise: 200000,
-        mntAvance: 100000,
-        mntAutorisationBct: 40000,
-        mntUtilise: 60000,
-        mntReserve: 40000,
-        mntBlocage: 0,
-        solde: 100000,
-        echeance: '2024-11-30',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 300,
-        libelleAgence: 'Agence Sousse',
-        typeDossierAva: 3,
-        codeTypeDossier: 3,
-        libelleTypeDossier: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        numDossier: 3,
-        numeroDossier: 'AVA-3',
-        dateDossier: '2024-03-05',
-        noPieceClient: '3456789M',
-        nomClient: 'Ben Ali Ahmed',
-        prenomClient: 'Ahmed',
-        mntAutorise: 250000,
-        mntAvance: 125000,
-        mntAutorisationBct: 50000,
-        mntUtilise: 75000,
-        mntReserve: 50000,
-        mntBlocage: 0,
-        solde: 125000,
-        echeance: '2024-10-31',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 100,
-        libelleAgence: 'Agence Tunis Centre',
-        typeDossierAva: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: 'EXPORTATEUR',
-        numDossier: 4,
-        numeroDossier: 'AVA-4',
-        dateDossier: '2024-04-12',
-        noPieceClient: '4567890M',
-        nomClient: 'Trabelsi Leila',
-        prenomClient: 'Leila',
-        mntAutorise: 180000,
-        mntAvance: 90000,
-        mntAutorisationBct: 35000,
-        mntUtilise: 55000,
-        mntReserve: 35000,
-        mntBlocage: 0,
-        solde: 90000,
-        echeance: '2025-01-15',
-        typePieceClient: 1
-      },
-      {
-        codeAgence: 400,
-        libelleAgence: 'Agence Monastir',
-        typeDossierAva: 5,
-        codeTypeDossier: 5,
-        libelleTypeDossier: 'A. ACT. (PROM.-NOUV. PROJ.)',
-        numDossier: 5,
-        numeroDossier: 'AVA-5',
-        dateDossier: '2024-05-20',
-        noPieceClient: '5678901M',
-        nomClient: 'Hamdi Mohamed',
-        prenomClient: 'Mohamed',
-        mntAutorise: 300000,
-        mntAvance: 150000,
-        mntAutorisationBct: 60000,
-        mntUtilise: 90000,
-        mntReserve: 60000,
-        mntBlocage: 0,
-        solde: 150000,
-        echeance: '2024-09-30',
-        typePieceClient: 1
-      }
-    ] as any[];
     
     try {
       // Appel API réel
@@ -379,13 +269,12 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
       
       console.log('✅ API: Dossiers chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
-      // Mode démonstration silencieux - pas d'alerte utilisateur
-      setDossiers(mockDossiers);
-      
-      // Log discret uniquement si ce n'est pas une erreur réseau classique
-      if (error?.message && !error.message.includes('HTTP_ERROR') && error.message !== 'NOT_JSON' && error.message !== 'Failed to fetch') {
-        console.info('ℹ️ Mode démonstration activé');
-      }
+      console.error('Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setAgences([]);
     } finally {
       setLoading(false);
     }
@@ -482,6 +371,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
   // Sélectionner un dossier et charger ses bénéficiaires
   const selectionnerDossier = async (dossier: DossierAVA) => {
     setLoading(true);
+    setWfMajBeneficiaireBusinessKey(null); // Reset workflow state
     
     try {
       // 1. Charger le résumé du dossier depuis l'API
@@ -695,45 +585,84 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
     setIsSubmitting(true);
 
     try {
-      // Préparation des données pour l'API
-      const beneficiairesAPayload = beneficiaires.map(benef => ({
-        numDossier: dossierSelectionne?.numDossier,
-        dateDossier: dossierSelectionne?.dateDossier,
-        typePieceBenef: benef.typePieceBenef,
-        noPieceBenef: benef.noPieceBenef,
-        codeTypeDos: dossierSelectionne?.codeTypeDossier,
-        nomBenef: benef.nomBenef,
-        adresseBenef: benef.adresseBenef,
-        qualite: benef.qualite,
-        datePiece: benef.datePiece,
-        etat: benef.etat
-      }));
-
-      console.log('Envoi bénéficiaires API:', beneficiairesAPayload);
-
-      // Envoyer chaque bénéficiaire à l'API
-      for (const benefPayload of beneficiairesAPayload) {
-        const response = await authenticatedFetch('/api/beneficiaires/true', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(benefPayload),
-        });
+      // Envoyer chaque bénéficiaire via le workflow
+      for (let i = 0; i < beneficiaires.length; i++) {
+        const benef = beneficiaires[i];
         
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `Erreur API: ${response.status}`);
+        // Préparation du payload pour le workflow (UN SEUL bénéficiaire)
+        const payload = {
+          numDossier: dossierSelectionne?.numDossier,
+          dateDossier: dossierSelectionne?.dateDossier,
+          typePieceBenef: benef.typePieceBenef,
+          noPieceBenef: benef.noPieceBenef,
+          codeTypeDos: dossierSelectionne?.codeTypeDossier,
+          nomBenef: benef.nomBenef,
+          adresseBenef: benef.adresseBenef,
+          qualite: benef.qualite,
+          datePiece: benef.datePiece,
+          etat: benef.etat
+        };
+
+        console.log(`[WF] Maj Beneficiaire ${i + 1}/${beneficiaires.length} - Début soumission`);
+        console.log('[WF] Business key actuelle:', wfMajBeneficiaireBusinessKey);
+        console.log('[WF] Payload:', payload);
+
+        // Appel workflow
+        const wfResponse = wfMajBeneficiaireBusinessKey
+          ? await continueMajBeneficiaireDecision(
+              wfMajBeneficiaireBusinessKey,
+              'SOUMETTRE',
+              payload
+            )
+          : await startMajBeneficiaireDecision(
+              'SOUMETTRE',
+              payload
+            );
+
+        console.log('[WF] Réponse workflow:', wfResponse);
+
+        // Traiter la réponse du workflow
+        if (wfResponse.result === 'OK') {
+          // Sauvegarder la business key pour les soumissions futures
+          const newKey = wfResponse.state?.businessKey;
+          if (newKey) {
+            console.log('[WF] Business key sauvegardée:', newKey);
+            setWfMajBeneficiaireBusinessKey(newKey);
+          }
+
+          console.log(`[WF] Bénéficiaire ${i + 1}/${beneficiaires.length} soumis avec succès`);
+
+        } else if (wfResponse.result === 'REJECTED') {
+          console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
+          toast.error(`Bénéficiaire ${i + 1} rejeté par le workflow`, {
+            description: wfResponse.errorMessage || 'Veuillez vérifier les données',
+          });
+          return; // Arrêter le traitement
+
+        } else if (wfResponse.result === 'ERROR') {
+          console.error('[WF] Erreur workflow:', wfResponse.errorMessage);
+          toast.error(`Erreur workflow pour bénéficiaire ${i + 1}`, {
+            description: wfResponse.errorMessage || 'Une erreur est survenue',
+          });
+          return; // Arrêter le traitement
         }
       }
 
-      toast.success('Bénéficiaires mis à jour avec succès');
-      retourListe();
-    } catch (error: any) {
-      toast.error('Erreur lors de la mise à jour', {
-        description: error.message || 'Une erreur inconnue est survenue'
+      // Tous les bénéficiaires ont été soumis avec succès
+      toast.success('Mise à jour bénéficiaires soumise avec succès', {
+        description: `${beneficiaires.length} bénéficiaire(s) traité(s)`,
+        duration: 5000,
       });
-      console.error('Erreur:', error);
+
+      // Retour à la liste et rafraîchissement
+      retourListe();
+      await fetchDossiers();
+
+    } catch (error: any) {
+      console.error('[WF] Exception:', error);
+      toast.error('Erreur lors de la soumission', {
+        description: error instanceof Error ? error.message : 'Erreur inconnue',
+      });
     } finally {
       setIsSubmitting(false);
     }

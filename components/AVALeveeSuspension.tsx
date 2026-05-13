@@ -1,47 +1,47 @@
 import {
-  ArrowLeft,
-  CheckCircle2,
-  FileText,
-  Filter,
-  PlayCircle,
-  RefreshCw,
-  Save,
-  Search
+    ArrowLeft,
+    CheckCircle2,
+    FileText,
+    Filter,
+    PlayCircle,
+    RefreshCw,
+    Save,
+    Search
 } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { safeJsonParse } from "../utils";
 import { authenticatedFetch } from "../utils/api";
 import {
-  continueLeveeSuspensionDecision,
-  startLeveeSuspensionDecision,
+    continueLeveeSuspensionDecision,
+    startLeveeSuspensionDecision,
 } from "../utils/workflowApi";
 import { useErrorHandler } from './ErrorContext';
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "./ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "./ui/select";
 
 interface DossierAVA {
@@ -229,34 +229,6 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
   const fetchDossiers = async () => {
     setLoading(true);
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        codeAgence: 100,
-        libelleAgence: "Agence Tunis Centre",
-        typeDossier: 1,
-        codeTypeDossier: 1,
-        libelleTypeDossier: "EXPORTATEUR",
-        numeroDossier: "AVA-1",
-        dateDossier: "2024-01-15",
-        noPieceClient: "1695881M",
-        nomClient: "Dupont",
-        prenomClient: "Jean",
-        montantAutorise: 150000,
-        mntAutorise: 150000,
-        montantUtilise: 45000,
-        mntUtilise: 45000,
-        mntAvance: 75000,
-        mntAutorisationBct: 30000,
-        mntReserve: 30000,
-        mntBlocage: 0,
-        solde: 75000,
-        devise: "TND",
-        statut: "SUSPENDU",
-        echeance: "2024-12-31",
-        typePieceClient: 1,
-      },
-    ];
-
     const typeDossierLabels: Record<number, string> = {
       1: "EXPORTATEUR",
       2: "MARCHE REALISABLE A L'ETRANGER",
@@ -361,9 +333,12 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
       }
       throw new Error("PARSE_ERROR");
     } catch (error) {
-      console.info("ℹ️ Mode démonstration - Levée Suspension");
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
+      console.error("Erreur lors du chargement des dossiers:", error);
+      toast.error("Impossible de charger les dossiers", {
+        description: "Une erreur est survenue lors du chargement des dossiers suspendus"
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }
@@ -422,19 +397,6 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
   const fetchSuspensionData = async (numDossier: number) => {
     setLoadingSuspensionData(true);
 
-    const mockSuspensionData: SuspensionData =
-      numDossier % 2 === 0
-        ? {
-            dateEtat: "2024-02-10",
-            motif: "DECLARATION FISCALE NON PRESENTEE",
-            codeEtat: 2,
-          }
-        : {
-            dateEtat: "2024-01-20",
-            motif: "DÉPASSEMENT DU MONTANT AUTORISÉ",
-            codeEtat: 1,
-          };
-
     try {
       const response = await authenticatedFetch(
         `/api/operations-deleguees/${numDossier}`,
@@ -455,10 +417,9 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
       }
       throw new Error("API_ERROR");
     } catch (error) {
-      console.info(
-        "ℹ️ Mode démonstration - Données de suspension",
-      );
-      setSuspensionData(mockSuspensionData);
+      console.error("Erreur lors du chargement des données de suspension:", error);
+      toast.error("Impossible de charger les données de suspension");
+      setSuspensionData(null);
     } finally {
       setLoadingSuspensionData(false);
     }
