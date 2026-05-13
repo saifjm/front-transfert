@@ -315,7 +315,11 @@ export function AVAForm() {
   // Charger les types de pièce
   const fetchTypesPiece = async () => {
     setLoadingTypesPiece(true);
-    setTypesPiece([]);
+    setTypesPiece([
+      { codeTypePiece: 1, libelleTypePiece: "Carte d'identité nationale" },
+      { codeTypePiece: 4, libelleTypePiece: "Carte de séjour" },
+      { codeTypePiece: 7, libelleTypePiece: "Passeport" },
+    ]);
     setLoadingTypesPiece(false);
   };
 

@@ -36,10 +36,8 @@ public class SchemaUpdateConfig {
             addColumnIfNotExists(conn, "WF_DEFINITION", "PAYLOAD_BK_FIELD",   "VARCHAR2(100)");
 
             // WF_TRANSITION_RULE — dual finalize columns
-            // finalize      = metierFinalize (passed to downstream MS)
-            // wf_finalize   = workflowFinalize (true=continue, false=close as REJECTED)
-            addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "FINALIZE",    "NUMBER(1) DEFAULT 0 NOT NULL");
-            addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "WF_FINALIZE", "NUMBER(1) DEFAULT 1 NOT NULL");
+            addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "FINALIZE",    "NUMBER(1) DEFAULT 0 NOT NULL");  // metierFinalize: passed as {finalize} to downstream MS
+            addColumnIfNotExists(conn, "WF_TRANSITION_RULE", "WF_FINALIZE", "NUMBER(1) DEFAULT 1 NOT NULL"); // workflowFinalize: true=continue, false=close as REJECTED
 
         } catch (Exception e) {
             log.warn("SchemaUpdateConfig failed: {}", e.getMessage());
