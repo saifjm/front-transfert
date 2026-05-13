@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { NotificationProvider } from './components/NotificationContext';
@@ -27,23 +27,50 @@ import { ComplianceCenter } from './components/ComplianceCenter';
 import { Settings } from './components/Settings';
 import { LoginForm } from './components/LoginForm';
 import { WFTaskView } from './components/WFTaskView';
+import { AVAWorkflowAdmin } from './components/AVAWorkflowAdmin';
 import { ErrorProvider, useErrorHandler } from './components/ErrorContext';
 import { ErrorDialog } from './components/ErrorDialog';
 import { ErrorTestComponent } from './components/ErrorTestComponent';
 import { Toaster } from 'sonner';
 
 export default function App() {
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState(
+    () => sessionStorage.getItem('app_section') || 'dashboard'
+  );
   const [deepLinkDossier, setDeepLinkDossier] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ email: string } | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => sessionStorage.getItem('auth_user') !== null
+  );
+  const [user, setUser] = useState<{ email: string } | null>(() => {
+    const stored = sessionStorage.getItem('auth_user');
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.altKey && e.shiftKey && e.key === 'W') {
+        e.preventDefault();
+        setActiveSection(s => {
+          const next = s === 'wf-admin' ? 'dashboard' : 'wf-admin';
+          sessionStorage.setItem('app_section', next);
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleLogin = (email: string, password: string) => {
-    setUser({ email });
+    const userData = { email };
+    sessionStorage.setItem('auth_user', JSON.stringify(userData));
+    setUser(userData);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
+    sessionStorage.removeItem('auth_user');
+    sessionStorage.removeItem('app_section');
     setUser(null);
     setIsAuthenticated(false);
     setActiveSection('dashboard');
@@ -53,6 +80,7 @@ export default function App() {
   const handleNavigate = (section: string, dossierNum?: string) => {
     setDeepLinkDossier(dossierNum || '');
     setActiveSection(section);
+    sessionStorage.setItem('app_section', section);
   };
 
   if (!isAuthenticated) {
@@ -75,7 +103,11 @@ export default function App() {
             onLogout={handleLogout}
           />
           <div className="flex flex-col flex-1 overflow-hidden">
-            <Topbar activeSection={activeSection} userEmail={user?.email} />
+            <Topbar
+              activeSection={activeSection}
+              userEmail={user?.email}
+              onAdminToggle={() => handleNavigate(activeSection === 'wf-admin' ? 'dashboard' : 'wf-admin')}
+            />
             <main className="flex-1 overflow-auto">
               <div key={activeSection} className="page-transition" style={{ minHeight: '100%' }}>
                 {renderContent(activeSection, handleNavigate, deepLinkDossier)}
@@ -132,6 +164,8 @@ function renderContent(
       return <AVAGenerationDossier />;
     case 'declaration-chiffre-affaires-fiscal':
       return <DeclarationChiffreAffairesFiscal />;
+    case 'wf-admin':
+      return <AVAWorkflowAdmin />;
     case 'error-test':
       return <ErrorTestComponent />;
     case 'import':

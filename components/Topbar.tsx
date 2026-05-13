@@ -320,9 +320,10 @@ const SECTION_LABELS: Record<string, string> = {
 interface TopbarProps {
   activeSection: string;
   userEmail?: string;
+  onAdminToggle?: () => void;
 }
 
-export function Topbar({ activeSection, userEmail }: TopbarProps) {
+export function Topbar({ activeSection, userEmail, onAdminToggle }: TopbarProps) {
   const { unreadCount } = useNotifications();
   const [panelOpen, setPanelOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -387,6 +388,28 @@ export function Topbar({ activeSection, userEmail }: TopbarProps) {
 
       {/* Right side */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+
+        {/* Hidden admin trigger */}
+        {onAdminToggle && (
+          <button
+            onClick={onAdminToggle}
+            title={activeSection === 'wf-admin' ? 'Quitter WF Admin' : 'WF Admin (Alt+Shift+W)'}
+            style={{
+              width: 8, height: 8, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+              background: activeSection === 'wf-admin' ? '#f59e0b' : '#e8edf2',
+              opacity: activeSection === 'wf-admin' ? 1 : 0.4,
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.background = '#f59e0b'; }}
+            onMouseLeave={e => {
+              if (activeSection !== 'wf-admin') {
+                (e.currentTarget as HTMLElement).style.opacity = '0.4';
+                (e.currentTarget as HTMLElement).style.background = '#e8edf2';
+              }
+            }}
+          />
+        )}
 
         {/* Notification Bell */}
         <div ref={wrapperRef} style={{ position: 'relative' }}>

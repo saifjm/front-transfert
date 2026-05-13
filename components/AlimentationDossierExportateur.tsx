@@ -460,10 +460,54 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
           console.log('[WF] Réponse approbation:', approvalResponse);
 
           if (approvalResponse.result === 'OK') {
-            toast.success('Rapatriement exportateur approuvé avec succès', {
-              description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} rapatrié`,
-              duration: 5000,
-            });
+            // Generate and download the rapatriement document
+            try {
+              const docResponse = await authenticatedFetch('/api/operation-exportateur-ava/rapatriement/true', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (docResponse.ok) {
+                const contentType = docResponse.headers.get('content-type');
+                if (contentType && contentType.includes('application/pdf')) {
+                  const blob = await docResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Rapatriement_AVA_${payload.numDossierAva}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  window.URL.revokeObjectURL(url);
+                  toast.success('Rapatriement approuvé — document téléchargé', {
+                    description: `Rapatriement_AVA_${payload.numDossierAva}.pdf`,
+                    duration: 5000,
+                  });
+                } else {
+                  toast.success('Rapatriement exportateur approuvé avec succès', {
+                    description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} rapatrié`,
+                    duration: 5000,
+                  });
+                }
+              } else {
+                toast.success('Rapatriement exportateur approuvé avec succès', {
+                  description: newKey ? `Référence: ${newKey}` : undefined,
+                  duration: 5000,
+                });
+                toast.warning('Génération du document a échoué', {
+                  description: `HTTP ${docResponse.status}`,
+                });
+              }
+            } catch (docError) {
+              console.warn('[DOC] Erreur génération document:', docError);
+              toast.success('Rapatriement exportateur approuvé avec succès', {
+                description: newKey ? `Référence: ${newKey}` : undefined,
+                duration: 5000,
+              });
+              toast.warning('Document non téléchargé', {
+                description: 'L\'opération a réussi mais le document n\'a pas pu être généré.',
+              });
+            }
           } else {
             console.error('[WF] Erreur approbation:', approvalResponse.errorMessage);
             toast.warning('Soumis mais erreur lors de l\'approbation', {
@@ -676,6 +720,13 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
   // Interface d'alimentation
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-6">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-[#d1dce6] border-t-[#435B7B]"></div>
+          <p className="font-semibold text-[#2D3E54] text-xl tracking-wide">Rapatriement en cours...</p>
+          <p className="text-sm text-muted-foreground">Génération du document en cours...</p>
+        </div>
+      )}
       {/* En-tête avec retour */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

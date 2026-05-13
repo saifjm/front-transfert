@@ -5,8 +5,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tn.smi.workflow.domain.dto.ForceAdvanceRequest;
 import tn.smi.workflow.domain.entity.*;
 import tn.smi.workflow.repo.*;
+import tn.smi.workflow.service.AdminOperationService;
 
 import java.util.List;
 
@@ -16,6 +18,8 @@ import java.util.List;
 @Tag(name = "Admin", description = "Workflow administration / paramétrage APIs")
 public class AdminWorkflowController {
 
+    private final AdminOperationService adminOperationService;
+    private final WfOperationRepository operationRepository;
     private final WfDefinitionRepository definitionRepository;
     private final WfNodeRepository nodeRepository;
     private final WfDecisionRepository decisionRepository;
@@ -220,5 +224,53 @@ public class AdminWorkflowController {
     public ResponseEntity<Void> deleteSodRule(@PathVariable Long id) {
         sodRuleRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ---- OPERATION INSPECTION & CONTROL ----
+
+    @GetMapping("/operations")
+    @Operation(summary = "Search operations — filter by wfDefId, businessKey or status")
+    public ResponseEntity<List<WfOperation>> searchOperations(
+            @RequestParam(required = false) Long wfDefId,
+            @RequestParam(required = false) String businessKey,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(adminOperationService.searchOperations(wfDefId, businessKey, status));
+    }
+
+    @GetMapping("/operations/{id}")
+    @Operation(summary = "Get a single operation by ID")
+    public ResponseEntity<WfOperation> getOperation(@PathVariable Long id) {
+        return ResponseEntity.ok(operationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Operation not found: " + id)));
+    }
+
+    @GetMapping("/operations/{id}/history")
+    @Operation(summary = "Audit trail for an operation (newest first)")
+    public ResponseEntity<List<WfActionAudit>> getOperationHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(adminOperationService.getHistory(id));
+    }
+
+    @PutMapping("/operations/{id}/suspend")
+    @Operation(summary = "Suspend a running operation")
+    public ResponseEntity<WfOperation> suspendOperation(@PathVariable Long id) {
+        return ResponseEntity.ok(adminOperationService.suspend(id));
+    }
+
+    @PutMapping("/operations/{id}/resume")
+    @Operation(summary = "Resume a suspended operation")
+    public ResponseEntity<WfOperation> resumeOperation(@PathVariable Long id) {
+        return ResponseEntity.ok(adminOperationService.resume(id));
+    }
+
+    @PostMapping("/operations/{id}/force-advance")
+    @Operation(summary = "Admin override: jump the operation to a target node")
+    public ResponseEntity<WfOperation> forceAdvance(
+            @PathVariable Long id,
+            @RequestBody ForceAdvanceRequest request,
+            @RequestHeader(value = "X-User-Id", defaultValue = "0") Long adminUserId) {
+        if (request.getTargetNodeKey() == null || request.getTargetNodeKey().isBlank()) {
+            throw new IllegalArgumentException("targetNodeKey is required");
+        }
+        return ResponseEntity.ok(adminOperationService.forceAdvance(id, request.getTargetNodeKey(), request.getNote(), adminUserId));
     }
 }

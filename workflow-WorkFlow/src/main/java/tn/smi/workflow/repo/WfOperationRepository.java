@@ -10,5 +10,9 @@ import java.util.Optional;
 public interface WfOperationRepository extends JpaRepository<WfOperation, Long> {
     Optional<WfOperation> findByBusinessKey(String businessKey);
     Optional<WfOperation> findByWfDefinition_OperationKeyAndBusinessKey(String operationKey, String businessKey);
+    java.util.List<WfOperation> findByWfDefinition_WfDefIdOrderByCreatedAtDesc(Long wfDefId);
+    java.util.List<WfOperation> findByWfDefinition_OperationKeyOrderByCreatedAtDesc(String operationKey);
+    java.util.List<WfOperation> findByBusinessKeyContainingIgnoreCaseOrderByCreatedAtDesc(String businessKey);
+    java.util.List<WfOperation> findByWfDefinition_WfDefIdAndStatusOrderByCreatedAtDesc(Long wfDefId, tn.smi.workflow.domain.enums.OperationStatus status);
 }
 
