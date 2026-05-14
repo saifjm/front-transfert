@@ -102,30 +102,19 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      '/api/ref': {
-        target: 'http://localhost:8090',
-        changeOrigin: true,
-        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
-      },
-      '/api/wf': {
-        target: 'http://localhost:8843',
-        changeOrigin: true,
-        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
-      },
+      // All API traffic is routed through AVA_GATEWAY (port 8888).
+      // The gateway handles downstream routing to each microservice.
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8888',
         changeOrigin: true,
-        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
       '/auth': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8888',
         changeOrigin: true,
-        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
       '/alimentation-bct/': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8888',
         changeOrigin: true,
-        configure: (proxy) => { proxy.on('proxyRes', (res) => { delete res.headers['www-authenticate']; }); },
       },
     },
   },

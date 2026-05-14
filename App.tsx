@@ -45,16 +45,13 @@ export default function App() {
     const stored = sessionStorage.getItem('auth_user');
     return stored ? JSON.parse(stored) : null;
   });
+  const [wfAdminOpen, setWfAdminOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.altKey && e.shiftKey && e.key === 'W') {
         e.preventDefault();
-        setActiveSection(s => {
-          const next = s === 'wf-admin' ? 'dashboard' : 'wf-admin';
-          sessionStorage.setItem('app_section', next);
-          return next;
-        });
+        setWfAdminOpen(o => !o);
       }
     };
     window.addEventListener('keydown', handler);
@@ -106,7 +103,7 @@ export default function App() {
             <Topbar
               activeSection={activeSection}
               userEmail={user?.email}
-              onAdminToggle={() => handleNavigate(activeSection === 'wf-admin' ? 'dashboard' : 'wf-admin')}
+              onAdminToggle={() => setWfAdminOpen(o => !o)}
             />
             <main className="flex-1 overflow-auto">
               <div key={activeSection} className="page-transition" style={{ minHeight: '100%' }}>
@@ -115,6 +112,7 @@ export default function App() {
             </main>
           </div>
         </div>
+        <AVAWorkflowAdmin open={wfAdminOpen} onClose={() => setWfAdminOpen(false)} />
         <GlobalErrorDialog />
         <Toaster position="top-right" richColors />
       </NotificationProvider>
@@ -164,8 +162,6 @@ function renderContent(
       return <AVAGenerationDossier />;
     case 'declaration-chiffre-affaires-fiscal':
       return <DeclarationChiffreAffairesFiscal />;
-    case 'wf-admin':
-      return <AVAWorkflowAdmin />;
     case 'error-test':
       return <ErrorTestComponent />;
     case 'import':

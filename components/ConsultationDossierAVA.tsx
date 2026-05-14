@@ -1060,6 +1060,27 @@ export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumero
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">
+                      Matricule Fiscal
+                    </p>
+                    <p className="font-medium font-mono">
+                      {dossierSelectionne?.noPieceClient || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">
+                      Nom Client
+                    </p>
+                    <p className="font-medium">
+                      {[
+                        dossierSelectionne?.prenomClient,
+                        dossierSelectionne?.nomClient,
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">
                       Type de dossier
                     </p>
                     <p className="font-medium">
