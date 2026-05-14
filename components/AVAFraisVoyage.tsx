@@ -735,7 +735,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
           reference: `RES-FV-${numDossier}-${Date.now()}`, // Référence unique
           numDossier: numDossier,
           mntMvtAva: mouvement.montant || 0, // Montant du FV
-          origine: 'FV_TC_AUTO', // Origine automatique depuis FV TC
+          origine: 'virement', // Origine automatique depuis FV TC
         };
 
         // Appeler directement l'API avec finalize=true
