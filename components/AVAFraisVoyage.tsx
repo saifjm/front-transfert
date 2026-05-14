@@ -1,13 +1,13 @@
 import {
-    AlertCircle,
-    ArrowLeft,
-    CheckCircle2,
-    FileText,
-    PlusCircle,
-    Save,
-    Search,
-    Trash2,
-    Upload
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  PlusCircle,
+  Save,
+  Search,
+  Trash2,
+  Upload
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -19,12 +19,12 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -697,6 +697,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
           description: newKey ? `Référence: ${newKey}` : undefined,
           duration: 5000,
         });
+
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
         showError(wfResponse.errorMessage || 'Le dossier a été rejeté.', undefined, 'Opération rejetée');
@@ -717,7 +718,61 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
     }
   };
 
-  const handleSuccessDialogClose = () => {
+  const handleSuccessDialogClose = async () => {
+    // ═══════════════════════════════════════════════════════════════════════
+    // CRÉATION AUTOMATIQUE D'UNE RÉSERVATION SI MODE = TC AVEC FINALIZE=TRUE
+    // ═══════════════════════════════════════════════════════════════════════
+    if (mouvement.mode === 'TC' && dossierSelectionne) {
+      try {
+        const numDossier = parseInt(dossierSelectionne.numeroDossier.replace('AVA-', ''), 10);
+        
+        toast.info('Création automatique de la réservation...', {
+          description: 'Mode TC détecté - Réservation avec finalize=true',
+        });
+
+        // Préparer le payload de réservation
+        const reservationPayload = {
+          reference: `RES-FV-${numDossier}-${Date.now()}`, // Référence unique
+          numDossier: numDossier,
+          mntMvtAva: mouvement.montant || 0, // Montant du FV
+          origine: 'FV_TC_AUTO', // Origine automatique depuis FV TC
+        };
+
+        // Appeler directement l'API avec finalize=true
+        const response = await authenticatedFetch(
+          '/api/reservation-operations?finalize=true',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reservationPayload),
+          }
+        );
+
+        if (response.ok) {
+          const result = await safeJsonParse<any>(response);
+          
+          toast.success('Réservation créée et finalisée automatiquement', {
+            description: `Référence: ${reservationPayload.reference} - Status: ${result?.status || 'A'}`,
+            duration: 5000,
+          });
+
+          console.log('✅ Réservation auto créée avec finalize=true:', result);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn('⚠️ Création réservation auto échouée:', errorData);
+          toast.warning('Réservation automatique non créée', {
+            description: errorData.message || 'Veuillez créer la réservation manuellement',
+          });
+        }
+      } catch (reservationError: any) {
+        console.error('❌ Erreur création réservation auto:', reservationError);
+        toast.warning('Impossible de créer la réservation automatiquement', {
+          description: reservationError.message || 'Veuillez créer la réservation manuellement',
+        });
+      }
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+
     setShowSuccessDialog(false);
     handleRetourRecherche();
     fetchDossiers();
