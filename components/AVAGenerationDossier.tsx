@@ -1,9 +1,25 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
+import jsPDF from 'jspdf';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronDown,
+  FileBarChart,
+  FileCheck,
+  FileLock,
+  FileText,
+  Filter,
+  Search,
+  X
+} from 'lucide-react';
+import QRCode from 'qrcode';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { safeJsonParse } from '../utils';
 import { Badge } from './ui/badge';
-import { 
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,23 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { 
-  Search, 
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Filter,
-  X,
-  FileText,
-  ChevronDown,
-  FileCheck,
-  FileBarChart,
-  FileLock
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
-import jsPDF from 'jspdf';
-import QRCode from 'qrcode';
+import { Input } from './ui/input';
 
 interface Beneficiaire {
   adresseBenef: string;
@@ -147,96 +147,6 @@ export function AVAGenerationDossier() {
   const fetchDossiers = async () => {
     setLoading(true);
 
-    const mockDossiers: DossierAVA[] = [
-      {
-        numDossier: 5340226,
-        typeDossierAva: 1,
-        dateDossier: '2026-02-15',
-        codeAgence: 17,
-        typePieceClient: 3,
-        noPieceClient: '1695881M',
-        numeroCompte: '26017000890156546680',
-        tel: '27003338',
-        codeActivite: 31501,
-        declarationFiscale: 'O',
-        codeBanqueProvenance: 2,
-        mntAvance: 0,
-        mntUtilise: 1689,
-        mntAutorise: 10500,
-        mntAutoriseBct: 8124,
-        mntReserve: 767,
-        mntBlocage: 0,
-        solde: 16168,
-        mntCa: 0,
-        mntCaFiscal: 0,
-        mntImportation: 0,
-        numeroBct: 1110,
-        dateBct: '2026-02-16',
-        echeance: '2026-12-31',
-        annee: 2026,
-        dernierNumMvtAva: 3,
-        etatDossier: 'V',
-        dateEtat: '2026-02-16',
-        // Champs calculés
-        CODE_TYPE_DOS_AVA: 1,
-        LIBELLE_TYPE_DOSSIER: 'EXPORTATEUR',
-        NUM_DOSSIER: 'AVA-5340226',
-        DATE_DOSSIER: '2026-02-15',
-        CODE_AGENCE_AVA: 17,
-        LIBELLE_AGENCE: 'Agence Principale',
-        NO_PIECE_CLIENT: '1695881M',
-        nom_client: '212',
-        DECLARATION_FISCALE: 'O',
-        SOLDE: 16168,
-        ETAT_DOSSIER: 'ACTIF',
-        NUMERO_COMPTE: '26017000890156546680',
-        montantAutorise: 10500,
-        montantUtilise: 1689,
-        montantReserve: 767,
-        devise: 'TND'
-      },
-      {
-        numDossier: 10002,
-        typeDossierAva: 3,
-        dateDossier: '2025-02-10',
-        codeAgence: 9,
-        typePieceClient: 3,
-        noPieceClient: '1516754K',
-        numeroCompte: '26017000890185878123',
-        codeActivite: 23,
-        declarationFiscale: 'N',
-        mntAvance: 0,
-        mntUtilise: 150000,
-        mntAutorise: 303250,
-        mntAutoriseBct: 0,
-        mntReserve: 0,
-        mntBlocage: 0,
-        solde: 450000,
-        echeance: '2026-12-31',
-        dernierNumMvtAva: 1,
-        etatDossier: 'B',
-        codeEtat: 1,
-        dateEtat: '2026-02-15',
-        // Champs calculés
-        CODE_TYPE_DOS_AVA: 3,
-        LIBELLE_TYPE_DOSSIER: 'AUTRES ACTIVITES (ANNEXE N.2)',
-        NUM_DOSSIER: 'AVA-10002',
-        DATE_DOSSIER: '2025-02-10',
-        CODE_AGENCE_AVA: 9,
-        LIBELLE_AGENCE: 'Agence 9',
-        NO_PIECE_CLIENT: '1516754K',
-        nom_client: 'string',
-        DECLARATION_FISCALE: 'N',
-        SOLDE: 450000,
-        ETAT_DOSSIER: 'SUSPENDU',
-        NUMERO_COMPTE: '26017000890185878123',
-        montantAutorise: 303250,
-        montantUtilise: 150000,
-        montantReserve: 0,
-        devise: 'TND'
-      }
-    ];
-
     // Labels pour les types de dossiers
     const typeDossierLabels: Record<number, string> = {
       1: 'EXPORTATEUR',
@@ -312,23 +222,14 @@ export function AVAGenerationDossier() {
       setDossiers(dossiersTransformes);
       setDossiersFiltres(dossiersTransformes);
 
-      console.log(
-        '✅ API: Dossiers AVA chargés avec succès (' +
-          dossiersTransformes.length +
-          ' dossiers)'
-      );
+      console.log('✅ Dossiers AVA chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
-      setDossiers(mockDossiers);
-      setDossiersFiltres(mockDossiers);
-
-      if (
-        error?.message &&
-        !error.message.includes('HTTP_ERROR') &&
-        error.message !== 'NOT_JSON' &&
-        error.message !== 'Failed to fetch'
-      ) {
-        console.info('ℹ️ Mode démonstration - Génération Dossiers AVA');
-      }
+      console.error('❌ Erreur lors du chargement des dossiers:', error);
+      toast.error('Impossible de charger les dossiers', {
+        description: 'Veuillez vérifier votre connexion et réessayer',
+      });
+      setDossiers([]);
+      setDossiersFiltres([]);
     } finally {
       setLoading(false);
     }
