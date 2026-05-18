@@ -1,0 +1,301 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 14px;
+  --background: #f8fafb;
+  --foreground: #2D3E54;
+  --card: #ffffff;
+  --card-foreground: #2D3E54;
+  --popover: #ffffff;
+  --popover-foreground: #2D3E54;
+  --primary: #435B7B;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f7f9;
+  --secondary-foreground: #2D3E54;
+  --muted: #f4f7f9;
+  --muted-foreground: #435B7B;
+  --accent: #EEF3F7;
+  --accent-foreground: #2D3E54;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #d1dce6;
+  --input: #d1dce6;
+  --input-background: #ffffff;
+  --switch-background: #6B8CAE;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #6B8CAE;
+  --chart-1: #435B7B;
+  --chart-2: #6B8CAE;
+  --chart-3: #A8C0D9;
+  --chart-4: #D6E4F0;
+  --chart-5: #2D3E54;
+  --radius: 0.5rem;
+  --sidebar: #2D3E54;
+  --sidebar-foreground: #f4f7f9;
+  --sidebar-primary: #6B8CAE;
+  --sidebar-primary-foreground: #2D3E54;
+  --sidebar-accent: #435B7B;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #435B7B;
+  --sidebar-ring: #6B8CAE;
+}
+
+.dark {
+  --background: #1A2634;
+  --foreground: #f4f7f9;
+  --card: #2D3E54;
+  --card-foreground: #f4f7f9;
+  --popover: #2D3E54;
+  --popover-foreground: #f4f7f9;
+  --primary: #6B8CAE;
+  --primary-foreground: #2D3E54;
+  --secondary: #435B7B;
+  --secondary-foreground: #f4f7f9;
+  --muted: #435B7B;
+  --muted-foreground: #A8C0D9;
+  --accent: #435B7B;
+  --accent-foreground: #D6E4F0;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #435B7B;
+  --input: #435B7B;
+  --ring: #6B8CAE;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #D6E4F0;
+  --chart-2: #A8C0D9;
+  --chart-3: #6B8CAE;
+  --chart-4: #435B7B;
+  --chart-5: #2D3E54;
+  --sidebar: #2D3E54;
+  --sidebar-foreground: #f4f7f9;
+  --sidebar-primary: #6B8CAE;
+  --sidebar-primary-foreground: #2D3E54;
+  --sidebar-accent: #435B7B;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #435B7B;
+  --sidebar-ring: #6B8CAE;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(107, 140, 174, 0.3) transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 140, 174, 0.3);
+    border-radius: 4px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(107, 140, 174, 0.5);
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* ═══════════════════════════════════════════
+   IBANSYS — Global Animation & UI Utilities
+═══════════════════════════════════════════ */
+
+/* ── Keyframes ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+@keyframes pulse-badge {
+  0%   { box-shadow: 0 0 0 0   rgba(220,38,38,0.45); }
+  70%  { box-shadow: 0 0 0 6px rgba(220,38,38,0);    }
+  100% { box-shadow: 0 0 0 0   rgba(220,38,38,0);    }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1);    }
+  50%       { opacity: 0.6; transform: scale(0.8); }
+}
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%);  }
+}
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+@keyframes progress-fill {
+  from { width: 0% !important; }
+}
+
+/* ── Animation classes ── */
+.anim-fade-in-up  { animation: fadeInUp  0.45s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-fade-in     { animation: fadeIn    0.35s ease both; }
+.anim-scale-in    { animation: scaleIn   0.4s  cubic-bezier(0.16,1,0.3,1) both; }
+.anim-slide-left  { animation: slideInLeft  0.35s ease both; }
+.anim-slide-right { animation: slideInRight 0.35s ease both; }
+.anim-count-up    { animation: countUp   0.5s  cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ── Stagger delays ── */
+.delay-0   { animation-delay:   0ms; }
+.delay-50  { animation-delay:  50ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-250 { animation-delay: 250ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-350 { animation-delay: 350ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
+
+/* ── Card interaction ── */
+.card-lift {
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  will-change: transform;
+}
+.card-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(67,91,123,0.14) !important;
+}
+
+/* ── Pulse classes ── */
+.pulse-badge { animation: pulse-badge 1.8s ease-out infinite; }
+.pulse-dot   { animation: pulse-dot  2s   ease-in-out infinite; }
+
+/* ── Progress bar animation ── */
+.progress-animated { animation: progress-fill 1s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* ── Page transition wrapper ── */
+.page-transition {
+  animation: fadeInUp 0.35s cubic-bezier(0.16,1,0.3,1) both;
+}

@@ -1,0 +1,648 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                   🧪 GUIDE DE TEST COMPLET                                   ║
+║              Validation & Workflow API - Ouverture Dossier AVA               ║
+║                        Session du 15 février 2026                            ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Ce guide fournit des scénarios de test détaillés pour valider le système
+complet de validation et de soumission du formulaire d'ouverture AVA.
+
+═══════════════════════════════════════════════════════════════════════════════
+  PRÉPARATION
+═══════════════════════════════════════════════════════════════════════════════
+
+  1. Ouvrir la console du navigateur (F12)
+  2. Naviguer vers le formulaire "Ouverture Dossier AVA"
+  3. Avoir un serveur API de test configuré (ou utiliser données mock)
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 1 : VALIDATION RNE - CLÉ DE CONTRÔLE CORRECTE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider qu'un RNE avec une clé correcte est accepté
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Numéro RNE : 1695881M
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir tous les champs obligatoires
+  2. Saisir "1695881M" dans "Numéro Pièce Client (RNE)"
+  3. Appuyer sur Tab (déclenche la validation onBlur)
+  4. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Pas de message d'erreur rouge sur le champ RNE
+  • Bordure verte sur le champ (si client trouvé)
+  • Le formulaire continue vers les appels API
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 2 : VALIDATION RNE - CLÉ DE CONTRÔLE INCORRECTE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider qu'un RNE avec une clé incorrecte est rejeté
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Numéro RNE invalide : 1695881N (devrait être M)
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir tous les champs obligatoires
+  2. Saisir "1695881N" dans "Numéro Pièce Client (RNE)"
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur rouge : "Numéro RNE invalide"
+  • Message : "Clé de contrôle incorrecte. Attendu: M, trouvé: N"
+  • Bordure rouge sur le champ RNE
+  • AUCUN appel API
+  • Formulaire conservé (données non perdues)
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 3 : VALIDATION RNE - FORMAT INVALIDE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider le rejet des formats RNE incorrects
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Cas 1 : "123456" (trop court, 6 chiffres)
+  • Cas 2 : "123456789M" (trop long, 9 chiffres)
+  • Cas 3 : "ABC1234M" (lettres dans les 7 premiers caractères)
+
+  🔧 PROCÉDURE (pour chaque cas)
+  ──────────────────────────────
+  1. Saisir le RNE invalide
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur rouge avec message approprié :
+    - Cas 1 : "Le numéro RNE doit contenir exactement 8 caractères"
+    - Cas 2 : "Le numéro RNE doit contenir exactement 8 caractères"
+    - Cas 3 : "Les 7 premiers caractères doivent être des chiffres"
+  • AUCUN appel API
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 4 : CHAMPS OBLIGATOIRES MANQUANTS
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider la détection des champs obligatoires manquants
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Laisser vide : Code Activité
+  • Laisser vide : Déclaration Fiscale
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir partiellement le formulaire (sans Code Activité ni Déclaration)
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur rouge : "Champs obligatoires manquants"
+  • Description : "Veuillez renseigner : Code Activité, Déclaration Fiscale"
+  • AUCUN appel API
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 5 : VALIDATION TÉLÉPHONE - FORMAT SIMPLE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider le format téléphone tunisien simple
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Valide : "12345678"
+  • Valide : "+21612345678"
+  • Valide : "0021612345678"
+  • Invalide : "123" (trop court)
+  • Invalide : "123456789" (trop long)
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire
+  2. Saisir un numéro de téléphone
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Cas valides : Formulaire accepté, appels API lancés
+  • Cas invalides : Toast d'erreur avec message détaillé
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 6 : VALIDATION TÉLÉPHONE - MULTI-VALEURS
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider plusieurs numéros séparés par point-virgule
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Valide : "12345678;+21687654321"
+  • Valide : "12345678;+21687654321;0021611223344"
+  • Invalide : "12345678;123;+21687654321" (2ème invalide)
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Saisir plusieurs numéros séparés par ";"
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Cas valides : Tous les numéros acceptés
+  • Cas invalides : Toast d'erreur avec numéro problématique
+    "Numéro 2 invalide (\"123\"). Format attendu : 8 chiffres..."
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 7 : VALIDATION EMAIL - MULTI-VALEURS
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider plusieurs emails séparés par point-virgule
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Valide : "contact@test.com"
+  • Valide : "contact@test.com;admin@test.com"
+  • Invalide : "contact@test.com;invalide;admin@test.com"
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Saisir un ou plusieurs emails séparés par ";"
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Cas valides : Tous les emails acceptés
+  • Cas invalides : Toast d'erreur avec email problématique
+    "Email 2 invalide (\"invalide\")"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 8 : COHÉRENCE AUTORISATION BCT
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider que numéro et date BCT vont ensemble
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Cas 1 : Numéro BCT = 123456, Date BCT = vide
+  • Cas 2 : Numéro BCT = vide, Date BCT = 2026-02-14
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire
+  2. Saisir uniquement numéro OU uniquement date BCT
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Cas 1 : Toast "Autorisation BCT incohérente"
+           "DATE_BCT_OBLIGATOIRE: La date BCT doit être renseignée"
+  • Cas 2 : Toast "Autorisation BCT incohérente"
+           "NUMERO_BCT_OBLIGATOIRE: Le numéro BCT doit être renseigné"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 9 : MONTANT IMPORTATION - TYPE 3 & ACTIVITÉ 24
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider la règle : Type=3 ET Activité=24 → Montant >= 200 000
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Type Dossier : 3
+  • Code Activité : 24
+  • Cas 1 : Montant Importation = 0
+  • Cas 2 : Montant Importation = 100 000 (< 200 000)
+  • Cas 3 : Montant Importation = 250 000 (>= 200 000) ✅
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Sélectionner Type Dossier = 3
+  2. Sélectionner Code Activité = 24
+  3. Saisir le montant d'importation
+  4. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Cas 1 : Toast "MONTANT_IMPORTATION_OBLIGATOIRE"
+  • Cas 2 : Toast "Le montant d'importation doit être >= 200000"
+  • Cas 3 : ✅ Accepté, appels API lancés
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 10 : MONTANT IMPORTATION - AUTRES CAS
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider que le montant importation doit être vide si Type≠3 OU Activité≠24
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Type Dossier : 1 (≠ 3)
+  • Code Activité : 10 (≠ 24)
+  • Montant Importation : 100 000 (ne devrait PAS être renseigné)
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Sélectionner Type Dossier = 1
+  2. Sélectionner Code Activité = 10
+  3. Saisir Montant Importation = 100 000
+  4. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur :
+    "Le montant d'importation doit être vide pour ce type et activité"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 11 : BÉNÉFICIAIRE INCOMPLET
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider la détection de bénéficiaires incomplets
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Ajouter 1 bénéficiaire
+  • Remplir uniquement : Type Pièce = 1, Numéro Pièce = "1234567M"
+  • Laisser vides : Nom, Adresse, Qualité, Date Pièce
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Ajouter un bénéficiaire
+  2. Remplir partiellement
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur : "Bénéficiaire 1 incomplet"
+  • Description : "Champs manquants : Nom, Adresse, Qualité, Date Pièce"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 12 : AUCUN BÉNÉFICIAIRE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider qu'au moins un bénéficiaire est requis
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Remplir tout le formulaire
+  • Ne pas ajouter de bénéficiaire
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire sans ajouter de bénéficiaire
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur : "Bénéficiaires manquants"
+  • Description : "Au moins un bénéficiaire doit être ajouté"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 13 : AUCUN DOCUMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider qu'au moins un document est requis
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Remplir tout le formulaire
+  • Ne pas ajouter de document
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire sans ajouter de document
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur : "Documents manquants"
+  • Description : "Au moins une pièce jointe est requise"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 14 : BANQUE PROVENANCE - MONTANTS MANQUANTS
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider que si une banque est sélectionnée, tous les montants sont obligatoires
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Sélectionner une banque de provenance
+  • Remplir uniquement Montant Avance et Montant Utilisé
+  • Laisser vides : Montant Autorisé, Montant Autorisé BCT, Solde
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Sélectionner une banque
+  2. Remplir partiellement les montants
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur : "Validation échouée"
+  • Description : "Si une banque est sélectionnée, tous les montants 
+                   doivent être renseignés"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 15 : BANQUE PROVENANCE - FORMULE SOLDE INCORRECTE
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider la formule : Solde = Autorisé + Avance - Utilisé + Autorisé BCT
+
+  📝 DONNÉES DE TEST
+  ──────────────────
+  • Montant Autorisé : 15 000
+  • Montant Avance : 10 000
+  • Montant Utilisé : 2 000
+  • Montant Autorisé BCT : 5 000
+  • Solde saisi : 20 000 (incorrect, devrait être 28 000)
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Sélectionner une banque
+  2. Saisir les montants avec un solde incorrect
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  • Toast d'erreur : "Erreur de calcul du solde"
+  • Description détaillée :
+    "Le solde doit être égal à : 15000 + 10000 - 2000 + 5000 = 28000.00"
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 16 : SUCCÈS COMPLET - WORKFLOW API
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Valider le workflow complet en 2 étapes avec succès
+
+  📝 DONNÉES DE TEST (FORMULAIRE COMPLET VALIDE)
+  ───────────────────────────────────────────────
+  • Type Dossier : 3
+  • RNE : 1695881M
+  • Compte Client : 12345678901234567890
+  • Téléphone : 12345678;+21687654321
+  • Email : contact@test.com;admin@test.com
+  • Code Activité : 24
+  • Code Sous-Activité : 1
+  • Déclaration Fiscale : DEC123456
+  • Montant Importation : 250 000
+  • Numéro BCT : 123456
+  • Date BCT : 2026-02-14
+  • 1 Bénéficiaire complet
+  • 1 Document
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire complet avec données valides
+  2. Cliquer sur "Soumettre le dossier"
+  3. Observer la console et les toasts
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  
+  SÉQUENCE COMPLÈTE :
+  
+  1. 🔵 Toast bleu : "Initialisation du dossier en cours..."
+              "Étape 1/2 : Création du mouvement"
+  
+  2. 📊 Console : 📤 [ÉTAPE 1/2] Initialisation du dossier...
+              + JSON complet du DTO
+  
+  3. ✅ Toast vert : "Initialisation réussie"
+               "Référence opération: 123456, Numéro dossier: 98765"
+  
+  4. 📊 Console : ✅ [ÉTAPE 1/2] Initialisation réussie:
+              { refOperation: 123456, numDossier: 98765 }
+  
+  5. 🔵 Toast bleu : "Validation du dossier en cours..."
+              "Étape 2/2 : Création de l'opération déléguée finale"
+  
+  6. 📊 Console : 📤 [ÉTAPE 2/2] Validation du dossier 98765...
+  
+  7. ✅ Toast vert (5 sec) : "🎉 Dossier AVA créé et validé avec succès !"
+                      "Numéro: 98765 | Date: 2026-02-14 | Bénéficiaires: 1"
+  
+  8. 📊 Console : Logs détaillés avec toutes les informations du dossier
+  
+  9. 📋 Modal ouvert avec toutes les infos du dossier validé
+  
+  10. 🔄 Formulaire réinitialisé (tous les champs vides)
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 17 : ERREUR API ÉTAPE 1 (400)
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Simuler une erreur serveur lors de l'initialisation
+
+  📝 CONFIGURATION BACKEND
+  ────────────────────────
+  • Configurer le serveur pour retourner HTTP 400
+  • Message : "Le RNE existe déjà dans la base"
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire complet valide
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  1. 🔵 Toast : "Initialisation du dossier en cours..."
+  2. ❌ Toast rouge : "Requête invalide ou contrôle métier échoué"
+              Description : "Le RNE existe déjà dans la base"
+  3. 📊 Console : ❌ [ÉTAPE 1/2] Erreur d'initialisation: ...
+  4. 🛑 ARRÊT → Pas d'appel ÉTAPE 2
+  5. 💾 Formulaire CONSERVÉ (données non perdues)
+  6. ✅ Bouton redevenu actif (possibilité de corriger)
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 18 : ERREUR API ÉTAPE 2 (404)
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Simuler un dossier introuvable lors de la validation
+
+  📝 CONFIGURATION BACKEND
+  ────────────────────────
+  • ÉTAPE 1 retourne succès avec numDossier = 98765
+  • ÉTAPE 2 retourne HTTP 404 pour numDossier 98765
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire complet valide
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  1. ✅ ÉTAPE 1 réussit normalement
+  2. 🔵 Toast : "Validation du dossier en cours..."
+  3. ❌ Toast rouge : "Numéro de dossier introuvable"
+              Description : "Le dossier 98765 n'a pas été trouvé"
+  4. 📊 Console : ❌ [ÉTAPE 2/2] Erreur de validation: ...
+  5. 💾 Formulaire CONSERVÉ
+  6. ✅ Bouton redevenu actif
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 19 : ERREUR API ÉTAPE 2 (422)
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Simuler un échec de contrôles métier lors de la validation
+
+  📝 CONFIGURATION BACKEND
+  ────────────────────────
+  • ÉTAPE 1 retourne succès
+  • ÉTAPE 2 retourne HTTP 422
+  • Message : "Le RIB est invalide pour ce compte"
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire complet valide
+  2. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  1. ✅ ÉTAPE 1 réussit normalement
+  2. 🔵 Toast : "Validation du dossier en cours..."
+  3. ❌ Toast rouge : "Contrôles métier non satisfaits"
+              Description : "Le RIB est invalide pour ce compte"
+  4. 📊 Console : ❌ [ÉTAPE 2/2] Erreur de validation: ...
+  5. 💾 Formulaire CONSERVÉ
+  6. ✅ Bouton redevenu actif
+
+═══════════════════════════════════════════════════════════════════════════════
+  TEST 20 : ERREUR RÉSEAU
+═══════════════════════════════════════════════════════════════════════════════
+
+  📋 OBJECTIF
+  ───────────
+  Simuler une perte de connexion réseau
+
+  📝 CONFIGURATION
+  ────────────────
+  • Déconnecter le réseau ou bloquer l'API dans DevTools
+
+  🔧 PROCÉDURE
+  ────────────
+  1. Remplir le formulaire complet valide
+  2. Déconnecter le réseau (ou bloquer l'API dans DevTools)
+  3. Cliquer sur "Soumettre le dossier"
+
+  ✅ RÉSULTAT ATTENDU
+  ───────────────────
+  1. 🔵 Toast : "Initialisation du dossier en cours..."
+  2. ❌ Toast rouge : "Erreur lors de l'enregistrement"
+              Description : "Veuillez réessayer ou contacter le support"
+  3. 📊 Console : ❌ Erreur: Network error ou Fetch failed
+  4. 💾 Formulaire CONSERVÉ
+  5. ✅ Bouton redevenu actif
+
+═══════════════════════════════════════════════════════════════════════════════
+  RÉCAPITULATIF DES TESTS
+═══════════════════════════════════════════════════════════════════════════════
+
+  ✅ TEST 1-3   : Validation RNE (correcte, incorrecte, format invalide)
+  ✅ TEST 4     : Champs obligatoires manquants
+  ✅ TEST 5-6   : Validation téléphone (simple et multi-valeurs)
+  ✅ TEST 7     : Validation email (multi-valeurs)
+  ✅ TEST 8     : Cohérence autorisation BCT
+  ✅ TEST 9-10  : Montant importation (Type 3 & Activité 24, autres cas)
+  ✅ TEST 11-13 : Bénéficiaires et documents (incomplet, manquant)
+  ✅ TEST 14-15 : Banque provenance (montants manquants, formule solde)
+  ✅ TEST 16    : Succès complet workflow API
+  ✅ TEST 17-19 : Erreurs API (400, 404, 422)
+  ✅ TEST 20    : Erreur réseau
+
+  TOTAL : 20 SCÉNARIOS DE TEST
+
+═══════════════════════════════════════════════════════════════════════════════
+  CHECKLIST DE VALIDATION FINALE
+═══════════════════════════════════════════════════════════════════════════════
+
+  VALIDATIONS CÔTÉ CLIENT
+  ───────────────────────
+  ☐ Champs obligatoires vérifiés
+  ☐ Format RNE validé avec algorithme BCT
+  ☐ Téléphone tunisien valide (mono et multi-valeurs)
+  ☐ Email valide (mono et multi-valeurs)
+  ☐ Cohérence numéro/date BCT
+  ☐ Règles montant importation respectées
+  ☐ Règles montant avance respectées
+  ☐ Au moins 1 document présent
+  ☐ Au moins 1 bénéficiaire présent
+  ☐ Bénéficiaires complets (tous les champs)
+  ☐ Dates pièce bénéficiaires valides
+  ☐ Montants banque provenance complets
+  ☐ Formule solde respectée
+
+  WORKFLOW API
+  ────────────
+  ☐ ÉTAPE 1 : Initialisation appelée avec DTO complet
+  ☐ ÉTAPE 2 : Validation appelée avec numDossier correct
+  ☐ Arrêt immédiat en cas d'erreur ÉTAPE 1
+  ☐ Arrêt immédiat en cas d'erreur ÉTAPE 2
+  ☐ Parsing correct des erreurs API
+  ☐ Messages d'erreur contextuels selon code HTTP
+
+  INTERFACE UTILISATEUR
+  ─────────────────────
+  ☐ Toasts de progression affichés
+  ☐ Toasts de succès affichés (5 secondes)
+  ☐ Toasts d'erreur affichés (avec détails)
+  ☐ Bouton désactivé pendant soumission
+  ☐ Bouton réactivé après succès ou erreur
+  ☐ Formulaire réinitialisé après succès
+  ☐ Formulaire conservé après erreur
+  ☐ Modal de confirmation affiché après succès
+  ☐ Logs console détaillés à chaque étape
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  🎉 SYSTÈME VALIDÉ ET PRÊT POUR LA PRODUCTION !
+
+═══════════════════════════════════════════════════════════════════════════════
+
+  Document créé le 15 février 2026
+  Projet : IBANSYS v1.0
+  Module : Ouverture Dossier AVA - Guide de Test Complet
+  Société le Monde Informatique
+
+═══════════════════════════════════════════════════════════════════════════════
