@@ -245,6 +245,8 @@ export function AVAForm() {
   const [emailError, setEmailError] = useState<string>('');
   const [rneError, setRneError] = useState<string>('');
   const [clientNotFound, setClientNotFound] = useState<boolean>(false);
+  const [uniciteError, setUniciteError] = useState<string>('');
+  const [checkingUnicite, setCheckingUnicite] = useState(false);
 
   // Workflow engine state
   const [wfBusinessKey, setWfBusinessKey] = useState<string | null>(null);
@@ -520,6 +522,35 @@ export function AVAForm() {
     setRneError('');
     searchClient(formData.typePieceClient, noPiece);
   };
+
+  // Article 13 — vérification unicité AVA (un client ne peut détenir qu'une seule AVA active)
+  useEffect(() => {
+    const noPiece = formData.noPieceClient?.trim();
+    const typeDos = formData.codeTypeDosAva;
+    setUniciteError('');
+    if (!noPiece || !typeDos) return;
+    const id = setTimeout(() => {
+      void (async () => {
+        setCheckingUnicite(true);
+        try {
+          const res = await authenticatedFetch(
+            `/api/business-rules/controle/compatibilite-type-dossier?noPieceClient=${encodeURIComponent(noPiece)}&codeTypeDosAva=${typeDos}`,
+          );
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            setUniciteError((body as any)?.message || 'Ce client est déjà titulaire d\'une allocation AVA active (Art. 13)');
+          } else {
+            setUniciteError('');
+          }
+        } catch {
+          // network errors are non-blocking — let submit validation catch them
+        } finally {
+          setCheckingUnicite(false);
+        }
+      })();
+    }, 600);
+    return () => clearTimeout(id);
+  }, [formData.noPieceClient, formData.codeTypeDosAva]);
 
   // Gérer les changements de type de dossier pour Code Activité et Sous Activité
   useEffect(() => {
@@ -1091,7 +1122,13 @@ export function AVAForm() {
     if (true) { // always validate
     // Réinitialiser les erreurs
     const newErrors: Record<string, string> = {};
-    
+
+    // Article 13 — bloquer si le contrôle d'unicité a échoué
+    if (uniciteError) {
+      toast.error('Ouverture impossible', { description: uniciteError });
+      return;
+    }
+
     // ✅ 1. Validation des champs obligatoires de base
     if (!formData.codeTypeDosAva) newErrors.codeTypeDosAva = 'Le type de dossier AVA est obligatoire';
     if (!formData.noPieceClient) newErrors.noPieceClient = 'Le numéro de pièce client (RNE) est obligatoire';
@@ -1642,7 +1679,21 @@ export function AVAForm() {
                       ✓ Client: {clientInfo.prenom} {clientInfo.nom}
                     </div>
                   )}
-                  
+
+                  {checkingUnicite && !searchingClient && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                      <div className="w-3 h-3 border-2 border-t-transparent border-blue-600 rounded-full animate-spin" />
+                      <span>Vérification unicité AVA...</span>
+                    </div>
+                  )}
+
+                  {uniciteError && !checkingUnicite && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-700 font-medium">{uniciteError}</p>
+                    </div>
+                  )}
+
                   <p className="text-xs text-muted-foreground mt-1">
                     Format: 7 chiffres + 1 lettre de contrôle (validation automatique)
                   </p>

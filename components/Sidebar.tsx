@@ -42,7 +42,7 @@ interface NavItem {
   icon: React.ElementType;
 }
 
-const avaItems: NavItem[] = [
+const ALL_AVA_ITEMS: NavItem[] = [
   { id: 'ava-consultation-dossier', label: 'Recherche', icon: FolderOpen },
   { id: 'ava-ouverture', label: 'Ouverture dossier', icon: FilePlus },
   { id: 'ava-alimentation', label: 'Alimentation Exportateur', icon: Wallet },
@@ -60,9 +60,47 @@ const avaItems: NavItem[] = [
   { id: 'ava-wf-taches', label: 'Tâches en attente', icon: ClipboardList },
 ];
 
-const operationsItems: NavItem[] = [
+const ALL_OPERATIONS_ITEMS: NavItem[] = [
   { id: 'declaration-chiffre-affaires-fiscal', label: 'Déclaration CA Fiscal', icon: BarChart3 },
 ];
+
+// Items visible per role. ADMIN (or unknown role) sees everything.
+const AGENT_ITEMS = new Set([
+  'ava-consultation-dossier',
+  'ava-ouverture',
+  'ava-alimentation',
+  'ava-beneficiaires',
+  'ava-frais-voyage',
+  'ava-retrocession',
+  'ava-reservation',
+  'ava-annulation-reservation',
+  'ava-wf-taches',
+  'declaration-chiffre-affaires-fiscal',
+]);
+
+const SUPERVISEUR_ITEMS = new Set([
+  'ava-consultation-dossier',
+  'ava-suspension',
+  'ava-levee-suspension',
+  'ava-alimentation-accord-bct',
+  'ava-cloture-dossier',
+  'ava-generation-diverses',
+  'ava-generation-dossier',
+  'ava-wf-taches',
+]);
+
+const COMPLIANCE_ITEMS = new Set([
+  'ava-consultation-dossier',
+  'ava-wf-taches',
+]);
+
+function filterByRole(items: NavItem[], role: string): NavItem[] {
+  if (!role || role === 'ADMIN' || role === 'ADMINISTRATEUR') return items;
+  if (role === 'AGENT_SAISIE') return items.filter(i => AGENT_ITEMS.has(i.id));
+  if (role === 'SUPERVISEUR') return items.filter(i => SUPERVISEUR_ITEMS.has(i.id));
+  if (role === 'COMPLIANCE_OFFICER' || role === 'COMPLIANCE') return items.filter(i => COMPLIANCE_ITEMS.has(i.id));
+  return items; // unknown role → show all (fail open)
+}
 
 function Tooltip({ children, label, show }: { children: React.ReactNode; label: string; show: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -115,6 +153,10 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const role = sessionStorage.getItem('wf_role_code') ?? 'ADMIN';
+  const avaItems = filterByRole(ALL_AVA_ITEMS, role);
+  const operationsItems = filterByRole(ALL_OPERATIONS_ITEMS, role);
 
   const allItems = [...avaItems, ...operationsItems, { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
   const filteredItems = searchQuery
@@ -453,8 +495,10 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>JD</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#D6E4F0', margin: 0, lineHeight: 1.3 }} className="truncate">Admin Test</p>
-                <p style={{ fontSize: 11, color: '#506A84', margin: 0, lineHeight: 1.3 }}>Administrateur</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#D6E4F0', margin: 0, lineHeight: 1.3 }} className="truncate">
+                  {sessionStorage.getItem('auth_user') ? JSON.parse(sessionStorage.getItem('auth_user')!).email?.split('@')[0] ?? 'Utilisateur' : 'Utilisateur'}
+                </p>
+                <p style={{ fontSize: 11, color: '#506A84', margin: 0, lineHeight: 1.3 }}>{role}</p>
               </div>
             </div>
             {onLogout && (

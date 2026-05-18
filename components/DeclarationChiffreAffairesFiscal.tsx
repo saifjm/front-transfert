@@ -204,16 +204,28 @@ export function DeclarationChiffreAffairesFiscal() {
 
       const res = await startCafDecision('ENREGISTRER', payload);
 
-      if (res.result === 'OK') {
-        toast.success('Déclaration fiscale enregistrée avec succès', {
-          description: `Client: ${declaration.noPieceClient} — Année: ${declaration.annee} — ${selectedIndexes.length} dossier(s) traité(s)`,
-        });
-        setTimeout(() => handleReset(), 1500);
-      } else if (res.result === 'REJECTED' || res.result === 'ERROR') {
-        toast.error('Erreur workflow', { description: res.errorMessage ?? 'Opération rejetée' });
-      } else {
-        toast.warning('Réponse inattendue', { description: res.result });
+      if (res.result !== 'OK') {
+        if (res.result === 'REJECTED' || res.result === 'ERROR') {
+          toast.error('Erreur workflow', { description: res.errorMessage ?? 'Opération rejetée' });
+        } else {
+          toast.warning('Réponse inattendue', { description: res.result });
+        }
+        return;
       }
+
+      // If the WF moved to TRAITEMENT_AVA (SYSTEM node), auto-advance to trigger TraitementAva
+      if (res.state?.currentNodeKey === 'TRAITEMENT_AVA') {
+        const res2 = await startCafDecision('EXECUTER', payload);
+        if (res2.result !== 'OK') {
+          toast.error('Erreur traitement AVA', { description: res2.errorMessage ?? 'Traitement AVA échoué' });
+          return;
+        }
+      }
+
+      toast.success('Déclaration fiscale enregistrée avec succès', {
+        description: `Client: ${declaration.noPieceClient} — Année: ${declaration.annee} — ${selectedIndexes.length} dossier(s) traité(s)`,
+      });
+      setTimeout(() => handleReset(), 1500);
     } catch (err: any) {
       toast.error('Erreur', { description: err?.message ?? 'Une erreur est survenue' });
     } finally {
