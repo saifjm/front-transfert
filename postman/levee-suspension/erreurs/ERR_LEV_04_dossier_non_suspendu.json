@@ -1,0 +1,11 @@
+{
+    "_description": "ERREUR: Dossier non suspendu — etatDossier != 'B'",
+    "_erreur_attendue": "Le dossier n'est pas suspendu. État actuel: V",
+    "_http_status": 422,
+    "_type_erreur": "BusinessException",
+    "_endpoint": "POST /api/operations-deleguees/levee-suspension/true",
+    "_prerequis": "Le dossier 10001 doit exister avec etatDossier='V' (non suspendu)",
+
+    "numDossier": 10001,
+    "motifEtat": "Régularisation de la situation"
+}

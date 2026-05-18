@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: AVA Alimentation BCT API
+  description: API for managing BCT authorization and alimentation operations in the AVA system
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /api/alimentation-bct/{numDossier}/{Finalize}:
+    post:
+      summary: Alimentation suite accord BCT
+      description: |
+        Met à jour les informations BCT d'un dossier validé et crée un mouvement correspondant.
+        Si Finalize=true : logique complète (mise à jour OperationsDeleguee + MVT avec status='A').
+        Si Finalize=false : création du MVT uniquement (mode brouillon).
+      tags:
+        - Alimentation BCT
+      parameters:
+        - name: numDossier
+          in: path
+          required: true
+          description: Numéro du dossier à alimenter
+          schema:
+            type: integer
+        - name: Finalize
+          in: path
+          required: true
+          description: true = logique complète + MVT status='A', false = MVT uniquement
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutorisationBctDTO'
+            examples:
+              succes_alimentation_bct_basique:
+                summary: SUCCES - Alimentation BCT basique avec montant standard
+                value:
+                  numeroBct: 20261001
+                  dateBct: "2026-02-10"
+                  typeBct: "N"
+                  mntMvtAva: 50000.00
+              succes_alimentation_bct_montant_eleve:
+                summary: SUCCES - Alimentation BCT avec montant élevé
+                value:
+                  numeroBct: 20261002
+                  dateBct: "2026-02-15"
+                  typeBct: "A"
+                  mntMvtAva: 150000.00
+              succes_alimentation_bct_finalize_false:
+                summary: SUCCES - Alimentation BCT en mode brouillon
+                value:
+                  numeroBct: 20261003
+                  dateBct: "2026-02-20"
+                  typeBct: "M"
+                  mntMvtAva: 75000.00
+      responses:
+        '200':
+          description: Alimentation BCT effectuée avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OuvertureDossierDTO'
+        '400':
+          description: Bad Request - Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - Dossier not found
+        '409':
+          description: Conflict - Business rule violation (e.g., dossier not in valid state)
+        '500':
+          description: Internal Server Error
+
+components:
+  schemas:
+    AutorisationBctDTO:
+      type: object
+      required:
+        - numeroBct
+        - dateBct
+        - typeBct
+        - mntMvtAva
+      properties:
+        numeroBct:
+          type: integer
+          description: Numéro BCT (requis)
+        dateBct:
+          type: string
+          format: date
+          description: Date BCT (requis, ne peut pas être dans le futur)
+        typeBct:
+          type: string
+          description: Type BCT (N=Nouveau, A=Augmentation, M=Modification, etc.)
+        mntMvtAva:
+          type: number
+          format: double
+          description: Montant du mouvement AVA (requis, doit être > 0)
+    OuvertureDossierDTO:
+      type: object
+      description: DTO représentant un dossier ouvert avec ses informations complètes
+      # Add properties as needed based on your OuvertureDossierDTO
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        details:
+          type: string

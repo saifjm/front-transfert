@@ -1,0 +1,11 @@
+{
+    "_description": "ERREUR: Numéro BCT absent (obligatoire)",
+    "_erreur_attendue": "Le numéro BCT est obligatoire",
+    "_http_status": 400,
+    "_type_erreur": "MethodArgumentNotValidException",
+    "_endpoint": "POST /api/operations-deleguees/10001/alimentation-bct/true",
+
+    "dateBct": "2026-02-10",
+    "typeBct": "N",
+    "mntMvtAva": 50000.00
+}

@@ -1,0 +1,16 @@
+{
+    "_description": "ERREUR: Date de rapatriement trop ancienne (plus de 3 mois)",
+    "_erreur_attendue": "La date de rapatriement doit etre dans les 3 derniers mois",
+    "_http_status": 400,
+    "_type_erreur": "IllegalArgumentException",
+
+    "numDossierAva": 10001,
+    "dateDosRap": "2025-09-01",
+    "mntRap": 1000.00,
+    "codeDevise": 788,
+    "codeBanqueProvenance": 1,
+    "numeroCompte": "1234567890123",
+    "typePieceBenef": 1,
+    "noPieceBenef": "123456789",
+    "codeProduitService": 1
+}

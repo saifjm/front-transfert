@@ -1,0 +1,163 @@
+openapi: 3.0.3
+info:
+  title: AVA Beneficiaire API
+  description: API for managing beneficiaries in the AVA system
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /api/beneficiaires/{finalize}:
+    post:
+      summary: Create or Update Beneficiaire
+      description: Creates or updates a beneficiary record. If finalize is true, performs full creation/update with database changes. If false, creates a draft movement only.
+      parameters:
+        - name: finalize
+          in: path
+          required: true
+          description: Whether to finalize the operation (true) or create draft (false)
+          schema:
+            type: boolean
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeneficiaireDTO'
+            examples:
+              beneficiaire_dirigeant:
+                summary: Beneficiaire with quality "Dirigeant"
+                value:
+                  numDossier: 10002
+                  dateDossier: "2026-01-19"
+                  typePieceBenef: 1
+                  noPieceBenef: "AB654321"
+                  codeTypeDos: 3
+                  nomBenef: "Karim Trabelsi"
+                  adresseBenef: "45 Avenue Habib Bourguiba, Sfax"
+                  qualite: "Dirigeant"
+                  datePiece: "2025-12-01"
+                  etat: "A"
+              beneficiaire_conseil_admin:
+                summary: Beneficiaire with quality "Conseil d'administration"
+                value:
+                  numDossier: 10002
+                  dateDossier: "2026-01-19"
+                  typePieceBenef: 4
+                  noPieceBenef: "CIN987654"
+                  codeTypeDos: 3
+                  nomBenef: "Sana Gharbi"
+                  adresseBenef: "8 Rue Ibn Khaldoun, Sousse"
+                  qualite: "Conseil d'administration"
+                  datePiece: "2025-11-15"
+                  etat: "AD"
+      responses:
+        '201':
+          description: Beneficiaire created or updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeneficiaireDTO'
+        '400':
+          description: Bad Request - Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found - Dossier or Personne not found
+        '409':
+          description: Conflict - Business rule violation
+        '500':
+          description: Internal Server Error
+  /api/beneficiaires/{numDossier}:
+    get:
+      summary: Get Beneficiaires by Dossier
+      description: Retrieves all beneficiaries for a given dossier number
+      parameters:
+        - name: numDossier
+          in: path
+          required: true
+          description: The dossier number
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of beneficiaires
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BeneficiaireDTO'
+        '404':
+          description: Dossier not found
+components:
+  schemas:
+    BeneficiaireDTO:
+      type: object
+      required:
+        - numDossier
+        - dateDossier
+        - typePieceBenef
+        - noPieceBenef
+        - codeTypeDos
+        - nomBenef
+        - adresseBenef
+        - qualite
+        - datePiece
+        - etat
+      properties:
+        numDossier:
+          type: integer
+          description: Dossier number
+        dateDossier:
+          type: string
+          format: date
+          description: Dossier date
+        typePieceBenef:
+          type: integer
+          enum: [1, 4, 7]
+          description: Type of piece - 1=CIN, 4=Passeport, 7=Autre
+        noPieceBenef:
+          type: string
+          description: Piece number - must be CIN format if type=1
+        codeTypeDos:
+          type: integer
+          description: Type of dossier
+        nomBenef:
+          type: string
+          description: Beneficiary name
+        adresseBenef:
+          type: string
+          description: Beneficiary address
+        qualite:
+          type: string
+          enum: ["Dirigeant", "Conseil d'administration", "Employé"]
+          description: Beneficiary quality/role
+        datePiece:
+          type: string
+          format: date
+          description: Piece issuance date - must be before today
+        etat:
+          type: string
+          enum: ["AA", "A", "AD", "N"]
+          description: Status
+        codeAgenceAva:
+          type: integer
+          description: Agency code - defaults to 1 if not provided
+        dateCreation:
+          type: string
+          format: date
+          description: Creation date - auto-set
+        dateSuppression:
+          type: string
+          format: date
+          description: Deletion date
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        details:
+          type: string

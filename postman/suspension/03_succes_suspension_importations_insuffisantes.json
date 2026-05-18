@@ -1,0 +1,10 @@
+{
+    "_description": "SUCCES: Suspension pour total importations insuffisant",
+    "_cas_test": "codeEtat=3 (TOTAL IMPORTATIONS INSUFFISANT), motifEtat non requis",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+    "_resultat_attendu": "HTTP 200 - Dossier passé à état 'B' (Bloqué), MVT status='A' créé",
+    "_prerequis": "Le dossier 10003 doit exister avec etatDossier='V'",
+
+    "numDossier": 10003,
+    "codeEtat": 3
+}

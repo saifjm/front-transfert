@@ -1,0 +1,12 @@
+{
+    "_description": "ERREUR: Montant MVT AVA négatif — doit être strictement supérieur à 0",
+    "_erreur_attendue": "Le montant du mouvement AVA doit être supérieur à 0",
+    "_http_status": 400,
+    "_type_erreur": "MethodArgumentNotValidException",
+    "_endpoint": "POST /api/operations-deleguees/10001/alimentation-bct/true",
+
+    "numeroBct": 20261001,
+    "dateBct": "2026-02-10",
+    "typeBct": "N",
+    "mntMvtAva": -5000.00
+}

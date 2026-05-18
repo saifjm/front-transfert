@@ -1,0 +1,10 @@
+{
+    "_description": "ERREUR: motifEtat absent alors que codeEtat=99 (AUTRE MOTIF)",
+    "_erreur_attendue": "Le motif d'état est obligatoire lorsque le code d'état est 99 (AUTRE MOTIF)",
+    "_http_status": 422,
+    "_type_erreur": "BusinessException",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+
+    "numDossier": 10001,
+    "codeEtat": 99
+}

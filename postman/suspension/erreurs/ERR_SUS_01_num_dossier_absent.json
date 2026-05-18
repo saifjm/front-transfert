@@ -1,0 +1,9 @@
+{
+    "_description": "ERREUR: Numéro de dossier absent (obligatoire)",
+    "_erreur_attendue": "Le numéro de dossier est obligatoire",
+    "_http_status": 400,
+    "_type_erreur": "MethodArgumentNotValidException",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+
+    "codeEtat": 1
+}

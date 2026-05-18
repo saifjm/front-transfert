@@ -1,0 +1,15 @@
+{
+    "_description": "SUCCES: Rapatriement recent (teste validation date dans les 3 mois)",
+    "_cas_test": "Date de rapatriement recente pour valider la regle des 3 mois",
+    "_resultat_attendu": "Creation reussie car date dans les 3 derniers mois",
+
+    "numDossierAva": 10003,
+    "dateDosRap": "2026-01-01",
+    "mntRap": 5000.00,
+    "codeDevise": 788,
+    "codeBanqueProvenance": 3,
+    "numeroCompte": "1111222233334444",
+    "typePieceBenef": 2,
+    "noPieceBenef": "111222333",
+    "codeProduitService": 1
+}

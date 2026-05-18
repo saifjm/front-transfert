@@ -1,0 +1,12 @@
+{
+    "_description": "SUCCES: Alimentation BCT basique — montant standard",
+    "_cas_test": "Accord BCT de type N (Nouveau) avec montant de base — finalize=true",
+    "_endpoint": "POST /api/operations-deleguees/10001/alimentation-bct/true",
+    "_resultat_attendu": "HTTP 200 - mntAutoriseBct mis à jour (cumulé), MVT status='A' créé",
+    "_prerequis": "Le dossier 10001 doit exister avec etatDossier='V'",
+
+    "numeroBct": 20261001,
+    "dateBct": "2026-02-10",
+    "typeBct": "N",
+    "mntMvtAva": 50000.00
+}

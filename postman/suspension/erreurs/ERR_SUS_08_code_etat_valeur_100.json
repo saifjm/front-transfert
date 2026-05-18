@@ -1,0 +1,10 @@
+{
+    "_description": "ERREUR: Code d'état = 100 — valeur supérieure au maximum autorisé (99)",
+    "_erreur_attendue": "Le code d'état doit être entre 1 et 99",
+    "_http_status": 400,
+    "_type_erreur": "MethodArgumentNotValidException",
+    "_endpoint": "POST /api/operations-deleguees/suspension/true",
+
+    "numDossier": 10001,
+    "codeEtat": 100
+}

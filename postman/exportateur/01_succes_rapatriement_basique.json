@@ -1,0 +1,14 @@
+{
+    "_description": "SUCCES: Rapatriement basique avec montant minimal",
+    "_cas_test": "Cas de base avec tous les champs obligatoires",
+    "_resultat_attendu": "Creation reussie avec calcul mntMvtTnd = 25% de mntRap",
+
+    "numDossierAva": 10001,
+    "dateDosRap": "2026-01-15",
+    "mntRap": 1000.00,
+    "codeDevise": 788,
+    "numeroCompte": "1234567890123",
+    "typePieceBenef": 1,
+    "noPieceBenef": "123456789",
+    "codeProduitService": 1
+}
