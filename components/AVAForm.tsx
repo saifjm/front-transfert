@@ -162,6 +162,7 @@ interface   InitiationOuvertureDTO {
   typePieceClient?: number;
   noPieceClient?: string;
   compteClient?: string | number; // Accepte le RIB au format string (20 caractères) ou number
+  codeAgenceAva?: number;
   tel?: string;
   email?: string;
   codeActivite?: number;
@@ -1328,8 +1329,13 @@ export function AVAForm() {
         delete (cleanMarche as any).id;
       }
 
+      // Extract codeAgenceAva from the RIB (positions 2-4, 3 digits after the 2-digit bank code)
+      const ribStr = String(snap.compteClient ?? '');
+      const codeAgenceAvaFromRib = ribStr.length >= 5 ? parseInt(ribStr.substring(2, 5), 10) : undefined;
+
       const dto: InitiationOuvertureDTO = {
         ...formData,
+        codeAgenceAva: codeAgenceAvaFromRib || formData.codeAgenceAva,
         beneficiairesMvtListe: cleanBeneficiaires,
         documents: cleanDocuments,
         avaMarcheMvt: cleanMarche,
@@ -1371,6 +1377,7 @@ export function AVAForm() {
             numDossier,
             dateDossier: new Date().toISOString().split('T')[0],
             codeTypeDosAva: snap.codeTypeDosAva,
+            codeAgenceAva: codeAgenceAvaFromRib,
             typePieceClient: snap.typePieceClient,
             noPieceClient: snap.noPieceClient,
             numeroCompte: snap.compteClient ? String(snap.compteClient) : undefined,
@@ -2567,18 +2574,20 @@ export function AVAForm() {
                       <div className="space-y-2">
                         <Label>Path Année</Label>
                         <Input
+                          readOnly
                           value={document.pathAnnee || ''}
-                          onChange={(e) => updateDocument(document.id!, 'pathAnnee' as keyof DocumentDTO, e.target.value)}
                           placeholder="YYYY"
+                          className="bg-gray-50 cursor-not-allowed"
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Path Mois</Label>
                         <Input
+                          readOnly
                           value={document.pathMois || ''}
-                          onChange={(e) => updateDocument(document.id!, 'pathMois' as keyof DocumentDTO, e.target.value)}
                           placeholder="MM"
+                          className="bg-gray-50 cursor-not-allowed"
                         />
                       </div>
 

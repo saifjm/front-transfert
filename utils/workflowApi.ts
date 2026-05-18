@@ -529,3 +529,29 @@ export async function getWfAlimentationBctTaskList(): Promise<WfTask[]> {
   const data = await response.json();
   return Array.isArray(data) ? data : (data.content ?? []);
 }
+
+// ─── Déclaration CA Fiscal workflow ──────────────────────────────────────────
+
+export const WF_CAF_OPERATION_KEY = 'declaration_caf_ht';
+
+export async function startCafDecision(
+  decisionTag: string,
+  payload: Record<string, unknown>,
+  comment?: string,
+): Promise<DecisionResponse> {
+  const body: DecisionRequest = { payload, comment };
+  const response = await wfFetch(
+    `/api/wf/operations/${WF_CAF_OPERATION_KEY}/decide/${decisionTag}`,
+    { method: 'POST', headers: wfHeaders(), body: JSON.stringify(body) },
+  );
+  return response.json();
+}
+
+export async function getWfCafTaskList(): Promise<WfTask[]> {
+  const response = await authenticatedFetch(
+    `/api/wf/tasks?operationKey=${WF_CAF_OPERATION_KEY}`,
+    { method: 'GET', headers: wfHeaders() },
+  );
+  const data = await response.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
+}

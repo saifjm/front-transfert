@@ -1604,18 +1604,20 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
                   <div className="space-y-2">
                     <Label>Path Année</Label>
                     <Input
+                      readOnly
                       value={document.pathAnnee || ''}
-                      onChange={(e) => updateDocument(document.id, 'pathAnnee', e.target.value)}
                       placeholder="YYYY"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label>Path Mois</Label>
                     <Input
+                      readOnly
                       value={document.pathMois || ''}
-                      onChange={(e) => updateDocument(document.id, 'pathMois', e.target.value)}
                       placeholder="MM"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
 
