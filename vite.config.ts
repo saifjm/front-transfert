@@ -108,14 +108,6 @@ export default defineConfig({
         target: 'http://localhost:8888',
         changeOrigin: true,
       },
-      '/auth': {
-        target: 'http://localhost:8888',
-        changeOrigin: true,
-      },
-      '/alimentation-bct/': {
-        target: 'http://localhost:8888',
-        changeOrigin: true,
-      },
     },
   },
   build: {
