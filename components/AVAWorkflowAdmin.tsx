@@ -281,14 +281,14 @@ function MonitoringPanel({ onClose }: { onClose: () => void }) {
     try {
       const data = await adminFetch<any>('/operations?page=0&size=50');
       setOps(Array.isArray(data) ? data : (data.content ?? []));
-    } catch { toast.error('Erreur chargement opérations'); }
+    } catch { showError('Erreur chargement opérations'); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
   const filtered = ops.filter(o => o.businessKey.toLowerCase().includes(search.toLowerCase()) || (o.currentNodeKey ?? '').toLowerCase().includes(search.toLowerCase()));
-  const suspend = async (id: number) => { try { await adminFetch(`/operations/${id}/suspend`, { method: 'PUT' }); toast.success('Suspendu'); load(); } catch (e) { toast.error((e as Error).message); } };
-  const resume = async (id: number) => { try { await adminFetch(`/operations/${id}/resume`, { method: 'PUT' }); toast.success('Repris'); load(); } catch (e) { toast.error((e as Error).message); } };
-  const forceAdvance = async (id: number) => { try { await adminFetch(`/operations/${id}/force-advance`, { method: 'POST', body: '{}' }); toast.success('Avancé'); load(); } catch (e) { toast.error((e as Error).message); } };
+  const suspend = async (id: number) => { try { await adminFetch(`/operations/${id}/suspend`, { method: 'PUT' }); toast.success('Suspendu'); load(); } catch (e) { showError((e as Error).message); } };
+  const resume = async (id: number) => { try { await adminFetch(`/operations/${id}/resume`, { method: 'PUT' }); toast.success('Repris'); load(); } catch (e) { showError((e as Error).message); } };
+  const forceAdvance = async (id: number) => { try { await adminFetch(`/operations/${id}/force-advance`, { method: 'POST', body: '{}' }); toast.success('Avancé'); load(); } catch (e) { showError((e as Error).message); } };
   const statusColor: Record<string, string> = { ACTIVE: '#16a34a', SUSPENDED: '#f59e0b', COMPLETED: '#6B8CAE', ERROR: '#dc2626' };
   return (
     <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 560, background: 'white', borderLeft: '1px solid #d1dce6', zIndex: 20, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 20px rgba(67,91,123,0.12)' }}>
@@ -798,7 +798,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
         setEdges(canvasEdges);
         setDirty(false);
         setTimeout(() => fitView({ padding: 0.2 }), 150);
-      } catch (e) { toast.error('Erreur chargement: ' + (e as Error).message); }
+      } catch (e) { showError('Erreur chargement: ' + (e as Error).message); }
       finally { setLoadingDef(false); }
     };
     load();
@@ -968,12 +968,12 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
         setDefinitions(defs => defs.map(d => d.wfDefId === updated.wfDefId ? updated : d));
         toast.success('Définition enregistrée ✓');
       }
-    } catch (e) { toast.error('Erreur: ' + (e as Error).message); }
+    } catch (e) { showError('Erreur: ' + (e as Error).message); }
     finally { setDefSaving(false); }
   }, [selectedDef, selectedDefId]);
 
   const handleSave = useCallback(async () => {
-    if (!selectedDefId) { toast.error('Sélectionnez ou créez un flux d\'abord'); return; }
+    if (!selectedDefId) { showError('Sélectionnez ou créez un flux d\'abord'); return; }
     setSaving(true);
     try {
       let defId: number;
@@ -986,7 +986,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
         setSelectedDefId(String(defId));
       } else {
         defId = parseInt(selectedDefId);
-        if (isNaN(defId)) { toast.error('Identifiant de flux invalide'); return; }
+        if (isNaN(defId)) { showError('Identifiant de flux invalide'); return; }
       }
       const nodeRef = (id: number) => ({ nodeId: id });
       const decRef = (id: number) => ({ decisionId: id });
@@ -1050,7 +1050,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
       }
       setDirty(false);
       toast.success('Flux enregistré ✓');
-    } catch (e) { toast.error('Erreur sauvegarde: ' + (e as Error).message); }
+    } catch (e) { showError('Erreur sauvegarde: ' + (e as Error).message); }
     finally { setSaving(false); }
   }, [nodes, selectedDefId, updateNodeData]);
 

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from "../utils/api";
 import {
     continueLeveeSuspensionDecision,
@@ -334,9 +334,7 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
       throw new Error("PARSE_ERROR");
     } catch (error) {
       console.error("Erreur lors du chargement des dossiers:", error);
-      toast.error("Impossible de charger les dossiers", {
-        description: "Une erreur est survenue lors du chargement des dossiers suspendus"
-      });
+      showError("Une erreur est survenue lors du chargement des dossiers suspendus", undefined, "Impossible de charger les dossiers");
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -418,7 +416,7 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
       throw new Error("API_ERROR");
     } catch (error) {
       console.error("Erreur lors du chargement des données de suspension:", error);
-      toast.error("Impossible de charger les données de suspension");
+      showError("Impossible de charger les données de suspension");
       setSuspensionData(null);
     } finally {
       setLoadingSuspensionData(false);
@@ -592,10 +590,10 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
         setLeveeEnregistree({ ...levee });
         setShowSuccessModal(true);
       } else {
-        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+        showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
       }
     } catch {
-      toast.error('Erreur lors de l\'enregistrement');
+      showError('Erreur lors de l\'enregistrement');
     } finally {
       setIsConfirmingVerif(false);
     }
@@ -615,10 +613,10 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
         setLeveeEnregistree({ ...levee });
         setShowSuccessModal(true);
       } else {
-        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+        showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
       }
     } catch {
-      toast.error('Erreur lors de l\'enregistrement');
+      showError('Erreur lors de l\'enregistrement');
     } finally {
       setIsConfirmingVerif(false);
     }
@@ -626,9 +624,7 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error(
-        "Veuillez corriger les erreurs du formulaire",
-      );
+      showError("Veuillez corriger les erreurs du formulaire",);
       return;
     }
 
@@ -692,17 +688,13 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
             setLeveeEnregistree({ ...levee });
             setShowSuccessModal(true);
           } else if (msg === 'expired date') {
-            toast.error('Accord BCT expiré', {
-              description: `La date de fin d'application de cet accord BCT est dépassée`,
-            });
+            showError(`La date de fin d'application de cet accord BCT est dépassée`, undefined, 'Accord BCT expiré');
           } else if (msg === 'needs a manual verification') {
             // Portée * — demander confirmation
             setManualVerifBaseUrl(updateUrl);
             setShowManualVerifModal(true);
           } else {
-            toast.error('Erreur mise à jour validité BCT', { 
-              description: msg || `HTTP ${updateRes.status}` 
-            });
+            showError(msg || `HTTP ${updateRes.status}`, undefined, 'Erreur mise à jour validité BCT');
           }
         } else {
           // Pas de BCT, juste afficher le succès
@@ -721,9 +713,7 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
       }
     } catch (error) {
       console.error('Erreur lors de la levée de suspension:', error);
-      toast.error('Erreur', {
-        description: 'Une erreur est survenue lors de la levée de suspension',
-      });
+      showError('Une erreur est survenue lors de la levée de suspension', undefined, 'Erreur');
     } finally {
       setIsSubmitting(false);
     }

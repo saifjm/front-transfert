@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from "../utils/api";
 import {
   continueReservationDecision,
@@ -271,9 +271,7 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
 
     } catch (error: any) {
       console.error("Erreur lors du chargement des dossiers:", error);
-      toast.error("Impossible de charger les dossiers", {
-        description: "Une erreur est survenue lors du chargement des dossiers"
-      });
+      showError("Une erreur est survenue lors du chargement des dossiers", undefined, "Impossible de charger les dossiers");
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -528,9 +526,7 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
   // Soumettre
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error(
-        "Veuillez corriger les erreurs du formulaire",
-      );
+      showError("Veuillez corriger les erreurs du formulaire",);
       return;
     }
 
@@ -585,9 +581,7 @@ export function AVAReservation({ initialDossierNum }: { initialDossierNum?: stri
       }
     } catch (error: any) {
       console.error('Erreur lors de la réservation:', error);
-      toast.error('Erreur de connexion au moteur de workflow', {
-        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
-      });
+      showError('Vérifiez que le WF engine (port 8843) est démarré.', undefined, 'Erreur de connexion au moteur de workflow');
     } finally {
       setIsSubmitting(false);
     }

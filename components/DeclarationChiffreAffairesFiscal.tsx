@@ -171,11 +171,11 @@ export function DeclarationChiffreAffairesFiscal() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
     if (selectedOperations.size === 0) {
-      toast.error('Veuillez sélectionner au moins une opération déléguée');
+      showError('Veuillez sélectionner au moins une opération déléguée');
       return;
     }
 
@@ -206,7 +206,7 @@ export function DeclarationChiffreAffairesFiscal() {
 
       if (res.result !== 'OK') {
         if (res.result === 'REJECTED' || res.result === 'ERROR') {
-          toast.error('Erreur workflow', { description: res.errorMessage ?? 'Opération rejetée' });
+          showError(res.errorMessage ?? 'Opération rejetée', undefined, 'Erreur workflow');
         } else {
           toast.warning('Réponse inattendue', { description: res.result });
         }
@@ -217,7 +217,7 @@ export function DeclarationChiffreAffairesFiscal() {
       if (res.state?.currentNodeKey === 'TRAITEMENT_AVA') {
         const res2 = await startCafDecision('EXECUTER', payload);
         if (res2.result !== 'OK') {
-          toast.error('Erreur traitement AVA', { description: res2.errorMessage ?? 'Traitement AVA échoué' });
+          showError(res2.errorMessage ?? 'Traitement AVA échoué', undefined, 'Erreur traitement AVA');
           return;
         }
       }
@@ -227,7 +227,7 @@ export function DeclarationChiffreAffairesFiscal() {
       });
       setTimeout(() => handleReset(), 1500);
     } catch (err: any) {
-      toast.error('Erreur', { description: err?.message ?? 'Une erreur est survenue' });
+      showError(err?.message ?? 'Une erreur est survenue', undefined, 'Erreur');
     } finally {
       setIsSubmitting(false);
     }

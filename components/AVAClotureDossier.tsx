@@ -227,9 +227,7 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
       setDossiersFiltres(dossiersTransformes);
     } catch (error) {
       console.error('Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Une erreur est survenue lors du chargement des dossiers'
-      });
+      showError('Une erreur est survenue lors du chargement des dossiers', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -327,7 +325,7 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -367,9 +365,7 @@ export function AVAClotureDossier({ initialDossierNum }: { initialDossierNum?: s
       }
     } catch (error: any) {
       console.error('[Cloture WF] Erreur:', error);
-      toast.error('Erreur du moteur de workflow', {
-        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
-      });
+      showError(error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.', undefined, 'Erreur du moteur de workflow');
     } finally {
       setIsSubmitting(false);
     }

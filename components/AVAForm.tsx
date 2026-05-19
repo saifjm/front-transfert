@@ -340,9 +340,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setBanques([]);
     } finally {
       setLoadingBanques(false);
@@ -362,9 +360,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setActivites([]);
     } finally {
       setLoadingActivites(false);
@@ -384,9 +380,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setSousActivites([]);
     } finally {
       setLoadingSousActivites(false);
@@ -406,9 +400,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setPieces([]);
     } finally {
       setLoadingPieces(false);
@@ -428,9 +420,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setDevises([]);
     } finally {
       setLoadingDevises(false);
@@ -489,9 +479,7 @@ export function AVAForm() {
       console.error('❌ Erreur API - Recherche client:', error);
       setClientInfo(null);
       setClientNotFound(true);
-      toast.error('Erreur', {
-        description: 'Impossible de récupérer les informations du client.'
-      });
+      showError('Impossible de récupérer les informations du client.', undefined, 'Erreur');
     } finally {
       setSearchingClient(false);
     }
@@ -590,9 +578,7 @@ export function AVAForm() {
           }
         } catch (error) {
           console.error('Erreur lors du chargement:', error);
-          toast.error('Impossible de charger les données', {
-            description: 'Veuillez vérifier votre connexion et réessayer',
-          });
+          showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
           setActivites([]);
         } finally {
           setLoadingActivites(false);
@@ -956,7 +942,7 @@ export function AVAForm() {
     try {
       const picker = (window as any).showDirectoryPicker;
       if (!picker) {
-        toast.error('Sélection du dossier non supportée par ce navigateur');
+        showError('Sélection du dossier non supportée par ce navigateur');
         return;
       }
       const handle = await picker({ mode: 'readwrite' });
@@ -1125,7 +1111,7 @@ export function AVAForm() {
 
     // Article 13 — bloquer si le contrôle d'unicité a échoué
     if (uniciteError) {
-      toast.error('Ouverture impossible', { description: uniciteError });
+      showError(uniciteError, undefined, 'Ouverture impossible');
       return;
     }
 
@@ -1233,9 +1219,7 @@ export function AVAForm() {
     // Si des erreurs existent, les afficher et arrêter
     if (Object.keys(newErrors).length > 0) {
       setFieldErrors(newErrors);
-      toast.error('Formulaire invalide', {
-        description: 'Veuillez corriger les erreurs avant de soumettre le dossier',
-      });
+      showError('Veuillez corriger les erreurs avant de soumettre le dossier', undefined, 'Formulaire invalide');
       
       // Faire défiler jusqu'au premier champ en erreur
       setTimeout(() => {
@@ -1270,18 +1254,14 @@ export function AVAForm() {
       if (!benef.datePiece) missingFields.push('Date Pièce');
 
       if (missingFields.length > 0) {
-        toast.error(`Bénéficiaire ${i + 1} incomplet`, {
-          description: `Champs manquants : ${missingFields.join(', ')}`,
-        });
+        showError(`Champs manquants : ${missingFields.join(', ')}`, undefined, `Bénéficiaire ${i + 1} incomplet`);
         return;
       }
 
       // Validation date pièce <= date du jour
       const dateError = validateBeneficiaireDatePiece(benef.datePiece!);
       if (dateError) {
-        toast.error(`Bénéficiaire ${i + 1} - Date invalide`, {
-          description: dateError,
-        });
+        showError(dateError, undefined, `Bénéficiaire ${i + 1} - Date invalide`);
         return;
       }
     }
@@ -1296,9 +1276,7 @@ export function AVAForm() {
         banqueProvenance.mntAutoriseBct === undefined ||
         banqueProvenance.solde === undefined
       ) {
-        toast.error('Validation échouée', {
-          description: 'Si une banque est sélectionnée, tous les montants doivent être renseignés.',
-        });
+        showError('Si une banque est sélectionnée, tous les montants doivent être renseignés.', undefined, 'Validation échouée');
         return;
       }
 
@@ -1311,9 +1289,7 @@ export function AVAForm() {
       if (banqueProvenance.solde < 0) errors.push('Solde');
 
       if (errors.length > 0) {
-        toast.error('Montants invalides', {
-          description: `Les champs suivants ne peuvent pas être négatifs : ${errors.join(', ')}`,
-        });
+        showError(`Les champs suivants ne peuvent pas être négatifs : ${errors.join(', ')}`, undefined, 'Montants invalides');
         return;
       }
 
@@ -1325,9 +1301,7 @@ export function AVAForm() {
         banqueProvenance.mntAutoriseBct;
 
       if (Math.abs(banqueProvenance.solde - soldeCalcule) > 0.01) {
-        toast.error('Erreur de calcul du solde', {
-          description: `Le solde doit être égal à : Montant Autorisé (${banqueProvenance.mntAutorise}) + Montant Avance (${banqueProvenance.mntAvance}) - Montant Utilisé (${banqueProvenance.mntUtilise}) + Montant Autorisé BCT (${banqueProvenance.mntAutoriseBct}) = ${soldeCalcule.toFixed(2)}`,
-        });
+        showError(`Le solde doit être égal à : Montant Autorisé (${banqueProvenance.mntAutorise}) + Montant Avance (${banqueProvenance.mntAvance}) - Montant Utilisé (${banqueProvenance.mntUtilise}) + Montant Autorisé BCT (${banqueProvenance.mntAutoriseBct}) = ${soldeCalcule.toFixed(2)}`, undefined, 'Erreur de calcul du solde');
         return;
       }
     }
@@ -1466,13 +1440,11 @@ export function AVAForm() {
       } else if (wfResponse.result === 'ERROR') {
         showError(wfResponse.errorMessage ?? 'Erreur workflow inconnue');
       } else {
-        toast.error('Réponse inattendue du moteur de workflow', { description: String(wfResponse.result) });
+        showError(String(wfResponse.result), undefined, 'Réponse inattendue du moteur de workflow');
       }
 
     } catch (error) {
-      toast.error('Erreur de communication avec le moteur de workflow', {
-        description: 'Veuillez réessayer ou contacter le support.',
-      });
+      showError('Veuillez réessayer ou contacter le support.', undefined, 'Erreur de communication avec le moteur de workflow');
       console.error('[WF] Erreur:', error);
     } finally {
       setIsSubmitting(false);

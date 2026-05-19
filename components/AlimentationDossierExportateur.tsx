@@ -253,9 +253,7 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
       setDossiersFiltres(dossiersTransformes);
     } catch (error) {
       console.error('Erreur lors du chargement des dossiers exportateurs:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
       setAgences([]);
@@ -392,12 +390,12 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
   // Soumettre l'alimentation
   const handleSubmit = async () => {
     if (!dossierSelectionne) {
-      toast.error('Aucun dossier sélectionné');
+      showError('Aucun dossier sélectionné');
       return;
     }
 
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -529,21 +527,15 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
 
       } else if (wfResponse.result === 'REJECTED') {
         console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
-        toast.error('Opération rejetée par le workflow', {
-          description: wfResponse.errorMessage || 'Veuillez vérifier les données',
-        });
+        showError(wfResponse.errorMessage || 'Veuillez vérifier les données', undefined, 'Opération rejetée par le workflow');
 
       } else if (wfResponse.result === 'ERROR') {
         console.error('[WF] Erreur workflow:', wfResponse.errorMessage);
-        toast.error('Erreur workflow', {
-          description: wfResponse.errorMessage || 'Une erreur est survenue',
-        });
+        showError(wfResponse.errorMessage || 'Une erreur est survenue', undefined, 'Erreur workflow');
       }
     } catch (error) {
       console.error('[WF] Exception:', error);
-      toast.error('Erreur lors de la soumission', {
-        description: error instanceof Error ? error.message : 'Erreur inconnue',
-      });
+      showError(error instanceof Error ? error.message : 'Erreur inconnue', undefined, 'Erreur lors de la soumission');
     } finally {
       setIsSubmitting(false);
     }

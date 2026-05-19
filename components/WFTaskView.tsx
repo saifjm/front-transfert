@@ -45,7 +45,7 @@ export function WFTaskView() {
       const data = await getWfTaskList();
       setTasks(data);
     } catch {
-      toast.error('Impossible de charger les tâches', { description: 'Vérifiez que le moteur de workflow est démarré.' });
+      showError('Vérifiez que le moteur de workflow est démarré.', undefined, 'Impossible de charger les tâches');
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ export function WFTaskView() {
 
   const executeDecision = async (task: WfTask, decision: DecisionInfo, comment?: string) => {
     if (!task.businessKey) {
-      toast.error('Clé métier manquante pour cette tâche.');
+      showError('Clé métier manquante pour cette tâche.');
       return;
     }
     try {
@@ -67,14 +67,14 @@ export function WFTaskView() {
         await loadTasks();
         setExpandedTaskId(null);
       } else if (response.result === 'REJECTED') {
-        toast.error('Opération rejetée', { description: response.errorMessage });
+        showError(response.errorMessage, undefined, 'Opération rejetée');
       } else if (response.result === 'WARN_REQUIRED') {
         toast.warning('Justification SoD requise — contactez votre administrateur.');
       } else {
-        toast.error('Erreur workflow', { description: response.errorMessage ?? String(response.result) });
+        showError(response.errorMessage ?? String(response.result), undefined, 'Erreur workflow');
       }
     } catch {
-      toast.error('Erreur de communication avec le moteur de workflow.');
+      showError('Erreur de communication avec le moteur de workflow.');
     }
   };
 

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from "../utils/api";
 import {
     continueAnnulationReservationDecision,
@@ -299,9 +299,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
 
     } catch (error: any) {
       console.error('Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
       setAgences([]);
@@ -568,9 +566,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
   // Soumettre
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error(
-        "Veuillez corriger les erreurs du formulaire",
-      );
+      showError("Veuillez corriger les erreurs du formulaire",);
       return;
     }
 
@@ -640,9 +636,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
       }
     } catch (error: any) {
       console.error('Erreur lors de l\'annulation de réservation:', error);
-      toast.error('Erreur du moteur de workflow', {
-        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
-      });
+      showError(error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.', undefined, 'Erreur du moteur de workflow');
     } finally {
       setIsSubmitting(false);
     }
@@ -752,9 +746,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
       }
     } catch (error: any) {
       console.error('Erreur lors de la confirmation d\'annulation:', error);
-      toast.error('Erreur du moteur de workflow', {
-        description: error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.',
-      });
+      showError(error?.message || 'Vérifiez que le WF engine (port 8843) est démarré.', undefined, 'Erreur du moteur de workflow');
     } finally {
       setIsSubmitting(false);
     }
@@ -803,9 +795,7 @@ export function AVAAnnulationReservation({ initialDossierNum }: { initialDossier
 
     } catch (error: any) {
       console.error('Erreur lors du chargement des réservations:', error);
-      toast.error('Impossible de charger les réservations', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les réservations');
       setReservations([]);
     } finally {
       setLoadingReservations(false);
