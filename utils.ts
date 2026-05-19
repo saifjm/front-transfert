@@ -5,28 +5,30 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Variable globale pour stocker la fonction showError
-// Elle sera initialisée par le ErrorProvider au démarrage
-let globalShowError: ((message: string, details?: string) => void) | null = null;
+// Global handler wired in by ErrorProvider on mount
+let globalShowError: ((message: string, details?: string, title?: string) => void) | null = null;
 
-/**
- * Enregistre la fonction showError globale
- * Appelée automatiquement par le ErrorProvider
- */
-export function setGlobalErrorHandler(handler: (message: string, details?: string) => void) {
+export function setGlobalErrorHandler(handler: (message: string, details?: string, title?: string) => void) {
   globalShowError = handler;
 }
 
 /**
- * Affiche une erreur technique à l'utilisateur via le popup global
+ * Show an error modal from anywhere — no hook required.
+ * title  : bold header  (optional, defaults to "Erreur")
+ * message: main body text
+ * details: collapsible technical detail (optional)
  */
-export function showTechnicalError(message: string, details?: string) {
+export function showError(message: string, details?: string, title?: string) {
   if (globalShowError) {
-    globalShowError(message, details);
+    globalShowError(message, details, title);
   } else {
-    // Fallback si le système d'erreur n'est pas encore initialisé
-    console.error('Erreur technique:', message, details);
+    console.error('[showError]', title ?? 'Erreur', message, details);
   }
+}
+
+/** @deprecated use showError() */
+export function showTechnicalError(message: string, details?: string) {
+  showError(message, details);
 }
 
 /**

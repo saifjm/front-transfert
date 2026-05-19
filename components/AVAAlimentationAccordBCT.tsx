@@ -207,9 +207,7 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
       setDossiersFiltres(dossiersTransformes);
     } catch (error) {
       console.error('Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
       setAgences([]);
@@ -307,7 +305,7 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
   // ── Soumission ────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
     if (!dossierSelectionne) return;
@@ -363,15 +361,13 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
           handleRetourRecherche();
           await fetchDossiers();
         } else if (msg === 'expired date') {
-          toast.error('Accord BCT expiré', {
-            description: `La date de fin d'application de cet accord BCT est dépassée`,
-          });
+          showError(`La date de fin d'application de cet accord BCT est dépassée`, undefined, 'Accord BCT expiré');
         } else if (msg === 'needs a manual verification') {
           // Portée * — demander confirmation avant d'utiliser flag=0
           setManualVerifBaseUrl(updateUrl);
           setShowManualVerifModal(true);
         } else {
-          toast.error('Erreur mise à jour validité', { description: msg || `HTTP ${updateRes.status}` });
+          showError(msg || `HTTP ${updateRes.status}`, undefined, 'Erreur mise à jour validité');
         }
 
       } else if (wfResponse.result === 'REJECTED') {
@@ -381,9 +377,7 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
       }
     } catch (error) {
       console.error('[WF] Exception:', error);
-      toast.error('Erreur lors de la soumission', {
-        description: error instanceof Error ? error.message : 'Erreur inconnue',
-      });
+      showError(error instanceof Error ? error.message : 'Erreur inconnue', undefined, 'Erreur lors de la soumission');
     } finally {
       setIsSubmitting(false);
     }
@@ -402,10 +396,10 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
           handleRetourRecherche();
           await fetchDossiers();
         } else {
-          toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+          showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
         }
       } catch {
-        toast.error('Erreur lors de l\'enregistrement');
+        showError('Erreur lors de l\'enregistrement');
       } finally {
         setIsConfirmingVerif(false);
       }
@@ -425,10 +419,10 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
         handleRetourRecherche();
         await fetchDossiers();
       } else {
-        toast.error('Erreur', { description: data?.message || 'Erreur inconnue' });
+        showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
       }
     } catch {
-      toast.error('Erreur lors de l\'enregistrement');
+      showError('Erreur lors de l\'enregistrement');
     } finally {
       setIsConfirmingVerif(false);
     }

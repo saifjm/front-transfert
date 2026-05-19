@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { safeJsonParse } from "../utils";
+import { safeJsonParse } from '../utils';
 import { authenticatedFetch } from "../utils/api";
 import {
     continueSuspensionDecision,
@@ -321,9 +321,7 @@ export function AVASuspension({ initialDossierNum }: { initialDossierNum?: strin
       throw new Error("PARSE_ERROR");
     } catch (error) {
       console.error("Erreur lors du chargement des dossiers:", error);
-      toast.error("Impossible de charger les dossiers", {
-        description: "Veuillez vérifier votre connexion et réessayer",
-      });
+      showError("Veuillez vérifier votre connexion et réessayer", undefined, "Impossible de charger les dossiers");
       setDossiers([]);
       setDossiersFiltres([]);
       setAgences([]);
@@ -537,9 +535,7 @@ export function AVASuspension({ initialDossierNum }: { initialDossierNum?: strin
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error(
-        "Veuillez corriger les erreurs du formulaire",
-      );
+      showError("Veuillez corriger les erreurs du formulaire",);
       return;
     }
 
@@ -603,9 +599,7 @@ export function AVASuspension({ initialDossierNum }: { initialDossierNum?: strin
       }
     } catch (error) {
       console.error('Erreur lors de la suspension:', error);
-      toast.error('Erreur', {
-        description: 'Une erreur est survenue lors de la suspension',
-      });
+      showError('Une erreur est survenue lors de la suspension', undefined, 'Erreur');
     } finally {
       setIsSubmitting(false);
     }

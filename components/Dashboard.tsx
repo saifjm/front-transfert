@@ -489,7 +489,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
       const t = toNum(d.typeDossierAva);
       typeCounts.set(t, (typeCounts.get(t) || 0) + 1);
     }
-    const typeLabel: Record<number, string> = { 1: 'Exportateur', 2: 'Marché étranger', 3: 'Autres activités', 4: 'Importateur', 5: 'Investissement' };
+    const typeLabel: Record<number, string> = { 1: 'Exportateur', 2: 'Marchés à l\'étranger', 3: 'Autres activités', 4: 'Autres activités banques', 5: 'Promoteurs immobiliers' };
     const colors = ['#435B7B', '#6B8CAE', '#A8C0D9', '#2D3E54', '#1e6091', '#D6E4F0'];
     const repartition = Array.from(typeCounts.entries()).map(([type, value], i) => ({
       name: typeLabel[type] || `Type ${type}`,
@@ -509,7 +509,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
         solde: toNum(d.solde),
         statut: d.etatDossier === 'V' ? 'Actif' : d.etatDossier === 'B' ? 'Suspendu' : d.etatDossier === 'C' ? 'Clôturé' : 'Réservé',
         date: d.dateDossier ? new Date(d.dateDossier).toLocaleDateString('fr-FR') : '-',
-        op: `Type ${d.typeDossierAva || '-'}`,
+        op: typeLabel[toNum(d.typeDossierAva)] || `Type ${d.typeDossierAva || '-'}`,
       }));
 
     const byAgence = new Map<string, { dossiers: number; montant: number; actifs: number }>();
@@ -606,7 +606,7 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
   };
 
   const handleRowClick = (op: any) => {
-    if (op.statut === 'Clôturé' || op.statut === 'Suspendu') return;
+    if (op.statut === 'Clôturé') return;
     setSelectedOperation(op);
     setShowActionModal(true);
   };
@@ -830,10 +830,10 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
                         borderBottom: '1px solid #f8fafb',
                         background: i % 2 === 0 ? '#fff' : '#fafbfc',
                         transition: 'background 0.12s, transform 0.1s',
-                        cursor: (d.statut === 'Clôturé' || d.statut === 'Suspendu') ? 'default' : 'pointer',
+                        cursor: d.statut === 'Clôturé' ? 'default' : 'pointer',
                       }}
                       onClick={() => handleRowClick(d)}
-                      onMouseEnter={e => { if (d.statut !== 'Clôturé' && d.statut !== 'Suspendu') (e.currentTarget as HTMLElement).style.background = '#EEF3F7'; }}
+                      onMouseEnter={e => { if (d.statut !== 'Clôturé') (e.currentTarget as HTMLElement).style.background = '#EEF3F7'; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? '#fff' : '#fafbfc'; }}
                     >
                       <td style={{ padding: '11px 14px', fontSize: 12, color: '#435B7B', fontWeight: 700, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
@@ -1111,7 +1111,8 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* Action grid */}
         {(() => {
-          const actions: { label: string; section: string; Icon: React.ElementType; color: string }[] = [
+          const isSuspendu = selectedOperation?.statut === 'Suspendu';
+          const allActions: { label: string; section: string; Icon: React.ElementType; color: string }[] = [
             { label: 'Frais de Voyage',        section: 'ava-frais-voyage',            Icon: Plane,       color: '#3B82F6' },
             { label: 'Réservation',             section: 'ava-reservation',             Icon: Calendar,    color: '#8B5CF6' },
             { label: 'Annulation Réservation',  section: 'ava-annulation-reservation',  Icon: XCircle,     color: '#EF4444' },
@@ -1125,8 +1126,11 @@ export function Dashboard({ onNavigate }: DashboardProps = {}) {
             { label: 'Consultation',            section: 'ava-consultation-dossier',    Icon: Search,      color: '#7C3AED' },
             { label: 'Génération Documents',    section: 'ava-generation-dossier',      Icon: FileText,    color: '#059669' },
           ];
+          const actions = isSuspendu
+            ? allActions.filter(a => a.section === 'ava-levee-suspension')
+            : allActions;
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isSuspendu ? '1fr' : '1fr 1fr 1fr 1fr', gap: 8, maxWidth: isSuspendu ? 220 : 'none', margin: isSuspendu ? '0 auto' : undefined }}>
               {actions.map(({ label, section, Icon, color }) => (
                 <button
                   key={section}

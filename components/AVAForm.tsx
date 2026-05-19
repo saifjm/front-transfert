@@ -162,6 +162,7 @@ interface   InitiationOuvertureDTO {
   typePieceClient?: number;
   noPieceClient?: string;
   compteClient?: string | number; // Accepte le RIB au format string (20 caractères) ou number
+  codeAgenceAva?: number;
   tel?: string;
   email?: string;
   codeActivite?: number;
@@ -244,6 +245,8 @@ export function AVAForm() {
   const [emailError, setEmailError] = useState<string>('');
   const [rneError, setRneError] = useState<string>('');
   const [clientNotFound, setClientNotFound] = useState<boolean>(false);
+  const [uniciteError, setUniciteError] = useState<string>('');
+  const [checkingUnicite, setCheckingUnicite] = useState(false);
 
   // Workflow engine state
   const [wfBusinessKey, setWfBusinessKey] = useState<string | null>(null);
@@ -337,9 +340,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setBanques([]);
     } finally {
       setLoadingBanques(false);
@@ -359,9 +360,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setActivites([]);
     } finally {
       setLoadingActivites(false);
@@ -381,9 +380,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setSousActivites([]);
     } finally {
       setLoadingSousActivites(false);
@@ -403,9 +400,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setPieces([]);
     } finally {
       setLoadingPieces(false);
@@ -425,9 +420,7 @@ export function AVAForm() {
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setDevises([]);
     } finally {
       setLoadingDevises(false);
@@ -486,9 +479,7 @@ export function AVAForm() {
       console.error('❌ Erreur API - Recherche client:', error);
       setClientInfo(null);
       setClientNotFound(true);
-      toast.error('Erreur', {
-        description: 'Impossible de récupérer les informations du client.'
-      });
+      showError('Impossible de récupérer les informations du client.', undefined, 'Erreur');
     } finally {
       setSearchingClient(false);
     }
@@ -519,6 +510,35 @@ export function AVAForm() {
     setRneError('');
     searchClient(formData.typePieceClient, noPiece);
   };
+
+  // Article 13 — vérification unicité AVA (un client ne peut détenir qu'une seule AVA active)
+  useEffect(() => {
+    const noPiece = formData.noPieceClient?.trim();
+    const typeDos = formData.codeTypeDosAva;
+    setUniciteError('');
+    if (!noPiece || !typeDos) return;
+    const id = setTimeout(() => {
+      void (async () => {
+        setCheckingUnicite(true);
+        try {
+          const res = await authenticatedFetch(
+            `/api/business-rules/controle/compatibilite-type-dossier?noPieceClient=${encodeURIComponent(noPiece)}&codeTypeDosAva=${typeDos}`,
+          );
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            setUniciteError((body as any)?.message || 'Ce client est déjà titulaire d\'une allocation AVA active (Art. 13)');
+          } else {
+            setUniciteError('');
+          }
+        } catch {
+          // network errors are non-blocking — let submit validation catch them
+        } finally {
+          setCheckingUnicite(false);
+        }
+      })();
+    }, 600);
+    return () => clearTimeout(id);
+  }, [formData.noPieceClient, formData.codeTypeDosAva]);
 
   // Gérer les changements de type de dossier pour Code Activité et Sous Activité
   useEffect(() => {
@@ -558,9 +578,7 @@ export function AVAForm() {
           }
         } catch (error) {
           console.error('Erreur lors du chargement:', error);
-          toast.error('Impossible de charger les données', {
-            description: 'Veuillez vérifier votre connexion et réessayer',
-          });
+          showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
           setActivites([]);
         } finally {
           setLoadingActivites(false);
@@ -924,7 +942,7 @@ export function AVAForm() {
     try {
       const picker = (window as any).showDirectoryPicker;
       if (!picker) {
-        toast.error('Sélection du dossier non supportée par ce navigateur');
+        showError('Sélection du dossier non supportée par ce navigateur');
         return;
       }
       const handle = await picker({ mode: 'readwrite' });
@@ -1090,7 +1108,13 @@ export function AVAForm() {
     if (true) { // always validate
     // Réinitialiser les erreurs
     const newErrors: Record<string, string> = {};
-    
+
+    // Article 13 — bloquer si le contrôle d'unicité a échoué
+    if (uniciteError) {
+      showError(uniciteError, undefined, 'Ouverture impossible');
+      return;
+    }
+
     // ✅ 1. Validation des champs obligatoires de base
     if (!formData.codeTypeDosAva) newErrors.codeTypeDosAva = 'Le type de dossier AVA est obligatoire';
     if (!formData.noPieceClient) newErrors.noPieceClient = 'Le numéro de pièce client (RNE) est obligatoire';
@@ -1195,9 +1219,7 @@ export function AVAForm() {
     // Si des erreurs existent, les afficher et arrêter
     if (Object.keys(newErrors).length > 0) {
       setFieldErrors(newErrors);
-      toast.error('Formulaire invalide', {
-        description: 'Veuillez corriger les erreurs avant de soumettre le dossier',
-      });
+      showError('Veuillez corriger les erreurs avant de soumettre le dossier', undefined, 'Formulaire invalide');
       
       // Faire défiler jusqu'au premier champ en erreur
       setTimeout(() => {
@@ -1232,18 +1254,14 @@ export function AVAForm() {
       if (!benef.datePiece) missingFields.push('Date Pièce');
 
       if (missingFields.length > 0) {
-        toast.error(`Bénéficiaire ${i + 1} incomplet`, {
-          description: `Champs manquants : ${missingFields.join(', ')}`,
-        });
+        showError(`Champs manquants : ${missingFields.join(', ')}`, undefined, `Bénéficiaire ${i + 1} incomplet`);
         return;
       }
 
       // Validation date pièce <= date du jour
       const dateError = validateBeneficiaireDatePiece(benef.datePiece!);
       if (dateError) {
-        toast.error(`Bénéficiaire ${i + 1} - Date invalide`, {
-          description: dateError,
-        });
+        showError(dateError, undefined, `Bénéficiaire ${i + 1} - Date invalide`);
         return;
       }
     }
@@ -1258,9 +1276,7 @@ export function AVAForm() {
         banqueProvenance.mntAutoriseBct === undefined ||
         banqueProvenance.solde === undefined
       ) {
-        toast.error('Validation échouée', {
-          description: 'Si une banque est sélectionnée, tous les montants doivent être renseignés.',
-        });
+        showError('Si une banque est sélectionnée, tous les montants doivent être renseignés.', undefined, 'Validation échouée');
         return;
       }
 
@@ -1273,9 +1289,7 @@ export function AVAForm() {
       if (banqueProvenance.solde < 0) errors.push('Solde');
 
       if (errors.length > 0) {
-        toast.error('Montants invalides', {
-          description: `Les champs suivants ne peuvent pas être négatifs : ${errors.join(', ')}`,
-        });
+        showError(`Les champs suivants ne peuvent pas être négatifs : ${errors.join(', ')}`, undefined, 'Montants invalides');
         return;
       }
 
@@ -1287,9 +1301,7 @@ export function AVAForm() {
         banqueProvenance.mntAutoriseBct;
 
       if (Math.abs(banqueProvenance.solde - soldeCalcule) > 0.01) {
-        toast.error('Erreur de calcul du solde', {
-          description: `Le solde doit être égal à : Montant Autorisé (${banqueProvenance.mntAutorise}) + Montant Avance (${banqueProvenance.mntAvance}) - Montant Utilisé (${banqueProvenance.mntUtilise}) + Montant Autorisé BCT (${banqueProvenance.mntAutoriseBct}) = ${soldeCalcule.toFixed(2)}`,
-        });
+        showError(`Le solde doit être égal à : Montant Autorisé (${banqueProvenance.mntAutorise}) + Montant Avance (${banqueProvenance.mntAvance}) - Montant Utilisé (${banqueProvenance.mntUtilise}) + Montant Autorisé BCT (${banqueProvenance.mntAutoriseBct}) = ${soldeCalcule.toFixed(2)}`, undefined, 'Erreur de calcul du solde');
         return;
       }
     }
@@ -1328,8 +1340,13 @@ export function AVAForm() {
         delete (cleanMarche as any).id;
       }
 
+      // Extract codeAgenceAva from the RIB (positions 2-4, 3 digits after the 2-digit bank code)
+      const ribStr = String(snap.compteClient ?? '');
+      const codeAgenceAvaFromRib = ribStr.length >= 5 ? parseInt(ribStr.substring(2, 5), 10) : undefined;
+
       const dto: InitiationOuvertureDTO = {
         ...formData,
+        codeAgenceAva: codeAgenceAvaFromRib || formData.codeAgenceAva,
         beneficiairesMvtListe: cleanBeneficiaires,
         documents: cleanDocuments,
         avaMarcheMvt: cleanMarche,
@@ -1371,6 +1388,7 @@ export function AVAForm() {
             numDossier,
             dateDossier: new Date().toISOString().split('T')[0],
             codeTypeDosAva: snap.codeTypeDosAva,
+            codeAgenceAva: codeAgenceAvaFromRib,
             typePieceClient: snap.typePieceClient,
             noPieceClient: snap.noPieceClient,
             numeroCompte: snap.compteClient ? String(snap.compteClient) : undefined,
@@ -1422,13 +1440,11 @@ export function AVAForm() {
       } else if (wfResponse.result === 'ERROR') {
         showError(wfResponse.errorMessage ?? 'Erreur workflow inconnue');
       } else {
-        toast.error('Réponse inattendue du moteur de workflow', { description: String(wfResponse.result) });
+        showError(String(wfResponse.result), undefined, 'Réponse inattendue du moteur de workflow');
       }
 
     } catch (error) {
-      toast.error('Erreur de communication avec le moteur de workflow', {
-        description: 'Veuillez réessayer ou contacter le support.',
-      });
+      showError('Veuillez réessayer ou contacter le support.', undefined, 'Erreur de communication avec le moteur de workflow');
       console.error('[WF] Erreur:', error);
     } finally {
       setIsSubmitting(false);
@@ -1635,7 +1651,21 @@ export function AVAForm() {
                       ✓ Client: {clientInfo.prenom} {clientInfo.nom}
                     </div>
                   )}
-                  
+
+                  {checkingUnicite && !searchingClient && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 mt-1">
+                      <div className="w-3 h-3 border-2 border-t-transparent border-blue-600 rounded-full animate-spin" />
+                      <span>Vérification unicité AVA...</span>
+                    </div>
+                  )}
+
+                  {uniciteError && !checkingUnicite && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-700 font-medium">{uniciteError}</p>
+                    </div>
+                  )}
+
                   <p className="text-xs text-muted-foreground mt-1">
                     Format: 7 chiffres + 1 lettre de contrôle (validation automatique)
                   </p>
@@ -2567,18 +2597,20 @@ export function AVAForm() {
                       <div className="space-y-2">
                         <Label>Path Année</Label>
                         <Input
+                          readOnly
                           value={document.pathAnnee || ''}
-                          onChange={(e) => updateDocument(document.id!, 'pathAnnee' as keyof DocumentDTO, e.target.value)}
                           placeholder="YYYY"
+                          className="bg-gray-50 cursor-not-allowed"
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Path Mois</Label>
                         <Input
+                          readOnly
                           value={document.pathMois || ''}
-                          onChange={(e) => updateDocument(document.id!, 'pathMois' as keyof DocumentDTO, e.target.value)}
                           placeholder="MM"
+                          className="bg-gray-50 cursor-not-allowed"
                         />
                       </div>
 

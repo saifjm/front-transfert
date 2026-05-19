@@ -2,6 +2,7 @@ import { AlertCircle, FileText, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { authenticatedFetch } from '../utils/api';
+import { startCafDecision } from '../utils/workflowApi';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -69,89 +70,39 @@ export function DeclarationChiffreAffairesFiscal() {
     dateDeclaration: ''
   });
 
-  // Appel automatique de l'API lors de la saisie du noPieceClient
   useEffect(() => {
-    const fetchClientInfo = async () => {
-      if (!declaration.noPieceClient.trim()) {
-        setClientName('');
-        return;
-      }
-
-      // Debounce: attendre 500ms après la dernière saisie
-      const timeoutId = setTimeout(async () => {
+    if (!declaration.noPieceClient.trim()) { setClientName(''); return; }
+    const id = setTimeout(() => {
+      void (async () => {
         setIsLoadingClient(true);
-
         try {
-          const response = await fetch(`/api/ref/personnes/search/${declaration.typePieceClient}/${encodeURIComponent(declaration.noPieceClient)}`);
-          
-          if (response.ok) {
-            const data: PersonneResponse | PersonneResponse[] = await response.json();
-            const client = Array.isArray(data) ? data[0] : data;
-            if (client) {
-              // Construire le nom : nom + ' ' + prenom (ou juste nom si prenom est null)
-              const fullName = client.prenom 
-                ? `${client.nom} ${client.prenom}` 
-                : client.nom;
-              setClientName(fullName);
-            } else {
-              setClientName('');
-            }
-          } else {
-            setClientName('');
-          }
-        } catch (error: any) {
-          console.error('Erreur lors du chargement:', error);
-          toast.error('Impossible de charger les données', {
-            description: 'Veuillez vérifier votre connexion et réessayer',
-          });
-          setClientName('');
-        } finally {
-          setIsLoadingClient(false);
-        }
-      }, 500);
+          const res = await fetch(`/api/ref/personnes/search/${declaration.typePieceClient}/${encodeURIComponent(declaration.noPieceClient)}`);
+          if (res.ok) {
+            const data: PersonneResponse | PersonneResponse[] = await res.json();
+            const c = Array.isArray(data) ? data[0] : data;
+            setClientName(c ? (c.prenom ? `${c.nom} ${c.prenom}` : c.nom) : '');
+          } else { setClientName(''); }
+        } catch { setClientName(''); }
+        finally { setIsLoadingClient(false); }
+      })();
+    }, 500);
+    return () => clearTimeout(id);
+  }, [declaration.noPieceClient, declaration.typePieceClient]);
 
-      return () => clearTimeout(timeoutId);
-    };
-
-    fetchClientInfo();
-  }, [declaration.noPieceClient]);
-
-  // Appel automatique de l'API pour les opérations déléguées
   useEffect(() => {
-    const fetchOperationsDelegues = async () => {
-      if (!declaration.noPieceClient.trim()) {
-        setOperationsDelegues([]);
-        return;
-      }
-
-      // Debounce: attendre 500ms après la dernière saisie
-      const timeoutId = setTimeout(async () => {
+    if (!declaration.noPieceClient.trim()) { setOperationsDelegues([]); return; }
+    const id = setTimeout(() => {
+      void (async () => {
         setIsLoadingOperations(true);
-
         try {
-          const response = await authenticatedFetch(`/api/operations-deleguees/by-matricule?noPieceClient=${encodeURIComponent(declaration.noPieceClient)}`);
-          
-          if (response.ok) {
-            const data: OperationDelegueResponse[] = await response.json();
-            setOperationsDelegues(data);
-          } else {
-            setOperationsDelegues([]);
-          }
-        } catch (error: any) {
-          console.error('Erreur lors du chargement:', error);
-          toast.error('Impossible de charger les données', {
-            description: 'Veuillez vérifier votre connexion et réessayer',
-          });
-          setOperationsDelegues([]);
-        } finally {
-          setIsLoadingOperations(false);
-        }
-      }, 500);
-
-      return () => clearTimeout(timeoutId);
-    };
-
-    fetchOperationsDelegues();
+          const res = await authenticatedFetch(`/api/operations-deleguees/by-matricule?noPieceClient=${encodeURIComponent(declaration.noPieceClient)}`);
+          if (res.ok) { setOperationsDelegues(await res.json()); }
+          else { setOperationsDelegues([]); }
+        } catch { setOperationsDelegues([]); }
+        finally { setIsLoadingOperations(false); }
+      })();
+    }, 500);
+    return () => clearTimeout(id);
   }, [declaration.noPieceClient]);
 
   // Validation du formulaire
@@ -218,25 +169,22 @@ export function DeclarationChiffreAffairesFiscal() {
     }
   };
 
-  // Soumettre le formulaire
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
-
-    // Vérifier qu'au moins une opération est sélectionnée
     if (selectedOperations.size === 0) {
-      toast.error('Veuillez sélectionner au moins une opération déléguée');
+      showError('Veuillez sélectionner au moins une opération déléguée');
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Étape 1 : Créer la déclaration fiscale
-      const payloadDeclaration = {
-        numDossier: Number(operationsDelegues[Array.from(selectedOperations)[0]]?.numDossier) || undefined,
+      const selectedIndexes = Array.from(selectedOperations);
+      const payload = {
+        // DeclarationCAFHT fields
+        numDossier: Number(operationsDelegues[selectedIndexes[0]]?.numDossier) || undefined,
         noPieceClient: declaration.noPieceClient,
         typePieceClient: declaration.typePieceClient,
         annee: declaration.annee,
@@ -244,109 +192,42 @@ export function DeclarationChiffreAffairesFiscal() {
         datePresentation: declaration.datePresentation,
         dateDeclaration: declaration.dateDeclaration,
         etat: 'V',
+        // TraitementAva — one entry per selected dossier
+        traitements: selectedIndexes.map(idx => ({
+          codeTypeDosAva: 3,
+          numDossier: operationsDelegues[idx].numDossier,
+          dateDossier: operationsDelegues[idx].dateDossier,
+          annee: declaration.annee,
+          mntCaFiscalHT: declaration.mntCaFiscal,
+        })),
       };
 
-      const responseDeclaration = await fetch('/api/declarations-caf-ht', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadDeclaration)
-      });
+      const res = await startCafDecision('ENREGISTRER', payload);
 
-      if (!responseDeclaration.ok) {
-        const errorData = await responseDeclaration.json().catch(() => null);
-        
-        // Gérer le format d'erreur de l'API
-        if (errorData && errorData.erreurs && Array.isArray(errorData.erreurs)) {
-          errorData.erreurs.forEach((erreur: string) => {
-            toast.error('Erreur de validation', {
-              description: erreur
-            });
-          });
-        } else if (errorData?.message) {
-          toast.error('Erreur', {
-            description: errorData.message
-          });
+      if (res.result !== 'OK') {
+        if (res.result === 'REJECTED' || res.result === 'ERROR') {
+          showError(res.errorMessage ?? 'Opération rejetée', undefined, 'Erreur workflow');
         } else {
-          toast.error('Erreur', {
-            description: 'Une erreur est survenue lors de la création de la déclaration'
-          });
+          toast.warning('Réponse inattendue', { description: res.result });
         }
-        
-        setIsSubmitting(false);
         return;
       }
 
-      await responseDeclaration.json();
-      
-      toast.success('Déclaration fiscale créée avec succès', {
-        description: `Client: ${declaration.noPieceClient} - Année: ${declaration.annee}`
-      });
-
-      // Étape 2 : Traiter les opérations déléguées sélectionnées
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const index of selectedOperations) {
-        const operation = operationsDelegues[index];
-        
-        const payloadTraitement = {
-          codeTypeDosAva: 3,
-          numDossier: operation.numDossier,
-          dateDossier: operation.dateDossier,
-          annee: declaration.annee,
-          mntCaFiscalHT: declaration.mntCaFiscal
-        };
-
-        try {
-          const responseTraitement = await fetch('/api/traitement-ava', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payloadTraitement)
-          });
-
-          if (responseTraitement.ok) {
-            successCount++;
-          } else {
-            errorCount++;
-            console.error(`Erreur traitement dossier ${operation.numDossier}`);
-          }
-        } catch (error) {
-          errorCount++;
-          console.error(`Erreur traitement dossier ${operation.numDossier}`, error);
+      // If the WF moved to TRAITEMENT_AVA (SYSTEM node), auto-advance to trigger TraitementAva
+      if (res.state?.currentNodeKey === 'TRAITEMENT_AVA') {
+        const res2 = await startCafDecision('EXECUTER', payload);
+        if (res2.result !== 'OK') {
+          showError(res2.errorMessage ?? 'Traitement AVA échoué', undefined, 'Erreur traitement AVA');
+          return;
         }
       }
 
-      // Afficher le résultat des traitements
-      if (successCount > 0) {
-        toast.success(`${successCount} dossier(s) traité(s) avec succès`);
-      }
-      
-      if (errorCount > 0) {
-        toast.warning(`${errorCount} dossier(s) en erreur`, {
-          description: 'Certains dossiers n\'ont pas pu être traités'
-        });
-      }
-
-      // Réinitialiser le formulaire après succès
-      setTimeout(() => {
-        handleReset();
-      }, 1500);
-
-    } catch (error: any) {
-      console.info('ℹ️ Mode démonstration', error);
-      
-      // Mode démo : simuler les deux appels
-      toast.success('✓ Déclaration fiscale créée (mode démo)', {
-        description: `Client: ${declaration.noPieceClient} - Année: ${declaration.annee}`
+      toast.success('Déclaration fiscale enregistrée avec succès', {
+        description: `Client: ${declaration.noPieceClient} — Année: ${declaration.annee} — ${selectedIndexes.length} dossier(s) traité(s)`,
       });
-
-      setTimeout(() => {
-        toast.success(`✓ ${selectedOperations.size} dossier(s) traité(s) (mode démo)`);
-      }, 500);
-
-      setTimeout(() => {
-        handleReset();
-      }, 2000);
+      setTimeout(() => handleReset(), 1500);
+    } catch (err: any) {
+      showError(err?.message ?? 'Une erreur est survenue', undefined, 'Erreur');
     } finally {
       setIsSubmitting(false);
     }

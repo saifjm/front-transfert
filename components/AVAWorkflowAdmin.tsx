@@ -65,6 +65,7 @@ interface WfDefinition {
   label?: string;
   description?: string;
   active: boolean;
+  version?: number;
   baseUrl?: string;
   endpointTemplate?: string;
   httpMethod?: string;
@@ -280,14 +281,14 @@ function MonitoringPanel({ onClose }: { onClose: () => void }) {
     try {
       const data = await adminFetch<any>('/operations?page=0&size=50');
       setOps(Array.isArray(data) ? data : (data.content ?? []));
-    } catch { toast.error('Erreur chargement opérations'); }
+    } catch { showError('Erreur chargement opérations'); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
   const filtered = ops.filter(o => o.businessKey.toLowerCase().includes(search.toLowerCase()) || (o.currentNodeKey ?? '').toLowerCase().includes(search.toLowerCase()));
-  const suspend = async (id: number) => { try { await adminFetch(`/operations/${id}/suspend`, { method: 'PUT' }); toast.success('Suspendu'); load(); } catch (e) { toast.error((e as Error).message); } };
-  const resume = async (id: number) => { try { await adminFetch(`/operations/${id}/resume`, { method: 'PUT' }); toast.success('Repris'); load(); } catch (e) { toast.error((e as Error).message); } };
-  const forceAdvance = async (id: number) => { try { await adminFetch(`/operations/${id}/force-advance`, { method: 'POST', body: '{}' }); toast.success('Avancé'); load(); } catch (e) { toast.error((e as Error).message); } };
+  const suspend = async (id: number) => { try { await adminFetch(`/operations/${id}/suspend`, { method: 'PUT' }); toast.success('Suspendu'); load(); } catch (e) { showError((e as Error).message); } };
+  const resume = async (id: number) => { try { await adminFetch(`/operations/${id}/resume`, { method: 'PUT' }); toast.success('Repris'); load(); } catch (e) { showError((e as Error).message); } };
+  const forceAdvance = async (id: number) => { try { await adminFetch(`/operations/${id}/force-advance`, { method: 'POST', body: '{}' }); toast.success('Avancé'); load(); } catch (e) { showError((e as Error).message); } };
   const statusColor: Record<string, string> = { ACTIVE: '#16a34a', SUSPENDED: '#f59e0b', COMPLETED: '#6B8CAE', ERROR: '#dc2626' };
   return (
     <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 560, background: 'white', borderLeft: '1px solid #d1dce6', zIndex: 20, display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 20px rgba(67,91,123,0.12)' }}>
@@ -722,7 +723,14 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
   const selectedEdge = edges.find(e => e.id === selectedEdgeId);
-  const selectedDef = definitions.find(d => String(d.wfDefId) === selectedDefId);
+
+  const NEW_DEF_PLACEHOLDER: WfDefinition = {
+    wfDefId: -1, operationKey: '', label: '', active: true, version: 1,
+    baseUrl: '', endpointTemplate: '', httpMethod: 'POST', respBkPath: '', payloadBkField: '',
+  };
+  const selectedDef: WfDefinition | undefined = selectedDefId === '__NEW__'
+    ? NEW_DEF_PLACEHOLDER
+    : definitions.find(d => String(d.wfDefId) === selectedDefId);
 
   useEffect(() => {
     adminFetch<WfDefinition[]>('/definitions')
@@ -790,7 +798,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
         setEdges(canvasEdges);
         setDirty(false);
         setTimeout(() => fitView({ padding: 0.2 }), 150);
-      } catch (e) { toast.error('Erreur chargement: ' + (e as Error).message); }
+      } catch (e) { showError('Erreur chargement: ' + (e as Error).message); }
       finally { setLoadingDef(false); }
     };
     load();
@@ -936,20 +944,36 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
   }, [setNodes, setEdges, fitView]);
 
   const handleSaveDef = useCallback(async (updates: Partial<WfDefinition>) => {
-    if (!selectedDef) return;
     setDefSaving(true);
     try {
-      const updated = await adminFetch<WfDefinition>(`/definitions/${selectedDef.wfDefId}`, {
-        method: 'PUT', body: JSON.stringify({ ...selectedDef, ...updates }),
-      });
-      setDefinitions(defs => defs.map(d => d.wfDefId === updated.wfDefId ? updated : d));
-      toast.success('Définition enregistrée ✓');
-    } catch (e) { toast.error('Erreur: ' + (e as Error).message); }
+      if (selectedDefId === '__NEW__') {
+        const created = await adminFetch<WfDefinition>('/definitions', {
+          method: 'POST',
+          body: JSON.stringify({
+            operationKey: updates.operationKey || `flux_${Date.now()}`,
+            active: updates.active ?? true,
+            label: updates.label || 'Nouveau flux',
+            version: 1,
+            ...updates,
+          }),
+        });
+        setDefinitions(prev => [...prev, created]);
+        setSelectedDefId(String(created.wfDefId));
+        toast.success('Définition créée ✓');
+      } else {
+        if (!selectedDef || selectedDef.wfDefId === -1) return;
+        const updated = await adminFetch<WfDefinition>(`/definitions/${selectedDef.wfDefId}`, {
+          method: 'PUT', body: JSON.stringify({ ...selectedDef, ...updates }),
+        });
+        setDefinitions(defs => defs.map(d => d.wfDefId === updated.wfDefId ? updated : d));
+        toast.success('Définition enregistrée ✓');
+      }
+    } catch (e) { showError('Erreur: ' + (e as Error).message); }
     finally { setDefSaving(false); }
-  }, [selectedDef]);
+  }, [selectedDef, selectedDefId]);
 
   const handleSave = useCallback(async () => {
-    if (!selectedDefId) { toast.error('Sélectionnez ou créez un flux d\'abord'); return; }
+    if (!selectedDefId) { showError('Sélectionnez ou créez un flux d\'abord'); return; }
     setSaving(true);
     try {
       let defId: number;
@@ -962,7 +986,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
         setSelectedDefId(String(defId));
       } else {
         defId = parseInt(selectedDefId);
-        if (isNaN(defId)) { toast.error('Identifiant de flux invalide'); return; }
+        if (isNaN(defId)) { showError('Identifiant de flux invalide'); return; }
       }
       const nodeRef = (id: number) => ({ nodeId: id });
       const decRef = (id: number) => ({ decisionId: id });
@@ -977,15 +1001,16 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
             method: 'PUT',
             body: JSON.stringify({ label: d.label, nodeKey: d.nodeKey, nodeType: d.nodeType, finalizePolicy: d.finalizePolicy, claimEnabled: d.claimEnabled, wfDefinition: defRef(defId) }),
           });
-          for (const dec of d.decisions) {
-            if (dec.decisionId) {
-              // No PUT endpoint — delete existing rules then the decision, then re-create
-              const existingRules = await adminFetch<WfTransitionRule[]>(`/transition-rules?decisionId=${dec.decisionId}`).catch(() => [] as WfTransitionRule[]);
-              for (const r of existingRules) {
-                await adminFetch(`/transition-rules/${r.ruleId}`, { method: 'DELETE' });
-              }
-              await adminFetch(`/decisions/${dec.decisionId}`, { method: 'DELETE' });
+          // Delete ALL decisions for this node from DB (catches duplicates the UI may not track)
+          const allExistingDecs = await adminFetch<WfDecision[]>(`/decisions?nodeId=${nodeId}`).catch(() => [] as WfDecision[]);
+          for (const existingDec of allExistingDecs) {
+            const existingRules = await adminFetch<WfTransitionRule[]>(`/transition-rules?decisionId=${existingDec.decisionId}`).catch(() => [] as WfTransitionRule[]);
+            for (const r of existingRules) {
+              await adminFetch(`/transition-rules/${r.ruleId}`, { method: 'DELETE' });
             }
+            await adminFetch(`/decisions/${existingDec.decisionId}`, { method: 'DELETE' });
+          }
+          for (const dec of d.decisions) {
             const savedDec = await adminFetch<WfDecision>('/decisions', {
               method: 'POST',
               body: JSON.stringify({ node: nodeRef(nodeId), tag: dec.tag, label: dec.label, behavior: dec.behavior, requiresComment: dec.requiresComment ?? false, sodMode: dec.sodMode || 'DEFAULT' }),
@@ -1025,7 +1050,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
       }
       setDirty(false);
       toast.success('Flux enregistré ✓');
-    } catch (e) { toast.error('Erreur sauvegarde: ' + (e as Error).message); }
+    } catch (e) { showError('Erreur sauvegarde: ' + (e as Error).message); }
     finally { setSaving(false); }
   }, [nodes, selectedDefId, updateNodeData]);
 
@@ -1067,7 +1092,7 @@ function WorkflowEditorContent({ onClose }: { onClose: () => void }) {
           <ScrollArea style={{ flex: 1 }}>
             <div style={{ padding: 13 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#6B8CAE', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>Flux de travail</div>
-              <select value={selectedDefId} onChange={e => { setSelectedDefId(e.target.value); setShowExample(false); }} style={{ width: '100%', padding: '7px 10px', border: '1px solid #d1dce6', borderRadius: 8, fontSize: 12.5, color: '#2D3E54', background: 'white', cursor: 'pointer', outline: 'none', marginBottom: 12, boxSizing: 'border-box' }}>
+              <select value={selectedDefId} onChange={e => { setSelectedDefId(e.target.value); setShowExample(false); setSelectedNodeId(null); setSelectedEdgeId(null); }} style={{ width: '100%', padding: '7px 10px', border: '1px solid #d1dce6', borderRadius: 8, fontSize: 12.5, color: '#2D3E54', background: 'white', cursor: 'pointer', outline: 'none', marginBottom: 12, boxSizing: 'border-box' }}>
                 <option value="">— Choisir un flux —</option>
                 <option value="__NEW__">＋ Nouveau flux</option>
                 {definitions.map(d => <option key={d.wfDefId} value={String(d.wfDefId)}>{d.label ?? d.operationKey}</option>)}

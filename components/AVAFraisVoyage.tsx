@@ -332,9 +332,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       
     } catch (error: any) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -359,9 +357,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       setDevises(data);
     } catch (error: any) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setDevises([]);
     }
   };
@@ -469,9 +465,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       setDossierSelectionne(dossierComplet);
     } catch (error: any) {
       console.error('Erreur lors du chargement:', error);
-      toast.error('Impossible de charger les données', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les données');
       setDossierSelectionne(dossier);
       setBeneficiaires([]);
     } finally {
@@ -626,12 +620,12 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
 
     if (!dossierSelectionne) {
-      toast.error('Aucun dossier sélectionné');
+      showError('Aucun dossier sélectionné');
       return;
     }
 
@@ -710,9 +704,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       }
     } catch (error: any) {
       console.error('[FV WF] Erreur:', error);
-      toast.error('Erreur de connexion au moteur de workflow', {
-        description: 'Vérifiez que le WF engine (port 8843) est démarré.',
-      });
+      showError('Vérifiez que le WF engine (port 8843) est démarré.', undefined, 'Erreur de connexion au moteur de workflow');
     } finally {
       setIsSubmitting(false);
     }
@@ -931,7 +923,7 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
       toast.success(`Document enregistré localement: ${pathAnnee}/${pathMois}/${file.name}`);
     } catch (error) {
       console.error('❌ [FV] Échec sauvegarde locale document:', error);
-      toast.error('Échec de sauvegarde locale du document');
+      showError('Échec de sauvegarde locale du document');
     }
   };
 
@@ -1604,18 +1596,20 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
                   <div className="space-y-2">
                     <Label>Path Année</Label>
                     <Input
+                      readOnly
                       value={document.pathAnnee || ''}
-                      onChange={(e) => updateDocument(document.id, 'pathAnnee', e.target.value)}
                       placeholder="YYYY"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label>Path Mois</Label>
                     <Input
+                      readOnly
                       value={document.pathMois || ''}
-                      onChange={(e) => updateDocument(document.id, 'pathMois', e.target.value)}
                       placeholder="MM"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
 

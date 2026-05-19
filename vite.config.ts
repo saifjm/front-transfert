@@ -104,7 +104,7 @@ export default defineConfig({
     proxy: {
       // All API traffic is routed through AVA_GATEWAY (port 8888).
       // The gateway handles downstream routing to each microservice.
-      '/api': {
+      '^/(api|auth|alimentation-bct)': {
         target: 'http://localhost:8888',
         changeOrigin: true,
       },

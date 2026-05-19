@@ -129,25 +129,19 @@ export function DocumentsManager({
                   <div className="space-y-2">
                     <Label>Path Année</Label>
                     <Input
+                      readOnly
                       value={document.pathAnnee || ''}
-                      onChange={(e) => {
-                        const normalized = recomputeDocumentPath(document, { pathAnnee: e.target.value });
-                        onUpdateDocument(document.id, 'pathAnnee', normalized.pathAnnee || e.target.value);
-                        onUpdateDocument(document.id, 'cheminFichier', normalized.cheminFichier || '');
-                      }}
                       placeholder="YYYY"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Path Mois</Label>
                     <Input
+                      readOnly
                       value={document.pathMois || ''}
-                      onChange={(e) => {
-                        const normalized = recomputeDocumentPath(document, { pathMois: e.target.value });
-                        onUpdateDocument(document.id, 'pathMois', normalized.pathMois || e.target.value);
-                        onUpdateDocument(document.id, 'cheminFichier', normalized.cheminFichier || '');
-                      }}
                       placeholder="MM"
+                      className="bg-gray-50 cursor-not-allowed"
                     />
                   </div>
                 </div>

@@ -15,7 +15,7 @@ import {
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
+import { safeJsonParse, showError } from '../utils';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -225,9 +225,7 @@ export function AVAGenerationDossier() {
       console.log('✅ Dossiers AVA chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
       console.error('❌ Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -436,7 +434,7 @@ export function AVAGenerationDossier() {
 
     } catch (error) {
       console.error('Erreur lors de la generation du PDF:', error);
-      toast.error('Erreur lors de la generation du PDF: ' + String(error));
+      showError('Erreur lors de la generation du PDF: ' + String(error));
       setGeneratingPdf(null);
     }
   };
@@ -631,7 +629,7 @@ export function AVAGenerationDossier() {
 
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
-      toast.error('Erreur lors de la génération du PDF');
+      showError('Erreur lors de la génération du PDF');
       setGeneratingPdf(null);
     }
   };
@@ -908,7 +906,7 @@ export function AVAGenerationDossier() {
 
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
-      toast.error('Erreur lors de la génération du PDF');
+      showError('Erreur lors de la génération du PDF');
       setGeneratingPdf(null);
     }
   };

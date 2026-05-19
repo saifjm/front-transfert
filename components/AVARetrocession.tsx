@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse } from '../utils';
+import { buildDocumentPath, getCurrentDocumentPathParts, safeJsonParse, showError } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { startRcDecision, continueRcDecision } from '../utils/workflowApi';
 import { DocumentsManager } from './DocumentsManager';
@@ -248,9 +248,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
       throw new Error('PARSE_ERROR');
     } catch (error) {
       console.error('Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Une erreur est survenue lors du chargement des dossiers'
-      });
+      showError('Une erreur est survenue lors du chargement des dossiers', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setDossiersFiltres([]);
     } finally {
@@ -450,7 +448,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
       throw new Error('API_ERROR');
     } catch (error) {
       console.error('Erreur lors du chargement des opérations:', error);
-      toast.error('Impossible de charger les opérations');
+      showError('Impossible de charger les opérations');
       setOperations([]);
     } finally {
       setLoadingOperations(false);
@@ -505,7 +503,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   // Soumettre
   const handleSubmit = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -569,9 +567,9 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
           
           if (wfResponse.result !== 'OK') {
             if (wfResponse.result === 'REJECTED') {
-              toast.error('Approbation rejetée', { description: wfResponse.errorMessage });
+              showError(wfResponse.errorMessage, undefined, 'Approbation rejetée');
             } else {
-              toast.error('Erreur workflow lors de l\'approbation', { description: wfResponse.errorMessage });
+              showError(wfResponse.errorMessage, undefined, 'Erreur workflow lors de l\'approbation');
             }
             setIsSubmitting(false);
             return;
@@ -590,11 +588,11 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
         handleRetourRecherche();
         await fetchDossiers();
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Opération rejetée', { description: wfResponse.errorMessage });
+        showError(wfResponse.errorMessage, undefined, 'Opération rejetée');
         setIsSubmitting(false);
         return;
       } else if (wfResponse.result === 'ERROR') {
-        toast.error('Erreur workflow', { description: wfResponse.errorMessage });
+        showError(wfResponse.errorMessage, undefined, 'Erreur workflow');
         setIsSubmitting(false);
         return;
       }
@@ -729,7 +727,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
   // Soumettre depuis le dialog
   const handleSubmitDialog = async () => {
     if (!validateForm()) {
-      toast.error('Veuillez corriger les erreurs du formulaire');
+      showError('Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -793,9 +791,9 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
           
           if (wfResponse.result !== 'OK') {
             if (wfResponse.result === 'REJECTED') {
-              toast.error('Approbation rejetée', { description: wfResponse.errorMessage });
+              showError(wfResponse.errorMessage, undefined, 'Approbation rejetée');
             } else {
-              toast.error('Erreur workflow lors de l\'approbation', { description: wfResponse.errorMessage });
+              showError(wfResponse.errorMessage, undefined, 'Erreur workflow lors de l\'approbation');
             }
             setIsSubmitting(false);
             return;
@@ -814,11 +812,11 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
         handleCloseDialog();
         await fetchOperations(dossierSelectionne.numeroDossier);
       } else if (wfResponse.result === 'REJECTED') {
-        toast.error('Opération rejetée', { description: wfResponse.errorMessage });
+        showError(wfResponse.errorMessage, undefined, 'Opération rejetée');
         setIsSubmitting(false);
         return;
       } else if (wfResponse.result === 'ERROR') {
-        toast.error('Erreur workflow', { description: wfResponse.errorMessage });
+        showError(wfResponse.errorMessage, undefined, 'Erreur workflow');
         setIsSubmitting(false);
         return;
       }

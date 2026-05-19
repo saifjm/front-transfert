@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
+import { safeJsonParse, showError } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { continueMajBeneficiaireDecision, startMajBeneficiaireDecision } from '../utils/workflowApi';
 import { Badge } from './ui/badge';
@@ -270,9 +270,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
       console.log('✅ API: Dossiers chargés avec succès (' + dossiersTransformes.length + ' dossiers)');
     } catch (error: any) {
       console.error('Erreur lors du chargement des dossiers:', error);
-      toast.error('Impossible de charger les dossiers', {
-        description: 'Veuillez vérifier votre connexion et réessayer',
-      });
+      showError('Veuillez vérifier votre connexion et réessayer', undefined, 'Impossible de charger les dossiers');
       setDossiers([]);
       setAgences([]);
     } finally {
@@ -550,7 +548,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
   const handleSubmit = async () => {
     // Validation
     if (beneficiaires.length === 0) {
-      toast.error('Au moins un bénéficiaire est requis');
+      showError('Au moins un bénéficiaire est requis');
       return;
     }
 
@@ -566,18 +564,14 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
       if (!benef.datePiece) missingFields.push('Date Pièce');
 
       if (missingFields.length > 0) {
-        toast.error(`Bénéficiaire ${i + 1} incomplet`, {
-          description: `Champs manquants : ${missingFields.join(', ')}`,
-        });
+        showError(`Champs manquants : ${missingFields.join(', ')}`, undefined, `Bénéficiaire ${i + 1} incomplet`);
         return;
       }
 
       // Validation date
       const dateError = validateBeneficiaireDatePiece(benef.datePiece!);
       if (dateError) {
-        toast.error(`Bénéficiaire ${i + 1} - Date invalide`, {
-          description: dateError,
-        });
+        showError(dateError, undefined, `Bénéficiaire ${i + 1} - Date invalide`);
         return;
       }
     }
@@ -660,16 +654,12 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
 
         } else if (wfResponse.result === 'REJECTED') {
           console.error('[WF] Opération rejetée:', wfResponse.errorMessage);
-          toast.error(`Bénéficiaire ${i + 1} rejeté par le workflow`, {
-            description: wfResponse.errorMessage || 'Veuillez vérifier les données',
-          });
+          showError(wfResponse.errorMessage || 'Veuillez vérifier les données', undefined, `Bénéficiaire ${i + 1} rejeté par le workflow`);
           return; // Arrêter le traitement
 
         } else if (wfResponse.result === 'ERROR') {
           console.error('[WF] Erreur workflow:', wfResponse.errorMessage);
-          toast.error(`Erreur workflow pour bénéficiaire ${i + 1}`, {
-            description: wfResponse.errorMessage || 'Une erreur est survenue',
-          });
+          showError(wfResponse.errorMessage || 'Une erreur est survenue', undefined, `Erreur workflow pour bénéficiaire ${i + 1}`);
           return; // Arrêter le traitement
         }
       }
@@ -686,9 +676,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
 
     } catch (error: any) {
       console.error('[WF] Exception:', error);
-      toast.error('Erreur lors de la soumission', {
-        description: error instanceof Error ? error.message : 'Erreur inconnue',
-      });
+      showError(error instanceof Error ? error.message : 'Erreur inconnue', undefined, 'Erreur lors de la soumission');
     } finally {
       setIsSubmitting(false);
     }
