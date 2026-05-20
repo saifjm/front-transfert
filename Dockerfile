@@ -1,21 +1,9 @@
-# ─── Stage 1: Build ───────────────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS builder
-
 WORKDIR /app
-
-ENV CI=true
-ENV NPM_CONFIG_PROGRESS=false
-ENV NPM_CONFIG_AUDIT=false
-ENV NPM_CONFIG_FUND=false
-
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
-
-RUN node -v && npm -v
-
-RUN npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
-
+RUN npm ci --legacy-peer-deps
 COPY . .
-
 RUN npm run build
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
