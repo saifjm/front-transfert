@@ -14,11 +14,20 @@ pipeline {
         }
 
           stage('Build') {
-                      steps {
-                          sh 'npm install --force'
-                          sh 'npm run build'
-                      }
-                  }
+              steps {
+                  sh '''
+                      node -v
+                      npm -v
+
+                      rm -rf node_modules
+                      npm cache clean --force
+
+                      npm ci --include=optional --legacy-peer-deps
+
+                      npm run build
+                  '''
+              }
+          }
 
         stage('Build Docker') {
             steps {
