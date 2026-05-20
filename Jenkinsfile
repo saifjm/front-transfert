@@ -16,7 +16,7 @@ pipeline {
           stage('Build') {
                       steps {
                           sh 'npm install --force'
-                          sh 'npm run build -- --output-path=dist/adminlte'
+                          sh 'npm run build'
                       }
                   }
 
