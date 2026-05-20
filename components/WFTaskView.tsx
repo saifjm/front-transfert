@@ -7,6 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { CheckCircle2, RotateCcw, Send, RefreshCw, ClipboardList, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { showError } from '../utils';
 import { getWfTaskList, continueDecision, type WfTask, type DecisionInfo } from '../utils/workflowApi';
 
 const NODE_LABELS: Record<string, string> = {
@@ -67,7 +68,7 @@ export function WFTaskView() {
         await loadTasks();
         setExpandedTaskId(null);
       } else if (response.result === 'REJECTED') {
-        showError(response.errorMessage, undefined, 'Opération rejetée');
+        showError(response.errorMessage || '', undefined, 'Opération rejetée');
       } else if (response.result === 'WARN_REQUIRED') {
         toast.warning('Justification SoD requise — contactez votre administrateur.');
       } else {

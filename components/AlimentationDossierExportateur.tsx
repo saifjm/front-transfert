@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { safeJsonParse } from '../utils';
+import { safeJsonParse, showError } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { continueRapatriementDecision, startRapatriementDecision } from '../utils/workflowApi';
 import { Badge } from './ui/badge';
@@ -428,11 +428,11 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
         ? await continueRapatriementDecision(
             wfRapatriementBusinessKey,
             'SOUMETTRE',
-            payload
+            payload as unknown as Record<string, unknown>
           )
         : await startRapatriementDecision(
             'SOUMETTRE',
-            payload
+            payload as unknown as Record<string, unknown>
           );
 
       console.log('[WF] Réponse workflow:', wfResponse);
@@ -452,7 +452,7 @@ export function AlimentationDossierExportateur({ initialDossierNum }: { initialD
           const approvalResponse = await continueRapatriementDecision(
             newKey || wfRapatriementBusinessKey!,
             'APPROUVER',
-            payload
+            payload as unknown as Record<string, unknown>
           );
 
           console.log('[WF] Réponse approbation:', approvalResponse);

@@ -135,7 +135,7 @@ export function SequenceGenerator() {
 
                 {/* Final Add Button */}
                 <div className="flex justify-center pt-4">
-                  <Button variant="dashed" className="w-full">
+                  <Button variant="outline" className="w-full">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Final Step
                   </Button>

@@ -587,7 +587,6 @@ export function AVASuspension({ initialDossierNum }: { initialDossierNum?: strin
           description: newKey ? `Dossier: ${newKey}` : undefined,
           duration: 5000,
         });
-
         // Afficher le Dialog de succès
         setSuspensionEnregistree({ ...suspension });
         setShowSuccessModal(true);

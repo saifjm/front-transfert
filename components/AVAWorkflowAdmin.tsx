@@ -7,6 +7,7 @@ import {
 } from '@xyflow/react';
 import type { NodeProps, Connection, Edge, Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { showError } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { toast } from 'sonner';
 import { Switch } from './ui/switch';
