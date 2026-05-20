@@ -3,25 +3,36 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
+ENV CI=true
+ENV NPM_CONFIG_PROGRESS=false
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
+
 COPY package*.json ./
 
-# --legacy-peer-deps requis pour Tailwind v4 + dépendances Radix UI
-RUN npm ci --legacy-peer-deps
+RUN node -v && npm -v
+
+RUN npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
 
 COPY . .
 
-# TypeScript compile + Vite bundle → dist/
 RUN npm run build
 
-# ─── Stage 2: Production (nginx) ─────────────────────────────────────────────
+# ─── Stage 2: Production ─────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS production
+
+RUN apk update && \
+    apk upgrade && \
+    apk add --no-cache \
+        curl \
+        gettext \
+        pcre2 \
+        openssl
 
 RUN rm /etc/nginx/conf.d/default.conf
 
-# nginx.conf utilise $API_URL injecté via envsubst au démarrage
 COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 
-# Copier le bundle Vite (outDir: dist)
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
