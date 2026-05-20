@@ -21,13 +21,7 @@ RUN npm run build
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS production
 
-RUN apk update && \
-    apk upgrade && \
-    apk add --no-cache \
-        curl \
-        gettext \
-        pcre2 \
-        openssl
+
 
 RUN rm /etc/nginx/conf.d/default.conf
 
