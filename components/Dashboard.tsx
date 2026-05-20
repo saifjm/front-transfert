@@ -165,7 +165,23 @@ function useCountUp(target: number, duration = 1400, delay = 0) {
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ k, index }: { k: typeof kpiData[0]; index: number }) {
+interface KpiCardData {
+  label: string;
+  value: number;
+  display: string;
+  sub?: string;
+  trend: string;
+  pct: string;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+  accent: string;
+  gradStart: string;
+  gradEnd: string;
+  unit?: string;
+}
+
+function KpiCard({ k, index }: { k: KpiCardData; index: number }) {
   const Icon = k.icon;
   const isUp = k.trend === 'up';
   const animated = useCountUp(k.value, 1200, index * 120);

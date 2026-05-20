@@ -242,7 +242,7 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
 
         setDossiers(dossiersTransformes);
         setDossiersFiltres(dossiersTransformes);
-        setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence }])).values()));
+        setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: String(d.codeAgence), libelleAgence: d.libelleAgence }])).values()));
         return;
       }
       throw new Error('PARSE_ERROR');
@@ -567,9 +567,9 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
           
           if (wfResponse.result !== 'OK') {
             if (wfResponse.result === 'REJECTED') {
-              showError(wfResponse.errorMessage, undefined, 'Approbation rejetée');
+              showError(wfResponse.errorMessage || '', undefined, 'Approbation rejetée');
             } else {
-              showError(wfResponse.errorMessage, undefined, 'Erreur workflow lors de l\'approbation');
+              showError(wfResponse.errorMessage || '', undefined, 'Erreur workflow lors de l\'approbation');
             }
             setIsSubmitting(false);
             return;
@@ -580,19 +580,18 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
           if (d.cheminFichier) persistedFilePathsRef.current.add(d.cheminFichier);
         });
         skipDraftCleanupRef.current = true;
-        
+
         toast.success('Opération soumise et validée avec succès', {
           description: newKey ? `Référence: ${newKey}` : `Dossier ${dossierSelectionne.numeroDossier} - Type ${retrocession.typeMouvement}`
         });
-        
         handleRetourRecherche();
         await fetchDossiers();
       } else if (wfResponse.result === 'REJECTED') {
-        showError(wfResponse.errorMessage, undefined, 'Opération rejetée');
+        showError(wfResponse.errorMessage || '', undefined, 'Opération rejetée');
         setIsSubmitting(false);
         return;
       } else if (wfResponse.result === 'ERROR') {
-        showError(wfResponse.errorMessage, undefined, 'Erreur workflow');
+        showError(wfResponse.errorMessage || '', undefined, 'Erreur workflow');
         setIsSubmitting(false);
         return;
       }
@@ -791,9 +790,9 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
           
           if (wfResponse.result !== 'OK') {
             if (wfResponse.result === 'REJECTED') {
-              showError(wfResponse.errorMessage, undefined, 'Approbation rejetée');
+              showError(wfResponse.errorMessage || '', undefined, 'Approbation rejetée');
             } else {
-              showError(wfResponse.errorMessage, undefined, 'Erreur workflow lors de l\'approbation');
+              showError(wfResponse.errorMessage || '', undefined, 'Erreur workflow lors de l\'approbation');
             }
             setIsSubmitting(false);
             return;
@@ -812,11 +811,11 @@ export function AVARetrocession({ initialDossierNum }: { initialDossierNum?: str
         handleCloseDialog();
         await fetchOperations(dossierSelectionne.numeroDossier);
       } else if (wfResponse.result === 'REJECTED') {
-        showError(wfResponse.errorMessage, undefined, 'Opération rejetée');
+        showError(wfResponse.errorMessage || '', undefined, 'Opération rejetée');
         setIsSubmitting(false);
         return;
       } else if (wfResponse.result === 'ERROR') {
-        showError(wfResponse.errorMessage, undefined, 'Erreur workflow');
+        showError(wfResponse.errorMessage || '', undefined, 'Erreur workflow');
         setIsSubmitting(false);
         return;
       }

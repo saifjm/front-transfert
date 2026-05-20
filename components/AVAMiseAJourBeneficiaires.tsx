@@ -263,7 +263,7 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
         numeroCompte: dto.numeroCompte || dto.NUMERO_COMPTE || ''
       }));
 
-      setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: d.codeAgence, libelleAgence: d.libelleAgence || `Agence ${d.codeAgence}` }])).values()));
+      setAgences(Array.from(new Map(dossiersTransformes.map(d => [d.codeAgence, { codeAgence: d.codeAgence ?? 0, libelleAgence: d.libelleAgence || `Agence ${d.codeAgence}` }])).values()));
 
       setDossiers(dossiersTransformes);
       
@@ -669,7 +669,6 @@ export function AVAMiseAJourBeneficiaires({ initialDossierNum }: { initialDossie
         description: `${beneficiaires.length} bénéficiaire(s) traité(s)`,
         duration: 5000,
       });
-
       // Retour à la liste et rafraîchissement
       retourListe();
       await fetchDossiers();

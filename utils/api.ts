@@ -233,9 +233,9 @@ export const authenticatedFetch = async (
   // If we get 401 and have a token, try to refresh once
   if (response.status === 401 && token) {
     const refreshResult = await refreshToken();
-    if (refreshResult.data?.accessToken) {
+    if (refreshResult.data?.access_token) {
       // Retry with new token
-      headers['Authorization'] = `Bearer ${refreshResult.data.accessToken}`;
+      headers['Authorization'] = `Bearer ${refreshResult.data.access_token}`;
       response = await fetch(url, requestOptions);
     }
   }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch, getWfUserContext } from './utils/api';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { NotificationProvider } from './components/NotificationContext';
@@ -31,6 +32,7 @@ import { AVAWorkflowAdmin } from './components/AVAWorkflowAdmin';
 import { ErrorProvider, useErrorHandler } from './components/ErrorContext';
 import { ErrorDialog } from './components/ErrorDialog';
 import { ErrorTestComponent } from './components/ErrorTestComponent';
+import { ReportingBCT } from './components/ReportingBCT';
 import { Toaster } from 'sonner';
 
 export default function App() {
@@ -57,6 +59,23 @@ export default function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // One-time fix: ensure the WF definition for ouverture dossier uses numDossier as businessKey
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (sessionStorage.getItem('wf_agc_bk_patched')) return;
+    const { userId, orgNodeId, roleCode } = getWfUserContext();
+    const wfHdrs: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId,
+      'X-Role-Code': roleCode,
+    };
+    if (orgNodeId) wfHdrs['X-Org-Node-Id'] = orgNodeId;
+    authenticatedFetch(
+      '/api/wf/admin/definitions/by-key/operations_agence_service_central/downstream',
+      { method: 'PATCH', headers: wfHdrs, body: JSON.stringify({ responseBusinessKeyPath: '$.numDossier' }) },
+    ).then(r => { if (r.ok) sessionStorage.setItem('wf_agc_bk_patched', '1'); }).catch(() => {});
+  }, [isAuthenticated]);
 
   const handleLogin = (email: string, password: string) => {
     const userData = { email };
@@ -162,6 +181,8 @@ function renderContent(
       return <AVAGenerationDossier />;
     case 'declaration-chiffre-affaires-fiscal':
       return <DeclarationChiffreAffairesFiscal />;
+    case 'reporting-bct':
+      return <ReportingBCT />;
     case 'error-test':
       return <ErrorTestComponent />;
     case 'import':

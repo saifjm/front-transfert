@@ -665,7 +665,6 @@ export function AVALeveeSuspension({ initialDossierNum }: { initialDossierNum?: 
         if (newKey) {
           setWfLeveeSuspensionBusinessKey(newKey);
         }
-
         // Si c'est un dépassement autorisé avec BCT, mettre à jour la validité
         if (isDepassementAutorise && levee.numBct && levee.dateBct) {
           const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${levee.numBct}&dateAccordBct=${levee.dateBct}&typeAccordBct=L`;

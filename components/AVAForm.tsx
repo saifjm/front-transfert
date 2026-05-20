@@ -431,7 +431,7 @@ export function AVAForm() {
   useEffect(() => {
     fetchTypesPiece();
     fetchBanques();
-    fetchActivites();
+    // activités are loaded by the codeTypeDosAva useEffect to avoid a race condition
     fetchSousActivites();
     fetchPieces();
     fetchDevises();
@@ -557,10 +557,17 @@ export function AVAForm() {
 
     // Type dossier in (1, 2) → Vider la sous activité
     if ([1, 2].includes(typeDossier)) {
-      setFormData(prev => ({ 
-        ...prev, 
-        codeSousActivite: undefined 
+      setFormData(prev => ({
+        ...prev,
+        codeSousActivite: undefined
       }));
+    }
+
+    // Type 2 → auto-initialise le marché AVA; autres types → efface le marché
+    if (typeDossier === 2) {
+      setAvaMarcheMvt(prev => prev ?? {});
+    } else {
+      setAvaMarcheMvt(null);
     }
 
     // Type dossier in (3, 5) → Charger depuis /api/activites pour code activité
@@ -569,7 +576,7 @@ export function AVAForm() {
       const fetchActivitesSpecial = async () => {
         setLoadingActivites(true);
         try {
-          const response = await fetch('/api/activites');
+          const response = await authenticatedFetch('/api/activites');
           const data = await safeJsonParse<Activite[]>(response);
           if (data) {
             setActivites(data);
@@ -1103,7 +1110,7 @@ export function AVAForm() {
   
   // Soumission via le moteur de workflow
   const handleWfDecision = async (
-    decisionTag: 'APPROUVER' | 'RETOUR_AGENCE' = 'APPROUVER',
+    decisionTag: 'APPROUVER' | 'RETOUR_AGENCE' | 'SUBMIT_DIRECT' = 'APPROUVER',
   ) => {
     if (true) { // always validate
     // Réinitialiser les erreurs
@@ -1414,19 +1421,25 @@ export function AVAForm() {
                 return r.json();
               })
               .then((summary: any) => {
-                if (summary) {
-                  setDossierValide(prev => prev ? {
-                    ...prev,
-                    codeAgenceAva: summary.codeAgenceAva ?? prev.codeAgenceAva,
-                    mntAvance: summary.mntAvance ?? prev.mntAvance,
-                    mntUtilise: summary.mntUtilise ?? prev.mntUtilise,
-                    mntAutorise: summary.mntAutorise ?? prev.mntAutorise,
-                    mntAutoriseBct: summary.mntAutorisationBct ?? prev.mntAutoriseBct,
-                    mntReserve: summary.mntReserve ?? prev.mntReserve,
-                    mntBlocage: summary.mntBlocage ?? prev.mntBlocage,
-                    solde: summary.solde ?? prev.solde,
-                  } : prev);
+                // Guard: only apply if the summary belongs to the client we just submitted for.
+                // This prevents a wrong numDossier (e.g. refOperation before WF-def fix) from
+                // overwriting the user's entered amounts with data from a different dossier.
+                if (!summary) return;
+                const summaryClient = String(summary.noPieceClient ?? summary.noPiecePersonne ?? '');
+                const submittedClient = String(snap.noPieceClient ?? '');
+                if (summaryClient && submittedClient && summaryClient !== submittedClient) {
+                  console.warn('[Modal] summary noPieceClient mismatch — ignoring stale data');
+                  return;
                 }
+                setDossierValide(prev => prev ? {
+                  ...prev,
+                  codeAgenceAva: summary.codeAgenceAva ?? prev.codeAgenceAva,
+                  // Keep user-entered amounts — backend returns 0 for a newly created dossier
+                  // which would wrongly overwrite what the agent just entered.
+                  // Only enrich with backend-only fields not present in the form:
+                  mntReserve: summary.mntReserve ?? prev.mntReserve,
+                  mntBlocage: summary.mntBlocage ?? prev.mntBlocage,
+                } : prev);
               })
               .catch((e) => { console.warn('[Modal] summary fetch error:', e); });
           }
@@ -2428,8 +2441,8 @@ export function AVAForm() {
                           <Label>Nom Bénéficiaire *</Label>
                           <Input
                             value={beneficiaire.nomBenef || ''}
-                            onChange={(e) => updateBeneficiaire(beneficiaire.id!, 'nomBenef', e.target.value)}
-                            placeholder="Ex: Dupont"
+                            onChange={(e) => updateBeneficiaire(beneficiaire.id!, 'nomBenef', e.target.value.toUpperCase())}
+                            placeholder="Ex: DUPONT"
                           />
                         </div>
 
@@ -2437,8 +2450,8 @@ export function AVAForm() {
                           <Label>Adresse Bénéficiaire *</Label>
                           <Input
                             value={beneficiaire.adresseBenef || ''}
-                            onChange={(e) => updateBeneficiaire(beneficiaire.id!, 'adresseBenef', e.target.value)}
-                            placeholder="Ex: 12 Rue de la Paix"
+                            onChange={(e) => updateBeneficiaire(beneficiaire.id!, 'adresseBenef', e.target.value.toUpperCase())}
+                            placeholder="Ex: 12 RUE DE LA PAIX"
                           />
                         </div>
 

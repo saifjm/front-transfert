@@ -16,6 +16,7 @@ import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeJsonParse, showError } from '../utils';
+import { authenticatedFetch } from '../utils/api';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';

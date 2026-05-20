@@ -327,11 +327,11 @@ export function AVAAlimentationAccordBCT({ initialDossierNum }: { initialDossier
         ? await continueAlimentationBctDecision(
             wfAlimentationBctBusinessKey,
             'SOUMETTRE',
-            payload
+            payload as unknown as Record<string, unknown>
           )
         : await startAlimentationBctDecision(
             'SOUMETTRE',
-            payload
+            payload as unknown as Record<string, unknown>
           );
 
       // Traiter la réponse du workflow

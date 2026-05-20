@@ -691,7 +691,6 @@ export function AVAFraisVoyage({ initialDossierNum }: { initialDossierNum?: stri
           description: newKey ? `Référence: ${newKey}` : undefined,
           duration: 5000,
         });
-
         setShowSuccessDialog(true);
       } else if (wfResponse.result === 'REJECTED') {
         showError(wfResponse.errorMessage || 'Le dossier a été rejeté.', undefined, 'Opération rejetée');

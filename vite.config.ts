@@ -102,8 +102,18 @@ export default defineConfig({
     port: 3000,
     open: true,
     proxy: {
-      // All API traffic is routed through AVA_GATEWAY (port 8888).
-      // The gateway handles downstream routing to each microservice.
+      // DEC auth — must be before /api/dc-ava to avoid prefix conflict
+      '^/api/dec-auth': {
+        target: 'http://localhost:8086',
+        changeOrigin: true,
+        rewrite: (path: string) => path.replace(/^\/api\/dec-auth/, '/api/auth'),
+      },
+      // DEC microservice (port 8086) — must be listed before the generic /api rule.
+      '^/api/dc-ava': {
+        target: 'http://localhost:8086',
+        changeOrigin: true,
+      },
+    
       '^/(api|auth|alimentation-bct)': {
         target: 'http://localhost:8888',
         changeOrigin: true,

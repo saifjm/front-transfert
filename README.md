@@ -21,7 +21,7 @@ Plateforme complète de gestion de collections spécialisée dans le commerce ex
 1. **Installer les dépendances**
 ```bash
 npm install
-```
+```.
 
 2. **Lancer le serveur de développement**
 ```bash

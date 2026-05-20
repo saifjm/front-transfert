@@ -1,6 +1,7 @@
 import { AlertCircle, FileText, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { showError } from '../utils';
 import { authenticatedFetch } from '../utils/api';
 import { startCafDecision } from '../utils/workflowApi';
 import { Button } from './ui/button';

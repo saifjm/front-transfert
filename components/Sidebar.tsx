@@ -28,6 +28,7 @@ import {
   BarChart3,
   X,
   Cog,
+  FileBarChart2,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -64,6 +65,10 @@ const ALL_OPERATIONS_ITEMS: NavItem[] = [
   { id: 'declaration-chiffre-affaires-fiscal', label: 'Déclaration CA Fiscal', icon: BarChart3 },
 ];
 
+const ALL_REPORTING_ITEMS: NavItem[] = [
+  { id: 'reporting-bct', label: 'Déclaration DC-AVA', icon: FileBarChart2 },
+];
+
 // Items visible per role. ADMIN (or unknown role) sees everything.
 const AGENT_ITEMS = new Set([
   'ava-consultation-dossier',
@@ -94,12 +99,21 @@ const COMPLIANCE_ITEMS = new Set([
   'ava-wf-taches',
 ]);
 
+const REPORTING_ITEMS_ALLOWED = new Set([
+  'reporting-bct',
+]);
+
 function filterByRole(items: NavItem[], role: string): NavItem[] {
   if (!role || role === 'ADMIN' || role === 'ADMINISTRATEUR') return items;
   if (role === 'AGENT_SAISIE') return items.filter(i => AGENT_ITEMS.has(i.id));
   if (role === 'SUPERVISEUR') return items.filter(i => SUPERVISEUR_ITEMS.has(i.id));
   if (role === 'COMPLIANCE_OFFICER' || role === 'COMPLIANCE') return items.filter(i => COMPLIANCE_ITEMS.has(i.id));
   return items; // unknown role → show all (fail open)
+}
+
+function filterReportingByRole(items: NavItem[], role: string): NavItem[] {
+  if (role === 'AGENT_SAISIE') return []; // no BCT reporting access for agents
+  return items.filter(i => REPORTING_ITEMS_ALLOWED.has(i.id));
 }
 
 function Tooltip({ children, label, show }: { children: React.ReactNode; label: string; show: boolean }) {
@@ -149,6 +163,7 @@ function Tooltip({ children, label, show }: { children: React.ReactNode; label: 
 export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarProps) {
   const [isDossierAvaOpen, setIsDossierAvaOpen] = useState(true);
   const [isOperationsCommunesOpen, setIsOperationsCommunesOpen] = useState(false);
+  const [isReportingOpen, setIsReportingOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -157,14 +172,16 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
   const role = sessionStorage.getItem('wf_role_code') ?? 'ADMIN';
   const avaItems = filterByRole(ALL_AVA_ITEMS, role);
   const operationsItems = filterByRole(ALL_OPERATIONS_ITEMS, role);
+  const reportingItems = filterReportingByRole(ALL_REPORTING_ITEMS, role);
 
-  const allItems = [...avaItems, ...operationsItems, { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
+  const allItems = [...avaItems, ...operationsItems, ...reportingItems, { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
   const filteredItems = searchQuery
     ? allItems.filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : null;
 
   const isAvaActive = avaItems.some(i => i.id === activeSection);
   const isOpsActive = operationsItems.some(i => i.id === activeSection);
+  const isReportingActive = reportingItems.some(i => i.id === activeSection);
 
   const navBtnClass = (active: boolean) =>
     `w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
@@ -476,6 +493,63 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
                 </ul>
               )}
             </div>
+
+            {/* Reporting BCT */}
+            {reportingItems.length > 0 && (
+              <>
+                {!isCollapsed && (
+                  <div className="px-3 pb-1 pt-3" style={{ fontSize: 10, fontWeight: 700, color: '#506A84', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                    Reporting
+                  </div>
+                )}
+                {isCollapsed && <div className="my-2 mx-2 h-px" style={{ background: 'rgba(107,140,174,0.2)' }} />}
+                <div>
+                  <button
+                    onClick={() => {
+                      if (isCollapsed) {
+                        setIsCollapsed(false);
+                        setIsReportingOpen(true);
+                      } else {
+                        setIsReportingOpen(!isReportingOpen);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
+                      isReportingActive && !isReportingOpen
+                        ? 'text-white'
+                        : 'text-[#A8C0D9] hover:text-[#f4f7f9] hover:bg-white/[0.07]'
+                    }`}
+                    style={isReportingActive && !isReportingOpen ? navBtnStyle(true) : {}}
+                    title={isCollapsed ? 'Reporting BCT' : ''}
+                  >
+                    <FileBarChart2 style={{ width: 20, height: 20, flexShrink: 0 }} />
+                    {!isCollapsed && (
+                      <>
+                        <span className="flex-1 text-left">Reporting BCT</span>
+                        {isReportingActive && (
+                          <span className="w-2 h-2 rounded-full pulse-dot flex-shrink-0 mr-1" style={{ background: '#6B8CAE' }} />
+                        )}
+                        <ChevronDown
+                          style={{
+                            width: 16, height: 16, flexShrink: 0,
+                            transition: 'transform 0.25s cubic-bezier(0.16,1,0.3,1)',
+                            transform: isReportingOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                            opacity: 0.5,
+                          }}
+                        />
+                      </>
+                    )}
+                  </button>
+                  {!isCollapsed && isReportingOpen && (
+                    <ul
+                      className="mt-1 ml-3 pl-3 space-y-0.5 anim-fade-in-up"
+                      style={{ borderLeft: '1.5px solid rgba(107,140,174,0.18)' }}
+                    >
+                      {reportingItems.map(renderSubItem)}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </nav>
