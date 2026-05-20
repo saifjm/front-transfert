@@ -16,9 +16,6 @@ RUN npm run build
 # ─── Stage 2: Production (nginx) ─────────────────────────────────────────────
 FROM nginx:1.27-alpine AS production
 
-RUN apk update && \
-    apk upgrade &&
-
 RUN rm /etc/nginx/conf.d/default.conf
 
 # nginx.conf utilise $API_URL injecté via envsubst au démarrage
