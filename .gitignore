@@ -38,6 +38,11 @@ workflow-WorkFlow.rar
 *.rar
 *.zip
 
+# Local example/demo files (never commit these)
+EXEMPLE_*.tsx
+EXEMPLE_*.ts
+components/EXEMPLE_*.tsx
+
 # Documentation / guidelines (kept locally, not in repo)
 Documents/
 guidelines/

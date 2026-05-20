@@ -23,5 +23,6 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "components", "*.ts", "*.tsx"]
+  "include": ["src", "components", "*.ts", "*.tsx"],
+  "exclude": ["**/EXEMPLE_*.tsx", "**/EXEMPLE_*.ts", "node_modules"]
 }
