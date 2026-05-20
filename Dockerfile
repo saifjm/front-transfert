@@ -17,12 +17,7 @@ RUN npm run build
 FROM nginx:1.27-alpine AS production
 
 RUN apk update && \
-    apk upgrade && \
-    apk add --no-cache \
-        curl \
-        gettext \
-        pcre2 \
-        openssl
+    apk upgrade &&
 
 RUN rm /etc/nginx/conf.d/default.conf
 
