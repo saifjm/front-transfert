@@ -10,7 +10,7 @@ Plateforme complète de gestion de collections spécialisée dans le commerce ex
 - **APIs intégrées** : 6 APIs REST avec gestion d'erreur silencieuse et fallback
 - **Responsive** : Interface adaptative pour desktop et mobile
 
-## 📦 Installation
+## 📦 Installation.
 
 ### Prérequis
 - Node.js 18.x ou supérieur
