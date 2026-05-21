@@ -12,19 +12,8 @@ COPY package*.json ./
 
 RUN node -v && npm -v
 
-# Mettre npm à jour pour éviter les bugs optional dependencies
-RUN npm install -g npm@11
-
-RUN npm -v
-
-# Installation propre avec optional dependencies
 RUN npm ci --include=optional --legacy-peer-deps --no-audit --no-fund
 
-# Forcer le binding natif Linux glibc de Tailwind/Oxide si npm ne l’a pas installé
-RUN OXIDE_VERSION=$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version") && \
-    npm i -D @tailwindcss/oxide-linux-x64-gnu@$OXIDE_VERSION --legacy-peer-deps --no-audit --no-fund
-
-# Test immédiat du binding avant de lancer Vite
 RUN node -e "require('@tailwindcss/oxide'); console.log('Tailwind oxide OK')"
 
 COPY . .

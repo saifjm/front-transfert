@@ -17,7 +17,7 @@ pipeline {
 
         stage('Build Docker') {
             steps {
-                sh 'docker build -t swift876/swift-maven:front .'
+                sh 'docker build --network=host --no-cache --progress=plain -t swift876/swift-maven:front .'
             }
         }
 
