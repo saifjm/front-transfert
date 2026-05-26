@@ -4,6 +4,7 @@ import {
     Eye,
     FileText,
     PlusCircle,
+    RefreshCw,
     Search,
     Send,
     Trash2,
@@ -21,7 +22,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -42,10 +43,13 @@ interface DocumentDTO {
   typeDocument?: number;
   referenceFichierJoint?: string;
   extention?: string;
+  codeProduitService?: number;
+  codeOperation?: number;
   pathAnnee?: string;
   pathMois?: string;
   cheminFichier?: string;
   fichier?: File | null;
+  obligatoire?: boolean;
 }
 
 interface AvaMarcheMvtDTO {
@@ -172,7 +176,8 @@ interface   InitiationOuvertureDTO {
   mntImportation?: number;
   numeroBct?: number;
   dateBct?: string;
-  
+  typeBct?: string;
+
   banqueProvenance?: BanqueProvenanceDTO;
   beneficiairesMvtListe?: BeneficiaireMvtDTO[];
   documents?: DocumentDTO[];
@@ -193,6 +198,8 @@ export function AVAForm() {
 
   const [beneficiaires, setBeneficiaires] = useState<BeneficiaireMvtDTO[]>([]);
   const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const [naturePieceClient, setNaturePieceClient] = useState<'P' | 'M' | null>(null);
+  const [loadingRequiredDocs, setLoadingRequiredDocs] = useState(false);
   const [avaMarcheMvt, setAvaMarcheMvt] = useState<AvaMarcheMvtDTO | null>(null);
   const [banqueProvenance, setBanqueProvenance] = useState<BanqueProvenanceDTO>({});
   
@@ -208,6 +215,7 @@ export function AVAForm() {
   
   // États pour les données de référence
   const [banques, setBanques] = useState<Banque[]>([]);
+  const [currentCodeBanque, setCurrentCodeBanque] = useState<number | null>(null);
   const [typesPiece, setTypesPiece] = useState<TypePiece[]>([]);
   const [activites, setActivites] = useState<Activite[]>([]);
   const [sousActivites, setSousActivites] = useState<Activite[]>([]);
@@ -238,6 +246,9 @@ export function AVAForm() {
   }>({});
   const [importationError, setImportationError] = useState<string>('');
   const [bctError, setBctError] = useState<string>('');
+  const [showBctManualVerifModal, setShowBctManualVerifModal] = useState(false);
+  const [bctManualVerifUrl, setBctManualVerifUrl] = useState('');
+  const [isConfirmingBctVerif, setIsConfirmingBctVerif] = useState(false);
   const [importationWarning, setImportationWarning] = useState<string>('');
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [searchingClient, setSearchingClient] = useState(false);
@@ -331,12 +342,21 @@ export function AVAForm() {
   const fetchBanques = async () => {
     setLoadingBanques(true);
     try {
-      const response = await fetch('/api/ref/banques');
-      const data = await safeJsonParse<Banque[]>(response);
+      const [banquesResponse, dgResponse] = await Promise.all([
+        fetch('/api/ref/banques'),
+        authenticatedFetch('/api/ref/donnees-generales'),
+      ]);
+      const data = await safeJsonParse<Banque[]>(banquesResponse);
       if (data) {
         setBanques(data);
       } else {
         throw new Error('NO_DATA');
+      }
+      if (dgResponse.ok) {
+        const dg = await safeJsonParse<Array<{ codeBanque?: number }>>(dgResponse);
+        if (Array.isArray(dg) && dg.length > 0 && dg[0]?.codeBanque != null) {
+          setCurrentCodeBanque(Number(dg[0].codeBanque));
+        }
       }
     } catch (error) {
       console.error('Erreur lors du chargement:', error);
@@ -539,6 +559,63 @@ export function AVAForm() {
     }, 600);
     return () => clearTimeout(id);
   }, [formData.noPieceClient, formData.codeTypeDosAva]);
+
+  // Charger les documents requis selon type dossier + nature client + activité
+  useEffect(() => {
+    const noPiece = formData.noPieceClient?.trim();
+    const typeDos = formData.codeTypeDosAva;
+
+    if (!noPiece || !typeDos) {
+      // Strip previously-fetched required entries, keep manual ones
+      setDocuments(prev => prev.filter(d => !d.id?.startsWith('req-')));
+      setNaturePieceClient(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingRequiredDocs(true);
+
+    (async () => {
+      try {
+        // Step A — get nature P/M
+        const natureRes = await authenticatedFetch(`/api/ref/clients/personne-phy-mor/${encodeURIComponent(noPiece)}`);
+        if (!natureRes.ok || cancelled) return;
+        const natureText = (await natureRes.text()).trim() as 'P' | 'M';
+        if (natureText !== 'P' && natureText !== 'M') return;
+        if (cancelled) return;
+        setNaturePieceClient(natureText);
+
+        // Step B — get required documents
+        const activiteParam = formData.codeActivite ? `&codeActivite=${formData.codeActivite}` : '';
+        const docsRes = await authenticatedFetch(
+          `/api/business-rules/documents-requis?codeTypeDosAva=${typeDos}&naturePieceClient=${natureText}${activiteParam}`
+        );
+        if (!docsRes.ok || cancelled) return;
+        const rules = await docsRes.json() as Array<{ codePiece: number; codeOperation: number; estObligatoire: boolean }>;
+        if (cancelled) return;
+
+        // Step C — build required entries and merge
+        const freshRequired: DocumentDTO[] = rules.map(r => ({
+          id: `req-${r.codePiece}`,
+          typeDocument: r.codePiece,
+          codeProduitService: 1,
+          codeOperation: r.codeOperation,
+          obligatoire: r.estObligatoire,
+        }));
+
+        setDocuments(prev => [
+          ...freshRequired,
+          ...prev.filter(d => !d.id?.startsWith('req-')),
+        ]);
+      } catch {
+        // silent — agent can still add documents manually
+      } finally {
+        if (!cancelled) setLoadingRequiredDocs(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [formData.noPieceClient, formData.codeTypeDosAva, formData.codeActivite]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gérer les changements de type de dossier pour Code Activité et Sous Activité
   useEffect(() => {
@@ -869,6 +946,7 @@ export function AVAForm() {
 
   // Suppression d'un document
   const removeDocument = (id: string) => {
+    if (documents.find(d => d.id === id)?.obligatoire) return;
     const toDelete = documents.find((d) => d.id === id)?.cheminFichier;
     if (toDelete && !persistedFilePathsRef.current.has(toDelete)) {
       void deleteLocalFileByPath(toDelete);
@@ -1213,9 +1291,14 @@ export function AVAForm() {
       }
     }
 
-    // ✅ 6. Validation des documents : au moins une PJ
+    // ✅ 6. Validation des documents : au moins une PJ + obligatoires attachés
     if (documents.length === 0) {
       newErrors.documents = 'Au moins une pièce jointe (document) est requise pour soumettre le dossier';
+    } else {
+      const manquants = documents.filter(d => d.obligatoire && !d.referenceFichierJoint);
+      if (manquants.length > 0) {
+        newErrors.documents = `${manquants.length} document(s) obligatoire(s) sans fichier joint. Veuillez attacher tous les documents obligatoires avant de soumettre.`;
+      }
     }
 
     // ✅ 7. Validation des bénéficiaires : au moins un bénéficiaire
@@ -1326,17 +1409,18 @@ export function AVAForm() {
 
       // Préparation du DTO complet - Nettoyage des champs id temporaires
       const cleanBeneficiaires = beneficiaires.map(({ id, ...rest }) => rest);
-      const cleanDocuments = documents.map(({ id, fichier, ...rest }) => {
-        const fileName = rest.referenceFichierJoint || '';
-        if (!fileName) return rest;
+      const cleanDocuments = documents.map(({ id, fichier, obligatoire: _obl, ...rest }) => {
+        const base = { ...rest, codeProduitService: rest.codeProduitService ?? 1, codeOperation: rest.codeOperation ?? 200 };
+        const fileName = base.referenceFichierJoint || '';
+        if (!fileName) return base;
         const built = buildDocumentPath({
           fileName,
           basePath: documentStorageBasePath,
-          pathAnnee: rest.pathAnnee,
-          pathMois: rest.pathMois,
+          pathAnnee: base.pathAnnee,
+          pathMois: base.pathMois,
         });
         return {
-          ...rest,
+          ...base,
           pathAnnee: built.pathAnnee,
           pathMois: built.pathMois,
           cheminFichier: built.fullPath,
@@ -1383,6 +1467,27 @@ export function AVAForm() {
           description: newKey ? `Référence: ${newKey}` : undefined,
           duration: 5000,
         });
+
+        // Mise à jour validité accord BCT si un numéro BCT a été saisi
+        if (snap.numeroBct) {
+          const updateUrl = `/api/ref/central-bank-agreements/update-validite?numAccordBct=${snap.numeroBct}&dateAccordBct=${snap.dateBct ?? ''}&typeAccordBct=${snap.typeBct ?? ''}`;
+          try {
+            const updateRes = await authenticatedFetch(updateUrl, { method: 'POST' });
+            const updateData = await safeJsonParse<{ message?: string }>(updateRes);
+            const msg = updateData?.message || '';
+            if (msg === 'already updated') {
+              toast.info('Accord BCT déjà mis à jour', { description: `BCT N°${snap.numeroBct} — déjà consommé` });
+            } else if (msg === 'expired date') {
+              showError(`La date de fin d'application de cet accord BCT est dépassée`, undefined, 'Accord BCT expiré');
+            } else if (msg === 'needs a manual verification') {
+              setBctManualVerifUrl(updateUrl);
+              setShowBctManualVerifModal(true);
+            }
+            // 'success' → nothing extra needed
+          } catch {
+            console.warn('[BCT] update-validite failed silently');
+          }
+        }
 
         if (decisionTag === 'SUBMIT_DIRECT') {
           const numDossier = newKey ? Number(newKey) : undefined;
@@ -1478,6 +1583,7 @@ export function AVAForm() {
     setClientInfo(null);
     setClientNotFound(false);
     setRneError('');
+    setNaturePieceClient(null);
     setWfBusinessKey(null);
     setWfCurrentNode(null);
   };
@@ -1952,11 +2058,13 @@ export function AVAForm() {
                       <SelectValue placeholder={loadingBanques ? "Chargement..." : "Sélectionner une banque"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {banques.map(banque => (
-                        <SelectItem key={banque.codeBanque} value={banque.codeBanque.toString()}>
-                          {banque.codeBanque} - {banque.libBanque}
-                        </SelectItem>
-                      ))}
+                      {banques
+                        .filter(b => b.codeBanque !== 0 && b.codeBanque !== currentCodeBanque)
+                        .map(banque => (
+                          <SelectItem key={banque.codeBanque} value={banque.codeBanque.toString()}>
+                            {banque.codeBanque} - {banque.libBanque}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2164,6 +2272,23 @@ export function AVAForm() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="typeBct">Type BCT</Label>
+                    <Select
+                      value={formData.typeBct ?? ''}
+                      onValueChange={(v) => setFormData({ ...formData, typeBct: v || undefined })}
+                    >
+                      <SelectTrigger id="typeBct">
+                        <SelectValue placeholder="Sélectionnez un type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="L">L — Lettre</SelectItem>
+                        <SelectItem value="F1">F1</SelectItem>
+                        <SelectItem value="F2">F2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="numeroBct">Numéro BCT</Label>
                     <Input
@@ -2526,6 +2651,12 @@ export function AVAForm() {
               )}
             </CardHeader>
             <CardContent className="space-y-6">
+              {loadingRequiredDocs && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Chargement des documents requis...
+                </p>
+              )}
               {documents.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed rounded-lg">
                   <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -2539,14 +2670,23 @@ export function AVAForm() {
                 documents.map((document, index) => (
                   <div key={document.id} className="border rounded-lg p-4 space-y-4">
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline">Document {index + 1}</Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeDocument(document.id!)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">Document {index + 1}</Badge>
+                        {document.obligatoire === true
+                          ? <Badge variant="destructive" className="text-xs">Obligatoire</Badge>
+                          : document.obligatoire === false
+                            ? <Badge variant="secondary" className="text-xs">Optionnel</Badge>
+                            : null}
+                      </div>
+                      {!document.obligatoire && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDocument(document.id!)}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -2555,6 +2695,7 @@ export function AVAForm() {
                         <Select
                           value={document.typeDocument?.toString() || ''}
                           onValueChange={(value) => updateDocument(document.id!, 'typeDocument', Number(value))}
+                          disabled={document.obligatoire}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Sélectionner" />
@@ -2755,6 +2896,71 @@ export function AVAForm() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal — accord BCT portée générale (*) */}
+      <Dialog open={showBctManualVerifModal} onOpenChange={setShowBctManualVerifModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Accord BCT à portée générale (*)</DialogTitle>
+            <DialogDescription>
+              Cet accord BCT a une <strong>portée générale (*)</strong> qui peut être réutilisé.
+              <br /><br />
+              <strong>Pouvez-vous réutiliser cette validité ?</strong>
+              <br /><br />
+              • <strong>Oui</strong> : La validité reste <strong>"*"</strong> (réutilisable)
+              <br />
+              • <strong>Non</strong> : La validité devient <strong>"0"</strong> (consommé)
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={isConfirmingBctVerif}
+              onClick={async () => {
+                setIsConfirmingBctVerif(true);
+                try {
+                  const res = await authenticatedFetch(`${bctManualVerifUrl}&flag=2`, { method: 'POST' });
+                  const data = await safeJsonParse<{ message?: string }>(res);
+                  if (data?.message === 'success') {
+                    toast.success('Accord BCT enregistré', { description: 'Validité consommée (mise à jour à "0")' });
+                  } else {
+                    showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
+                  }
+                } catch {
+                  showError('Erreur lors de la mise à jour de l\'accord BCT');
+                } finally {
+                  setIsConfirmingBctVerif(false);
+                  setShowBctManualVerifModal(false);
+                }
+              }}
+            >
+              Non (consommer)
+            </Button>
+            <Button
+              disabled={isConfirmingBctVerif}
+              onClick={async () => {
+                setIsConfirmingBctVerif(true);
+                try {
+                  const res = await authenticatedFetch(`${bctManualVerifUrl}&flag=1`, { method: 'POST' });
+                  const data = await safeJsonParse<{ message?: string }>(res);
+                  if (data?.message === 'success') {
+                    toast.success('Accord BCT enregistré', { description: 'Validité maintenue à "*" (réutilisable)' });
+                  } else {
+                    showError(data?.message || 'Erreur inconnue', undefined, 'Erreur');
+                  }
+                } catch {
+                  showError('Erreur lors de la mise à jour de l\'accord BCT');
+                } finally {
+                  setIsConfirmingBctVerif(false);
+                  setShowBctManualVerifModal(false);
+                }
+              }}
+            >
+              Oui (réutiliser)
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

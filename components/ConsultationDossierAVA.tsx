@@ -262,10 +262,9 @@ export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumero
       const typeDossierLabels: Record<number, string> = {
         1: "EXPORTATEUR",
         2: "MARCHE REALISABLE A L'ETRANGER",
-        3: "AUTRES ACTIVITES",
-        4: "FRAIS DE VOYAGE",
-        5: "ALLOCATION TOURISTIQUE",
-        6: "SOINS MEDICAUX",
+        3: "AUTRES ACTIVITES (ANNEXE N.2)",
+        4: "AUTRES ACTIVITES (BANQUES)",
+        5: "A. ACT. (PROM.-NOUV. PROJ.)",
       };
 
       const dossiersTransformes: DossierAVAConsultation[] =
@@ -1458,7 +1457,7 @@ export function ConsultationDossierAVA({ initialNumeroDossier }: { initialNumero
                           {doc.referenceFichierJoint}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {doc.extention.toUpperCase()} • Type{" "}
+                          {doc.extention?.toUpperCase() ?? '—'} • Type{" "}
                           {doc.typeDocument}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
