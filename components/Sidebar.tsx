@@ -29,6 +29,7 @@ import {
   X,
   Cog,
   FileBarChart2,
+  Send,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -67,6 +68,10 @@ const ALL_OPERATIONS_ITEMS: NavItem[] = [
 
 const ALL_REPORTING_ITEMS: NavItem[] = [
   { id: 'reporting-bct', label: 'Déclaration DC-AVA', icon: FileBarChart2 },
+];
+
+const msTransferItems: NavItem[] = [
+  { id: 'ms-tr-create', label: 'Créer ordre de virement', icon: Send },
 ];
 
 // Items visible per role. ADMIN (or unknown role) sees everything.
@@ -162,6 +167,7 @@ function Tooltip({ children, label, show }: { children: React.ReactNode; label: 
 
 export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarProps) {
   const [isDossierAvaOpen, setIsDossierAvaOpen] = useState(true);
+   const [isDossierTransfertOpen, setIsDossierTransfertOpen] = useState(false);
   const [isOperationsCommunesOpen, setIsOperationsCommunesOpen] = useState(false);
   const [isReportingOpen, setIsReportingOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -174,12 +180,13 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
   const operationsItems = filterByRole(ALL_OPERATIONS_ITEMS, role);
   const reportingItems = filterReportingByRole(ALL_REPORTING_ITEMS, role);
 
-  const allItems = [...avaItems, ...operationsItems, ...reportingItems, { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
+  const allItems = [...avaItems, ...operationsItems, ...reportingItems, ...msTransferItems,{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
   const filteredItems = searchQuery
     ? allItems.filter(item => item.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : null;
 
   const isAvaActive = avaItems.some(i => i.id === activeSection);
+  const isTransfertActive = msTransferItems.some(i => i.id === activeSection);
   const isOpsActive = operationsItems.some(i => i.id === activeSection);
   const isReportingActive = reportingItems.some(i => i.id === activeSection);
 
@@ -435,6 +442,53 @@ export function Sidebar({ activeSection, onSectionChange, onLogout }: SidebarPro
                   style={{ borderLeft: '1.5px solid rgba(107,140,174,0.18)' }}
                 >
                   {avaItems.map(renderSubItem)}
+                </ul>
+              )}
+            </div>
+            {/* Dossier Transfert */}
+            <div>
+              <button
+                onClick={() => {
+                  if (isCollapsed) {
+                    setIsCollapsed(false);
+                    setIsDossierTransfertOpen(true);
+                  } else {
+                    setIsDossierTransfertOpen(!isDossierTransfertOpen);
+                  }
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
+                  isTransfertActive && !isDossierTransfertOpen
+                    ? 'text-white'
+                    : 'text-[#A8C0D9] hover:text-[#f4f7f9] hover:bg-white/[0.07]'
+                }`}
+                style={isTransfertActive && !isDossierTransfertOpen ? navBtnStyle(true) : {}}
+                title={isCollapsed ? 'Dossier Transfert' : ''}
+              >
+                <Send style={{ width: 20, height: 20, flexShrink: 0 }} />
+                {!isCollapsed && (
+                  <>
+                    <span className="flex-1 text-left">Dossier Transfert</span>
+                    {isTransfertActive && (
+                      <span className="w-2 h-2 rounded-full pulse-dot flex-shrink-0 mr-1" style={{ background: '#6B8CAE' }} />
+                    )}
+                    <ChevronDown
+                      style={{
+                        width: 16, height: 16, flexShrink: 0,
+                        transition: 'transform 0.25s cubic-bezier(0.16,1,0.3,1)',
+                        transform: isDossierTransfertOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                        opacity: 0.5,
+                      }}
+                    />
+                  </>
+                )}
+              </button>
+
+              {!isCollapsed && isDossierTransfertOpen && (
+                <ul
+                  className="mt-1 ml-3 pl-3 space-y-0.5 anim-fade-in-up"
+                  style={{ borderLeft: '1.5px solid rgba(107,140,174,0.18)' }}
+                >
+                  {msTransferItems.map(renderSubItem)}
                 </ul>
               )}
             </div>
