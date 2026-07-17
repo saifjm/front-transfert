@@ -3,12 +3,12 @@ import {
   Send, ArrowLeft, ArrowRight, Search, CheckCircle2, AlertTriangle, XCircle,
   Building2, FileText, Banknote, ShieldCheck, ClipboardList, ChevronRight,
   Info, Plus, Trash2, RefreshCw, Download, Eye,
-  TrendingUp, Clock, AlertCircle, Check, Loader2, Globe2, Zap
+  TrendingUp, Clock, Check, Loader2, Globe2, Zap
 } from 'lucide-react';
 
 /* ─── Types ─────────────────────────────────────────────── */
 type TransferType = 'commercial' | 'financier';
-type PageMode = 'dashboard' | 'wizard';
+type WorkspaceView = 'consultation' | 'creation';
 type RegulatoryType = 'autorisation_bct' | 'fiche_information' | 'autre_support' | null;
 
 interface ClientData {
@@ -649,7 +649,7 @@ function StepRecap({ transferType, client, tceResult, regType, order, modalities
       { ok: !!tceResult && tceResult.state === 'success', label: 'Montant disponible suffisant' },
     ] : [
       { ok: !!order.motifEconomique, label: 'Nature opération renseignée' },
-      { ok: !!regType || true, label: 'Support réglementaire renseigné' },
+      { ok: regType !== null, label: 'Support réglementaire renseigné' },
     ]),
     { ok: modalities.length > 0, label: 'Modalités définies' },
     { ok: !!order.iban && !!order.bic, label: 'Données bénéficiaire complètes' },
@@ -780,8 +780,8 @@ function StepRecap({ transferType, client, tceResult, regType, order, modalities
   );
 }
 
-/* ─── Wizard Stepper ─────────────────────────────────────── */
-const STEPS = [
+/* ─── Simple section navigation ─────────────────────────── */
+const NAVIGATION_ITEMS = [
   { label: 'Type', icon: FileText },
   { label: 'Client', icon: Building2 },
   { label: 'Support', icon: ShieldCheck },
@@ -789,29 +789,49 @@ const STEPS = [
   { label: 'Paiement', icon: Banknote },
   { label: 'Récapitulatif', icon: ClipboardList },
 ];
-function WizardStepper({ current, transferType }: { current: number; transferType: TransferType | null }) {
+
+function SimpleSectionNavigation({
+  current,
+  transferType,
+  onChange,
+}: {
+  current: number;
+  transferType: TransferType | null;
+  onChange: (section: number) => void;
+}) {
   return (
-    <div className="flex items-center">
-      {STEPS.map((s, i) => {
-        const done = i < current; const active = i === current;
-        return (
-          <React.Fragment key={i}>
-            <div className="flex flex-col items-center" style={{ minWidth: 70 }}>
-              <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300"
-                style={done ? { background: 'rgba(255,255,255,0.25)', borderColor: 'rgba(255,255,255,0.5)' }
-                  : active ? { background: 'white', borderColor: 'white' }
-                  : { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)' }}>
-                {done ? <Check size={15} className="text-white" /> : <s.icon size={15} style={{ color: active ? '#435B7B' : 'rgba(255,255,255,0.5)' }} />}
-              </div>
-              <span className="mt-1 text-[10px] font-semibold" style={{ color: active ? 'white' : done ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)' }}>
-                {i === 2 && transferType ? (transferType === 'commercial' ? 'TCE' : 'BCT') : s.label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && <div className="flex-1 h-0.5 mx-1 mb-4 rounded-full" style={{ background: i < current ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)' }} />}
-          </React.Fragment>
-        );
-      })}
-    </div>
+    <nav
+      aria-label="Navigation du dossier transfert"
+      className="bg-white border border-[#d1dce6] rounded-xl p-1.5 shadow-sm overflow-x-auto"
+    >
+      <div className="flex items-center gap-1 min-w-max">
+        {NAVIGATION_ITEMS.map((item, index) => {
+          const active = current === index;
+          const label = index === 2 && transferType
+            ? transferType === 'commercial' ? 'TCE' : 'Support BCT'
+            : item.label;
+          const Icon = item.icon;
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              aria-current={active ? 'page' : undefined}
+              onClick={() => onChange(index)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                active
+                  ? 'text-white shadow-sm'
+                  : 'text-[#435B7B] hover:bg-[#F4F8FC]'
+              }`}
+              style={active ? HDR : undefined}
+            >
+              <Icon size={14} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 
@@ -914,26 +934,26 @@ function SuccessModal({ transferType, onClose, onNew }: { transferType: Transfer
   );
 }
 
-/* ─── Dashboard ──────────────────────────────────────────── */
-function Dashboard({ onNew }: { onNew: () => void }) {
-  return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 page-transition">
-      <div className="rounded-2xl p-6 text-white anim-fade-in-up" style={HDR}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center"><Send size={22} className="text-white" /></div>
-            <div>
-              <h1 className="text-xl font-bold">Transferts émis vers l'étranger</h1>
-              <p className="text-sm text-white/70 mt-0.5">Module MS-TR — Agence BCT-10 — {new Date().toLocaleDateString('fr-TN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            </div>
-          </div>
-          <button onClick={onNew} className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm bg-white/20 hover:bg-white/30 transition-all border border-white/20">
-            <Plus size={16} />Nouveau transfert
-          </button>
-        </div>
-      </div>
+/* ─── Consultation sub-component ───────────────────────── */
+function TransferConsultation({ onNew }: { onNew: () => void }) {
+  const [searchValue, setSearchValue] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-      <div className="grid grid-cols-5 gap-4 anim-fade-in-up delay-100">
+  const normalizedSearch = searchValue.trim().toLowerCase();
+  const filteredTransfers = RECENT_TRANSFERS.filter(transfer => {
+    const matchesSearch = !normalizedSearch
+      || transfer.ref.toLowerCase().includes(normalizedSearch)
+      || transfer.client.toLowerCase().includes(normalizedSearch)
+      || transfer.support.toLowerCase().includes(normalizedSearch);
+    const matchesType = typeFilter === 'all' || transfer.type === typeFilter;
+    const matchesStatus = statusFilter === 'all' || transfer.statut === statusFilter;
+    return matchesSearch && matchesType && matchesStatus;
+  });
+
+  return (
+    <div className="space-y-6 page-transition">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 anim-fade-in-up">
         <KPI label="Commerciaux en cours" value={7} color="#1D4ED8" icon={TrendingUp} />
         <KPI label="Financiers en cours" value={3} color="#7C3AED" icon={Banknote} />
         <KPI label="Dossiers avec alerte" value={2} color="#F97316" icon={AlertTriangle} />
@@ -941,15 +961,68 @@ function Dashboard({ onNew }: { onNew: () => void }) {
         <KPI label="Rejetés ce mois" value={1} color="#EF4444" icon={XCircle} />
       </div>
 
-      <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm overflow-hidden anim-fade-in-up delay-200" style={{ borderTop: '3px solid #435B7B' }}>
-        <div className="p-5 pb-3 flex items-center justify-between">
+      <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5 anim-fade-in-up delay-100" style={{ borderTop: '3px solid #435B7B' }}>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-base font-bold text-[#2D3E54]">Transferts récents</h2>
-            <p className="text-xs text-[#7A90A4] mt-0.5">Dernières opérations enregistrées dans l'agence</p>
+            <h2 className="text-base font-bold text-[#2D3E54]">Consultation des dossiers de transfert</h2>
+            <p className="text-xs text-[#7A90A4] mt-0.5">Recherchez les transferts enregistrés dans l'agence.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onNew}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white shadow-sm"
+            style={HDR}
+          >
+            <Plus size={16} />Nouveau transfert
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <FI
+              label="Référence, client ou support"
+              value={searchValue}
+              onChange={setSearchValue}
+              placeholder="Rechercher un dossier..."
+            />
+          </div>
+          <FI
+            label="Type de transfert"
+            value={typeFilter}
+            onChange={setTypeFilter}
+            select
+            opts={[
+              { value: 'all', label: 'Tous les types' },
+              { value: 'commercial', label: 'Commercial' },
+              { value: 'financier', label: 'Financier' },
+            ]}
+          />
+          <FI
+            label="Statut"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            select
+            opts={[
+              { value: 'all', label: 'Tous les statuts' },
+              { value: 'brouillon', label: 'Brouillon' },
+              { value: 'en_cours_agence', label: 'En cours agence' },
+              { value: 'attente_sc', label: 'En attente SC' },
+              { value: 'valide', label: 'Validé' },
+              { value: 'rejete', label: 'Rejeté' },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm overflow-hidden anim-fade-in-up delay-200">
+        <div className="p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-[#2D3E54]">Dossiers de transfert</h2>
+            <p className="text-xs text-[#7A90A4] mt-0.5">{filteredTransfers.length} dossier(s) trouvé(s)</p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><RefreshCw size={12} />Actualiser</button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><Download size={12} />Exporter</button>
+            <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><RefreshCw size={12} />Actualiser</button>
+            <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><Download size={12} />Exporter</button>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -959,7 +1032,7 @@ function Dashboard({ onNew }: { onNew: () => void }) {
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#435B7B] uppercase tracking-wide whitespace-nowrap">{h}</th>)}
             </tr></thead>
             <tbody>
-              {RECENT_TRANSFERS.map(tr => (
+              {filteredTransfers.map(tr => (
                 <tr key={tr.ref} className="border-t border-[#EEF3F7] hover:bg-[#EEF3F7]/50 transition-all">
                   <td className="px-4 py-3 font-mono text-xs font-bold text-[#435B7B]">{tr.ref}</td>
                   <td className="px-4 py-3"><TypeBadge type={tr.type} /></td>
@@ -970,10 +1043,17 @@ function Dashboard({ onNew }: { onNew: () => void }) {
                   <td className="px-4 py-3 text-xs text-[#6B7A8D]">{tr.etape}</td>
                   <td className="px-4 py-3 text-xs text-[#7A90A4] whitespace-nowrap">{tr.maj}</td>
                   <td className="px-4 py-3">
-                    <button className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><Eye size={11} />Voir</button>
+                    <button type="button" className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-[#d1dce6] text-[#435B7B] hover:bg-[#F4F8FC] transition-all"><Eye size={11} />Voir</button>
                   </td>
                 </tr>
               ))}
+              {filteredTransfers.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-[#7A90A4]">
+                    Aucun dossier ne correspond aux critères sélectionnés.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -984,8 +1064,8 @@ function Dashboard({ onNew }: { onNew: () => void }) {
 
 /* ─── Main ───────────────────────────────────────────────── */
 export function MSTransferCreate() {
-  const [pageMode, setPageMode] = useState<PageMode>('dashboard');
-  const [wizardStep, setWizardStep] = useState(0);
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('consultation');
+  const [currentSection, setCurrentSection] = useState(0);
   const [transferType, setTransferType] = useState<TransferType | null>(null);
   const [client, setClient] = useState<ClientData | null>(null);
   const [selAcc, setSelAcc] = useState('');
@@ -997,85 +1077,255 @@ export function MSTransferCreate() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const canProceed = () => {
-    if (wizardStep === 0) return !!transferType;
-    if (wizardStep === 1) return !!client;
-    if (wizardStep === 2) return transferType === 'commercial' ? !!tceResult && tceResult.state === 'success' : true;
-    if (wizardStep === 3) return !!order.montantOrdre && !!order.iban && !!order.bic;
-    if (wizardStep === 4) return modalities.length > 0;
+    if (currentSection === 0) return transferType !== null;
+    if (currentSection === 1) return client !== null && selAcc.length > 0;
+    if (currentSection === 2) {
+      return transferType === 'commercial'
+        ? tceResult?.state === 'success'
+        : regType !== null;
+    }
+    if (currentSection === 3) {
+      return Boolean(order.montantOrdre && order.iban && order.bic);
+    }
+    if (currentSection === 4) return modalities.length > 0;
     return true;
   };
 
-  const handleNext = () => setWizardStep(s => Math.min(5, s + 1));
-  const handleBack = () => { if (wizardStep > 0) setWizardStep(s => s - 1); else setPageMode('dashboard'); };
+  const resetForm = () => {
+    setCurrentSection(0);
+    setTransferType(null);
+    setClient(null);
+    setSelAcc('');
+    setTceResult(null);
+    setRegType(null);
+    setOrder(INITIAL_ORDER);
+    setModalities([]);
+    setSubmitting(false);
+    setShowSuccess(false);
+  };
+
+  const openCreation = () => {
+    resetForm();
+    setWorkspaceView('creation');
+  };
+
+  const openConsultation = () => {
+    setShowSuccess(false);
+    setWorkspaceView('consultation');
+  };
+
+  const handlePrevious = () => {
+    if (currentSection === 0) {
+      openConsultation();
+      return;
+    }
+    setCurrentSection(section => section - 1);
+  };
+
+  const handleNext = () => {
+    if (!canProceed()) return;
+    setCurrentSection(section => Math.min(NAVIGATION_ITEMS.length - 1, section + 1));
+  };
 
   const handleSubmit = () => {
     setSubmitting(true);
-    setTimeout(() => { setSubmitting(false); setShowSuccess(true); }, 2000);
+    setTimeout(() => {
+      setSubmitting(false);
+      setShowSuccess(true);
+    }, 2000);
   };
-
-  const reset = () => {
-    setWizardStep(0); setTransferType(null); setClient(null); setSelAcc('');
-    setTceResult(null); setRegType(null); setOrder(INITIAL_ORDER); setModalities([]);
-    setShowSuccess(false); setPageMode('dashboard');
-  };
-
-  if (pageMode === 'dashboard') return <Dashboard onNew={() => { reset(); setPageMode('wizard'); }} />;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5 page-transition">
-      {showSuccess && <SuccessModal transferType={transferType} onClose={() => setPageMode('dashboard')} onNew={reset} />}
+      {showSuccess && (
+        <SuccessModal
+          transferType={transferType}
+          onClose={openConsultation}
+          onNew={() => {
+            resetForm();
+            setWorkspaceView('creation');
+          }}
+        />
+      )}
 
-      {/* Wizard header */}
       <div className="rounded-2xl p-5 text-white anim-fade-in-up" style={HDR}>
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={handleBack} className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-all flex-shrink-0">
-            <ArrowLeft size={16} className="text-white" />
-          </button>
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0"><Send size={16} className="text-white" /></div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold leading-tight">Saisie d'un ordre de transfert émis vers l'étranger</h1>
-            <p className="text-xs text-white/60">MS-TR — Dossier Transfert — Agence BCT-10</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <Send size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold">Dossier Transfert</h1>
+              <p className="text-xs text-white/70 mt-0.5">
+                Transferts commerciaux et financiers émis vers l'étranger — Agence BCT-10
+              </p>
+            </div>
           </div>
-          {transferType && (
-            <span className="px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>
-              Type: {transferType === 'commercial' ? 'Commercial' : 'Financier'}
-            </span>
+
+          {workspaceView === 'consultation' && (
+            <button
+              type="button"
+              onClick={openCreation}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm bg-white/20 hover:bg-white/30 transition-all border border-white/20"
+            >
+              <Plus size={16} />Nouveau transfert
+            </button>
           )}
         </div>
-        <WizardStepper current={wizardStep} transferType={transferType} />
       </div>
 
-      {/* Body */}
-      <div className={`flex gap-5 anim-fade-in-up delay-100 ${wizardStep > 0 ? '' : 'justify-center'}`}>
-        <div className="flex-1 min-w-0">
-          {wizardStep === 0 && <StepType onSelect={t => { setTransferType(t); setWizardStep(1); }} />}
-          {wizardStep === 1 && <StepClient client={client} setClient={setClient} selAcc={selAcc} setSelAcc={setSelAcc} />}
-          {wizardStep === 2 && transferType === 'commercial' && <StepTCE tceResult={tceResult} setTceResult={setTceResult} />}
-          {wizardStep === 2 && transferType === 'financier' && <StepRegSupport regType={regType} setRegType={setRegType} />}
-          {wizardStep === 3 && <StepOrder order={order} setOrder={setOrder} />}
-          {wizardStep === 4 && <StepModalities modalities={modalities} setModalities={setModalities} transferAmount={order.montantTransfert} />}
-          {wizardStep === 5 && <StepRecap transferType={transferType} client={client} tceResult={tceResult} regType={regType} order={order} modalities={modalities} onSubmit={handleSubmit} submitting={submitting} />}
+      <div className="inline-flex bg-white border border-[#d1dce6] rounded-xl p-1 shadow-sm">
+        <button
+          type="button"
+          onClick={openConsultation}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            workspaceView === 'consultation'
+              ? 'text-white shadow-sm'
+              : 'text-[#435B7B] hover:bg-[#F4F8FC]'
+          }`}
+          style={workspaceView === 'consultation' ? HDR : undefined}
+        >
+          <Search size={14} />Consultation
+        </button>
+        <button
+          type="button"
+          onClick={() => setWorkspaceView('creation')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            workspaceView === 'creation'
+              ? 'text-white shadow-sm'
+              : 'text-[#435B7B] hover:bg-[#F4F8FC]'
+          }`}
+          style={workspaceView === 'creation' ? HDR : undefined}
+        >
+          <Plus size={14} />Nouveau dossier
+        </button>
+      </div>
 
-          {wizardStep < 5 && (
-            <div className="flex items-center justify-between mt-5">
-              <button onClick={handleBack} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1dce6] text-sm font-semibold text-[#435B7B] hover:bg-[#F4F8FC] transition-all">
-                <ArrowLeft size={14} />{wizardStep === 0 ? 'Tableau de bord' : 'Étape précédente'}
-              </button>
-              {wizardStep > 0 && (
-                <button onClick={handleNext} disabled={!canProceed()}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg" style={HDR}>
-                  Étape suivante <ArrowRight size={14} />
+      {workspaceView === 'consultation' && (
+        <TransferConsultation onNew={openCreation} />
+      )}
+
+      {workspaceView === 'creation' && (
+        <div className="space-y-5">
+          <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5 anim-fade-in-up">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={openConsultation}
+                  className="w-9 h-9 rounded-xl border border-[#d1dce6] hover:bg-[#F4F8FC] flex items-center justify-center transition-all"
+                  aria-label="Retour à la consultation"
+                >
+                  <ArrowLeft size={16} className="text-[#435B7B]" />
                 </button>
+                <div>
+                  <h2 className="text-base font-bold text-[#2D3E54]">Saisie d'un ordre de transfert</h2>
+                  <p className="text-xs text-[#7A90A4]">Naviguez librement entre les rubriques du dossier.</p>
+                </div>
+              </div>
+              {transferType && <TypeBadge type={transferType} />}
+            </div>
+          </div>
+
+          <SimpleSectionNavigation
+            current={currentSection}
+            transferType={transferType}
+            onChange={setCurrentSection}
+          />
+
+          <div className={`flex gap-5 anim-fade-in-up delay-100 ${currentSection > 0 ? '' : 'justify-center'}`}>
+            <div className="flex-1 min-w-0">
+              {currentSection === 0 && (
+                <StepType
+                  onSelect={type => {
+                    setTransferType(type);
+                    setTceResult(null);
+                    setRegType(null);
+                    setCurrentSection(1);
+                  }}
+                />
+              )}
+              {currentSection === 1 && (
+                <StepClient
+                  client={client}
+                  setClient={setClient}
+                  selAcc={selAcc}
+                  setSelAcc={setSelAcc}
+                />
+              )}
+              {currentSection === 2 && !transferType && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                  <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">
+                    Sélectionnez d'abord le type de transfert dans la rubrique « Type ».
+                  </p>
+                </div>
+              )}
+              {currentSection === 2 && transferType === 'commercial' && (
+                <StepTCE tceResult={tceResult} setTceResult={setTceResult} />
+              )}
+              {currentSection === 2 && transferType === 'financier' && (
+                <StepRegSupport regType={regType} setRegType={setRegType} />
+              )}
+              {currentSection === 3 && <StepOrder order={order} setOrder={setOrder} />}
+              {currentSection === 4 && (
+                <StepModalities
+                  modalities={modalities}
+                  setModalities={setModalities}
+                  transferAmount={order.montantTransfert}
+                />
+              )}
+              {currentSection === 5 && (
+                <StepRecap
+                  transferType={transferType}
+                  client={client}
+                  tceResult={tceResult}
+                  regType={regType}
+                  order={order}
+                  modalities={modalities}
+                  onSubmit={handleSubmit}
+                  submitting={submitting}
+                />
+              )}
+
+              {currentSection < NAVIGATION_ITEMS.length - 1 && (
+                <div className="flex items-center justify-between mt-5">
+                  <button
+                    type="button"
+                    onClick={handlePrevious}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1dce6] text-sm font-semibold text-[#435B7B] hover:bg-[#F4F8FC] transition-all"
+                  >
+                    <ArrowLeft size={14} />
+                    {currentSection === 0 ? 'Consultation' : 'Précédent'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    disabled={!canProceed()}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+                    style={HDR}
+                  >
+                    Suivant <ArrowRight size={14} />
+                  </button>
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {wizardStep > 0 && (
-          <SummaryPanel transferType={transferType} client={client} selAcc={selAcc}
-            tceResult={tceResult} regType={regType} order={order} modalities={modalities} step={wizardStep} />
-        )}
-      </div>
+            {currentSection > 0 && (
+              <SummaryPanel
+                transferType={transferType}
+                client={client}
+                selAcc={selAcc}
+                tceResult={tceResult}
+                regType={regType}
+                order={order}
+                modalities={modalities}
+                step={currentSection}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
