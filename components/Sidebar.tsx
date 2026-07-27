@@ -30,6 +30,7 @@ import {
   Cog,
   FileBarChart2,
   Send,
+  Plus,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -71,7 +72,8 @@ const ALL_REPORTING_ITEMS: NavItem[] = [
 ];
 
 const msTransferItems: NavItem[] = [
-  { id: 'ms-tr-create', label: 'Créer ordre de virement', icon: Send },
+  { id: 'ms-tr-create', label: 'Créer ordre de virement', icon: Plus },
+  { id: 'ms-tr-consultation', label: 'Consultation', icon: Search,},
 ];
 
 // Items visible per role. ADMIN (or unknown role) sees everything.

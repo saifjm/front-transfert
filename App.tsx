@@ -35,6 +35,7 @@ import { ErrorDialog } from './components/ErrorDialog';
 import { ErrorTestComponent } from './components/ErrorTestComponent';
 import { ReportingBCT } from './components/ReportingBCT';
 import { Toaster } from 'sonner';
+import { MSTransferConsultation } from './components/MSTransferConsultation';
 
 type AppUser = {
   email: string;
@@ -325,6 +326,8 @@ function renderContent(
       return <Settings />;
     case 'ms-tr-create':
       return <MSTransferCreate />;
+    case 'ms-tr-consultation':
+      return <MSTransferConsultation onNavigate={onNavigate} />;
     default:
       return <Dashboard />;
   }
