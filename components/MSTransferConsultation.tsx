@@ -44,7 +44,7 @@ function TransferConsultation({ onNew }: { onNew: () => void }) {
         <KPI label="Commerciaux en cours" value={7} color="#1D4ED8" icon={TrendingUp} />
         <KPI label="Financiers en cours" value={3} color="#7C3AED" icon={Banknote} />
         <KPI label="Dossiers avec alerte" value={2} color="#F97316" icon={AlertTriangle} />
-        <KPI label="En attente SC" value={4} color="#0D9488" icon={Clock} />
+        <KPI label="En attente services centraux" value={4} color="#0D9488" icon={Clock} />
         <KPI label="Rejetés ce mois" value={1} color="#EF4444" icon={XCircle} />
       </div>
 
@@ -93,7 +93,7 @@ function TransferConsultation({ onNew }: { onNew: () => void }) {
               { value: 'all', label: 'Tous les statuts' },
               { value: 'brouillon', label: 'Brouillon' },
               { value: 'en_cours_agence', label: 'En cours agence' },
-              { value: 'attente_sc', label: 'En attente SC' },
+              { value: 'attente_sc', label: 'En attente services centraux' },
               { value: 'valide', label: 'Validé' },
               { value: 'rejete', label: 'Rejeté' },
             ]}
@@ -115,7 +115,7 @@ function TransferConsultation({ onNew }: { onNew: () => void }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr style={{ background: '#F4F8FC' }}>
-              {['Référence', 'Type', 'Client', 'Montant', 'Support', 'Statut', 'Étape workflow', 'Dernière MAJ', 'Action'].map(h =>
+              {['Référence', 'Type', 'Client', 'Montant', 'Support', 'Statut', 'Étape de traitement', 'Dernière MAJ', 'Action'].map(h =>
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#435B7B] uppercase tracking-wide whitespace-nowrap">{h}</th>)}
             </tr></thead>
             <tbody>

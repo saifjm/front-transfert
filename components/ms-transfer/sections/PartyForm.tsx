@@ -54,7 +54,7 @@ export function PartyForm({
           required={beneficiary}
         />
         <FI
-          label="Ville (Town Name)"
+          label="Ville"
           value={value.townName}
           onChange={fieldValue => update('townName', fieldValue)}
           required={beneficiary}
@@ -94,12 +94,12 @@ export function PartyForm({
           onChange={fieldValue => update('adresseLigne2', fieldValue)}
         />
         <FI
-          label="Type pièce / Identifiant"
+          label="Type de pièce ou d’identifiant"
           value={value.typePiece}
           onChange={fieldValue => update('typePiece', fieldValue)}
         />
         <FI
-          label="Numéro pièce / Identifiant"
+          label="Numéro de pièce ou d’identifiant"
           value={value.noPiece}
           onChange={fieldValue => update('noPiece', fieldValue)}
         />

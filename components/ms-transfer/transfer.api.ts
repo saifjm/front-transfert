@@ -9,6 +9,7 @@ import type {
   TCEResult,
   TceSearchData,
 } from './transfer.types';
+import { UserMessageError } from './transfer.errors';
 import {
   MOCK_AGENCIES,
   MOCK_BANKS,
@@ -48,7 +49,7 @@ export async function getClientCompteCom(
   agencies: AgencyInfo[],
 ): Promise<ClientData> {
   if (!agencies.length) {
-    throw new Error("Aucune agence n'est autorisée pour l'utilisateur connecté.");
+    throw new UserMessageError("Aucune agence n'est autorisée pour l'utilisateur connecté.");
   }
 
   if (noPieceClient === '12345678') {
@@ -59,7 +60,7 @@ export async function getClientCompteCom(
     return wait(filterEligibleAccounts(MOCK_TOTAL_EXPORTER_CLIENT), 700);
   }
 
-  throw new Error('Client introuvable ou non autorisé pour cette opération.');
+  throw new UserMessageError('Client introuvable ou non autorisé pour cette opération.');
 }
 
 /** [REF] getDeviseCotee. */
@@ -74,7 +75,7 @@ export async function getCounterValueTnd(
 ): Promise<CounterValueResult> {
   const rate = MOCK_RATES[codeDevise];
   if (!rate) {
-    throw new Error(`La devise ${codeDevise} n'est pas cotée.`);
+    throw new UserMessageError(`La devise ${codeDevise} n'est pas cotée.`);
   }
 
   return wait({
@@ -99,7 +100,7 @@ export async function getActiveClientAuthorizations(
 export async function getBankByBic(bicfi: string): Promise<BankData> {
   const bank = MOCK_BANKS[bicfi.trim().toUpperCase()];
   if (!bank) {
-    throw new Error('BICFI introuvable dans le référentiel bancaire.');
+    throw new UserMessageError('Code BIC introuvable.');
   }
   return wait(bank, 550);
 }
@@ -110,7 +111,7 @@ export async function verifyTce(
   client: ClientData,
 ): Promise<TCEResult> {
   if (!search.codeTitre || !search.numDomi || !search.dateDomi) {
-    throw new Error('Le code titre, le numéro et la date de domiciliation sont obligatoires.');
+    throw new UserMessageError('Le code titre, le numéro et la date de domiciliation sont obligatoires.');
   }
 
   if (search.numDomi.toUpperCase() === 'DOM-ERROR') {

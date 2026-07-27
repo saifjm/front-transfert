@@ -9,6 +9,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { getBankByBic, getCounterValueTnd } from '../transfer.api';
+import { getUserMessage } from '../transfer.errors';
 import type { ClientData, QuotedCurrency, TransferOrder } from '../transfer.types';
 import { FI, FR, HDR, SecTitle } from '../transfer.ui';
 import { formatAmount, parseAmount } from '../transfer.utils';
@@ -56,7 +57,7 @@ export function OrderSection({
         contreValeurTnd: formatAmount(result.contreValeurTnd),
       });
     } catch (reason) {
-      setCounterValueError(reason instanceof Error ? reason.message : 'Calcul de contre-valeur impossible.');
+      setCounterValueError(getUserMessage(reason, 'Le cours et la contre-valeur n’ont pas pu être calculés. Réessayez ultérieurement.'));
     } finally {
       setCounterValueLoading(false);
     }
@@ -64,7 +65,7 @@ export function OrderSection({
 
   const searchBank = async () => {
     if (!order.beneficiaryBank.bicfi.trim()) {
-      setBankError('Le BICFI est obligatoire pour rechercher la banque bénéficiaire.');
+      setBankError('Le code BIC est obligatoire pour rechercher la banque bénéficiaire.');
       return;
     }
 
@@ -74,7 +75,7 @@ export function OrderSection({
       const bank = await getBankByBic(order.beneficiaryBank.bicfi);
       update('beneficiaryBank', bank);
     } catch (reason) {
-      setBankError(reason instanceof Error ? reason.message : 'Banque introuvable.');
+      setBankError(getUserMessage(reason, 'La banque n’a pas pu être recherchée. Réessayez ultérieurement.'));
     } finally {
       setBankLoading(false);
     }
@@ -85,7 +86,7 @@ export function OrderSection({
       <div>
         <h2 className="text-lg font-bold text-[#2D3E54] mb-1">Données de l’ordre de transfert</h2>
         <p className="text-sm text-[#7A90A4]">
-          Saisissez les montants, les parties ISO 20022, la banque bénéficiaire, le motif de paiement, les frais et les observations.
+          Saisissez les montants, les informations des intervenants, la banque bénéficiaire, le motif du paiement, la répartition des frais et les observations.
         </p>
       </div>
 
@@ -145,7 +146,7 @@ export function OrderSection({
         )}
 
         <div className="flex flex-wrap items-center gap-4 px-4 py-2.5 rounded-xl text-xs" style={{ background: '#F4F8FC' }}>
-          <span className="text-[#7A90A4]">Résumé FX :</span>
+          <span className="text-[#7A90A4]">Résumé de conversion :</span>
           <span className="font-bold text-[#2D3E54]">{order.montantOrdre || '0'} {order.deviseOrdre}</span>
           <ChevronRight size={12} className="text-[#A8C0D9]" />
           <span className="font-mono font-bold text-[#435B7B]">× {order.coursConversion || '—'}</span>
@@ -162,7 +163,7 @@ export function OrderSection({
         />
         {client && (
           <div className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800">
-            <CheckCircle2 size={14} />Les données ont été initialisées depuis le client {client.idClient} et restent modifiables pour l’instruction.
+            <CheckCircle2 size={14} />Les données ont été préremplies à partir de la fiche client et restent modifiables.
           </div>
         )}
       </div>
@@ -170,7 +171,7 @@ export function OrderSection({
       <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #6B8CAE' }}>
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <h3 className="text-xs font-bold text-[#435B7B] uppercase tracking-wide">Ultimate Debtor</h3>
+            <h3 className="text-xs font-bold text-[#435B7B] uppercase tracking-wide">Donneur d’ordre final</h3>
             <p className="text-xs text-[#7A90A4] mt-1">Facultatif — à renseigner lorsque le donneur d’ordre final diffère du client.</p>
           </div>
           <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#435B7B] cursor-pointer">
@@ -185,7 +186,7 @@ export function OrderSection({
         </div>
         {order.ultimateDebtorEnabled && (
           <PartyForm
-            title="Données Ultimate Debtor"
+            title="Informations du donneur d’ordre final"
             value={order.ultimateDebtor}
             onChange={value => update('ultimateDebtor', value)}
           />
@@ -204,7 +205,7 @@ export function OrderSection({
       <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #8B5CF6' }}>
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <h3 className="text-xs font-bold text-[#435B7B] uppercase tracking-wide">Ultimate Creditor</h3>
+            <h3 className="text-xs font-bold text-[#435B7B] uppercase tracking-wide">Bénéficiaire final</h3>
             <p className="text-xs text-[#7A90A4] mt-1">Facultatif — bénéficiaire final différent du bénéficiaire du paiement.</p>
           </div>
           <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#435B7B] cursor-pointer">
@@ -219,7 +220,7 @@ export function OrderSection({
         </div>
         {order.ultimateCreditorEnabled && (
           <PartyForm
-            title="Données Ultimate Creditor"
+            title="Informations du bénéficiaire final"
             value={order.ultimateCreditor}
             onChange={value => update('ultimateCreditor', value)}
             beneficiary
@@ -231,7 +232,7 @@ export function OrderSection({
         <SecTitle>Banque bénéficiaire</SecTitle>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <FI
-            label="BICFI"
+            label="Code BIC de la banque"
             value={order.beneficiaryBank.bicfi}
             onChange={value => update('beneficiaryBank', { ...order.beneficiaryBank, bicfi: value.toUpperCase() })}
             placeholder="DEUTDEFFXXX"
@@ -246,7 +247,7 @@ export function OrderSection({
               style={HDR}
             >
               {bankLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-              Rechercher BIC
+              Rechercher la banque
             </button>
           </div>
           <div className="md:col-span-2">
@@ -286,39 +287,39 @@ export function OrderSection({
             placeholder="Import marchandises, frais de scolarité…"
           />
           <FI
-            label="Frais (Charge Bearer)"
+            label="Répartition des frais"
             value={order.chargeBearer}
             onChange={value => update('chargeBearer', value)}
             select
             required
             opts={[
-              { value: 'SHAR', label: 'SHAR — Partagés' },
-              { value: 'DEBT', label: 'DEBT — Donneur d’ordre' },
-              { value: 'CRED', label: 'CRED — Bénéficiaire' },
+              { value: 'SHAR', label: 'Frais partagés' },
+              { value: 'DEBT', label: 'À la charge du donneur d’ordre' },
+              { value: 'CRED', label: 'À la charge du bénéficiaire' },
             ]}
           />
           <FI
-            label="Purpose code ISO 20022"
+            label="Catégorie du paiement"
             value={order.purposeCode}
             onChange={value => update('purposeCode', value)}
             select
             opts={[
-              { value: 'GDDS', label: 'GDDS — Biens' },
-              { value: 'SVCS', label: 'SVCS — Services' },
-              { value: 'FEES', label: 'FEES — Honoraires' },
-              { value: 'SALA', label: 'SALA — Salaire' },
-              { value: 'DIVD', label: 'DIVD — Dividendes' },
+              { value: 'GDDS', label: 'Biens' },
+              { value: 'SVCS', label: 'Services' },
+              { value: 'FEES', label: 'Honoraires' },
+              { value: 'SALA', label: 'Salaire' },
+              { value: 'DIVD', label: 'Dividendes' },
             ]}
           />
           <FI
-            label="Service level"
+            label="Délai d’exécution"
             value={order.serviceLevel}
             onChange={value => update('serviceLevel', value)}
             select
             opts={[
-              { value: 'NURG', label: 'Non urgent (NURG)' },
-              { value: 'SDVA', label: 'Same Day (SDVA)' },
-              { value: 'SEPA', label: 'SEPA' },
+              { value: 'NURG', label: 'Standard' },
+              { value: 'SDVA', label: 'Exécution le jour même' },
+              { value: 'SEPA', label: 'Paiement SEPA' },
             ]}
           />
           <FI

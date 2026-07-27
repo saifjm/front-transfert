@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import { getActiveClientAuthorizations } from '../transfer.api';
+import { getUserMessage } from '../transfer.errors';
 import type { BctAuthorization, ClientData, RegulatoryData } from '../transfer.types';
 import { FI, FR, SecTitle } from '../transfer.ui';
 
@@ -31,7 +32,7 @@ export function RegulatoryDataSection({
         if (active) setAuthorizations(items);
       })
       .catch(reason => {
-        if (active) setError(reason instanceof Error ? reason.message : 'Impossible de charger les autorisations BCT.');
+        if (active) setError(getUserMessage(reason, 'Les autorisations BCT n’ont pas pu être chargées. Réessayez ultérieurement.'));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -129,7 +130,7 @@ export function RegulatoryDataSection({
             <div className="lg:col-span-2"><FR label="Objet" value={selectedAuthorization.objet} /></div>
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-green-800">
-            <ShieldCheck size={14} />Cette autorisation sera transmise dans le dossier MS-TR.
+            <ShieldCheck size={14} />Cette autorisation sera associée au dossier de transfert.
           </div>
         </div>
       )}

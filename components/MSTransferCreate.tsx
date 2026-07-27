@@ -72,7 +72,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         if (active) setQuotedCurrencies(currencies);
       })
       .catch(reason => {
-        if (active) setReferenceError(reason instanceof Error ? reason.message : 'Impossible de charger les devises cotées.');
+        if (active) setReferenceError('La liste des devises n’a pas pu être actualisée.');
       });
     return () => { active = false; };
   }, []);
@@ -196,9 +196,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     if (!payload) return;
 
     setSubmitting(true);
-    // TODO: replace with MS-TR creation endpoint.
+    // TODO: replace with the production submission call.
     window.setTimeout(() => {
-      console.info('MS-TR submission payload', payload);
+      void payload;
       setSubmitting(false);
       setShowSuccess(true);
     }, 1200);
@@ -266,7 +266,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       {referenceError && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">{referenceError} La liste de démonstration est utilisée.</p>
+          <p className="text-sm text-amber-800">{referenceError} La liste actuellement disponible reste utilisable.</p>
         </div>
       )}
 

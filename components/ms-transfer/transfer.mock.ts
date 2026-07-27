@@ -270,7 +270,7 @@ export const RECENT_TRANSFERS: TransferListItem[] = [
     client: 'BEN ALI KARIM',
     montant: '8 500,000',
     devise: 'USD',
-    support: 'Auth BCT 2026/447',
+    support: 'Autorisation BCT 2026/447',
     statut: 'attente_sc',
     etape: 'Validation services centraux',
     maj: '12/07/2026 15:20',
@@ -283,7 +283,7 @@ export const RECENT_TRANSFERS: TransferListItem[] = [
     devise: 'EUR',
     support: 'TCE DOM-2026-0019',
     statut: 'valide',
-    etape: 'Exécution SWIFT',
+    etape: 'Exécution du transfert',
     maj: '11/07/2026 11:05',
   },
   {
@@ -316,7 +316,7 @@ export const STATUS_CFG: Record<
 > = {
   brouillon: { label: 'Brouillon', bg: '#F8F9FA', text: '#6B7280', dot: '#9CA3AF' },
   en_cours_agence: { label: 'En cours agence', bg: '#EFF6FF', text: '#1D4ED8', dot: '#3B82F6' },
-  attente_sc: { label: 'En attente SC', bg: '#FFF7ED', text: '#C2410C', dot: '#F97316' },
+  attente_sc: { label: 'En attente services centraux', bg: '#FFF7ED', text: '#C2410C', dot: '#F97316' },
   attente_bo: { label: 'En attente BO', bg: '#FFFBEB', text: '#92400E', dot: '#F59E0B' },
   valide: { label: 'Validé', bg: '#F0FDF4', text: '#15803D', dot: '#22C55E' },
   rejete: { label: 'Rejeté', bg: '#FEF2F2', text: '#DC2626', dot: '#EF4444' },

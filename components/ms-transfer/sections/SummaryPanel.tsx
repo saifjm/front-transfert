@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check, Clock } from 'lucide-react';
 import type {
   ClientData,
   Modality,
@@ -8,7 +9,11 @@ import type {
   TransferType,
 } from '../transfer.types';
 import { TypeBadge } from '../transfer.ui';
-import { calculateCoverage } from '../transfer.utils';
+import {
+  calculateCoverage,
+  isOrderComplete,
+  isSupportComplete,
+} from '../transfer.utils';
 
 export function SummaryPanel({
   transferType,
@@ -36,6 +41,9 @@ export function SummaryPanel({
       ? support.ficheInformation.numero || 'FI non renseignée'
       : '—';
 
+  const regulatoryComplete = Boolean(regulatoryData.codeNatureOperation)
+    && (!regulatoryData.authorizationRequired || Boolean(regulatoryData.selectedAuthorizationId));
+
   const rows = [
     { label: 'Type transfert', value: transferType ? <TypeBadge type={transferType} /> : '—', show: true },
     { label: 'Client', value: <span className="text-[10px]">{client?.nomRaison ?? '—'}</span>, show: section >= 1 },
@@ -47,6 +55,29 @@ export function SummaryPanel({
     { label: 'Autorisation', value: regulatoryData.authorizationRequired ? (regulatoryData.selectedAuthorizationId || 'À sélectionner') : 'Non requise', show: section >= 4 },
     { label: support.type === 'FI' ? 'Fiche information' : 'TCE', value: supportLabel, show: section >= 5 },
     { label: 'Statut', value: section >= 6 ? <span className="text-green-700 font-semibold text-[10px]">Revue finale</span> : <span className="text-amber-600 text-[10px]">En cours…</span>, show: section >= 1 },
+  ];
+
+  const progress = [
+    {
+      label: 'Client et compte',
+      complete: client?.statut === 'ACTIF' && Boolean(commissionAccount),
+    },
+    {
+      label: 'Ordre de transfert',
+      complete: isOrderComplete(order),
+    },
+    {
+      label: 'Modalités de paiement',
+      complete: modalities.length > 0 && coverage.complete,
+    },
+    {
+      label: 'Données règlementaires',
+      complete: regulatoryComplete,
+    },
+    {
+      label: 'Support règlementaire',
+      complete: isSupportComplete(support),
+    },
   ];
 
   return (
@@ -64,20 +95,19 @@ export function SummaryPanel({
       </div>
 
       <div className="bg-[#F4F8FC] border border-[#d1dce6] rounded-xl p-3">
-        <p className="text-[9px] font-bold text-[#435B7B] uppercase tracking-wide mb-2">Endpoints cibles</p>
-        {[
-          ['AUTH', 'Agences user', '#435B7B'],
-          ['REF-BQ', 'Client / comptes', '#0D9488'],
-          ['REF', 'Devises / change', '#7C3AED'],
-          ['MS-REG', 'Autorisations', '#F97316'],
-          ['MS-DOMI', 'TCE', '#1D4ED8'],
-        ].map(([label, description, color]) => (
-          <div key={label} className="flex items-center gap-2 py-1">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-            <span className="text-[10px] font-mono font-bold text-[#2D3E54]">{label}</span>
-            <span className="text-[10px] text-[#7A90A4]">— {description}</span>
-          </div>
-        ))}
+        <p className="text-[9px] font-bold text-[#435B7B] uppercase tracking-wide mb-2">Avancement du dossier</p>
+        <div className="space-y-1">
+          {progress.map(item => (
+            <div key={item.label} className="flex items-center gap-2 py-1">
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${item.complete ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                {item.complete ? <Check size={10} /> : <Clock size={10} />}
+              </span>
+              <span className={`text-[10px] font-semibold ${item.complete ? 'text-green-800' : 'text-amber-800'}`}>
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </aside>
   );

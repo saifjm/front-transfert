@@ -200,7 +200,7 @@ export function PaymentModalitiesSection({
                   />
                   <FI label="Cours indicatif" value={modality.coursIndicatif || order.coursConversion} disabled />
                   <FI
-                    label="Cours appliqué par le user"
+                    label="Cours appliqué"
                     value={modality.coursSaisi}
                     onChange={value => update(modality.id, 'coursSaisi', value)}
                     disabled={!editableRate}
@@ -208,7 +208,7 @@ export function PaymentModalitiesSection({
                     placeholder={editableRate ? '3,34500000' : 'Cours normal automatique'}
                   />
                   <FI
-                    label="Référence deal / contrat"
+                    label="Référence du cours négocié / contrat"
                     value={modality.refDeal}
                     onChange={value => update(modality.id, 'refDeal', value)}
                     required={modality.fxRateMode === 'NEGOCIE' || modality.fxRateMode === 'TERME'}

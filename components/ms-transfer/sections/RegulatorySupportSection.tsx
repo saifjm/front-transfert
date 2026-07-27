@@ -9,6 +9,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { verifyTce } from '../transfer.api';
+import { getUserMessage } from '../transfer.errors';
 import type {
   ClientData,
   RegulatorySupportData,
@@ -80,7 +81,7 @@ export function RegulatorySupportSection({
       const tceResult = await verifyTce(value.tceSearch, client);
       onChange({ ...value, tceResult });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'La vérification du TCE a échoué.');
+      setError(getUserMessage(reason, 'La vérification du TCE n’a pas pu aboutir. Réessayez ultérieurement.'));
     } finally {
       setLoading(false);
     }
@@ -190,7 +191,7 @@ export function RegulatorySupportSection({
       {value.type === 'TCE' && (
         <>
           <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #0D9488' }}>
-            <SecTitle>Consultation du TCE — MS-DOMI</SecTitle>
+            <SecTitle>Consultation du titre de commerce extérieur</SecTitle>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <FI
                 label="Code titre"
@@ -239,7 +240,7 @@ export function RegulatorySupportSection({
                   ? <CheckCircle2 size={18} className="text-green-600" />
                   : <XCircle size={18} className="text-red-600" />}
                 <span className={`text-sm font-bold ${value.tceResult.state === 'success' ? 'text-green-700' : 'text-red-700'}`}>
-                  {value.tceResult.state === 'success' ? 'TCE valide — consultation réussie' : `Erreur — ${value.tceResult.codeErreur}`}
+                  {value.tceResult.state === 'success' ? 'TCE valide — consultation réussie' : 'Vérification impossible'}
                 </span>
               </div>
               {value.tceResult.state === 'success' ? (

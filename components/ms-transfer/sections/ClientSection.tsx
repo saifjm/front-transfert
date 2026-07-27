@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Loader2, Search, ShieldCheck, XCircle } from 'lucide-react';
 import { getClientCompteCom, getUserAgencies } from '../transfer.api';
+import { getUserMessage } from '../transfer.errors';
 import type { AgencyInfo, ClientData, CustomerIdType } from '../transfer.types';
 import { FI, FR, HDR, SecTitle } from '../transfer.ui';
 
@@ -23,7 +24,7 @@ export function ClientSection({
 
   const search = async () => {
     if (!noPiece.trim()) {
-      setError('Veuillez saisir le numéro de pièce IBANSYS.');
+      setError('Veuillez saisir le numéro de pièce.');
       return;
     }
 
@@ -35,7 +36,7 @@ export function ClientSection({
       setAgencies(userAgencies);
       onClientLoaded(foundClient);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Une erreur est survenue lors de la recherche client.');
+      setError(getUserMessage(reason, 'La recherche du client n’a pas pu aboutir. Réessayez ultérieurement.'));
     } finally {
       setLoading(false);
     }
@@ -46,12 +47,12 @@ export function ClientSection({
       <div>
         <h2 className="text-lg font-bold text-[#2D3E54] mb-1">Identification du client donneur d’ordre</h2>
         <p className="text-sm text-[#7A90A4]">
-          La liste des agences autorisées est récupérée automatiquement depuis la session, puis le client et ses comptes éligibles sont chargés depuis REF-BQ.
+          Vos agences habilitées sont déterminées automatiquement. Saisissez l’identifiant du client pour afficher sa fiche et ses comptes éligibles.
         </p>
       </div>
 
       <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #435B7B' }}>
-        <SecTitle>Recherche client — AUTH BFF / REF-BQ</SecTitle>
+        <SecTitle>Recherche du client</SecTitle>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
           <FI
             label="Type de pièce"
@@ -66,7 +67,7 @@ export function ClientSection({
             ]}
           />
           <FI
-            label="Numéro de pièce (ID IBANSYS)"
+            label="Numéro de pièce"
             value={noPiece}
             onChange={setNoPiece}
             placeholder="Ex : 12345678"
@@ -87,7 +88,7 @@ export function ClientSection({
 
         {agencies.length > 0 && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-[#F4F8FC] border border-[#d1dce6] text-xs text-[#435B7B]">
-            Agences autorisées récupérées depuis la session : <strong>{agencies.map(agency => agency.label).join(', ')}</strong>.
+            Agences habilitées : <strong>{agencies.map(agency => agency.label).join(', ')}</strong>.
           </div>
         )}
 
@@ -109,11 +110,11 @@ export function ClientSection({
             <div className="flex items-center justify-between mb-4">
               <SecTitle>Informations client vérifiées</SecTitle>
               <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 -mt-3">
-                <CheckCircle2 size={12} />Client vérifié — REF-BQ
+                <CheckCircle2 size={12} />Client vérifié
               </span>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <FR label="ID client interne" value={client.idClient} />
+              <FR label="Référence client" value={client.idClient} />
               <FR label="Numéro de pièce" value={client.noPiece} mono />
               <FR label="Type client" value={client.typeClient} />
               <FR label="Résident" value={client.resident ? 'Oui' : 'Non'} />
@@ -137,7 +138,7 @@ export function ClientSection({
             <div className="p-5 pb-3">
               <SecTitle>Compte commission — comptes TND et comptes principaux actifs</SecTitle>
               <p className="text-xs text-[#7A90A4] -mt-1">
-                Les comptes professionnels et inactifs sont exclus par REF-BQ.
+                Seuls les comptes actifs et éligibles sont proposés.
               </p>
             </div>
             <div className="overflow-x-auto">

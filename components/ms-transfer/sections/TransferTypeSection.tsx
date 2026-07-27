@@ -22,8 +22,8 @@ export function TransferTypeSection({
       points: [
         'TCE obligatoire hors totalement exportateur',
         'TCE ou FI pour un client totalement exportateur',
-        'Vérification via MS-DOMI',
-        'Réservation effectuée par MS-TR',
+        'Contrôle préalable du titre de commerce extérieur',
+        'Réservation du montant lors de la validation',
       ],
       cta: 'Choisir transfert commercial',
       grad: HDR,

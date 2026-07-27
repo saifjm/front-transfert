@@ -5,7 +5,6 @@ import {
   Download,
   Loader2,
   Send,
-  Zap,
 } from 'lucide-react';
 import type {
   ClientData,
@@ -72,7 +71,7 @@ export function RecapSection({
     <div className="space-y-5 anim-fade-in-up">
       <div>
         <h2 className="text-lg font-bold text-[#2D3E54] mb-1">Récapitulatif avant soumission</h2>
-        <p className="text-sm text-[#7A90A4]">Vérifiez toutes les informations avant de soumettre l’ordre au workflow MS-TR.</p>
+        <p className="text-sm text-[#7A90A4]">Vérifiez toutes les informations avant de transmettre l’ordre au circuit de validation.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -81,7 +80,7 @@ export function RecapSection({
           <div className="space-y-3">
             <FR label="Type de transfert" value={transferType ? <TypeBadge type={transferType} /> : '—'} />
             <FR label="Client" value={client?.nomRaison} />
-            <FR label="ID client interne" value={client?.idClient} />
+            <FR label="Référence client" value={client?.idClient} />
             <FR label="Compte commission" value={<span className="font-mono text-xs">{commissionAccount || '—'}</span>} />
           </div>
         </div>
@@ -103,7 +102,7 @@ export function RecapSection({
             <FR label="Bénéficiaire" value={order.beneficiary.nomRaison} />
             <FR label="Compte bénéficiaire" value={<span className="font-mono text-xs">{order.beneficiary.compte}</span>} />
             <FR label="Ville / Pays" value={`${order.beneficiary.townName || '—'} — ${order.beneficiary.pays || '—'}`} />
-            <FR label="BICFI / Banque" value={`${order.beneficiaryBank.bicfi || '—'} — ${order.beneficiaryBank.nom || '—'}`} />
+            <FR label="Code BIC / Banque" value={`${order.beneficiaryBank.bicfi || '—'} — ${order.beneficiaryBank.nom || '—'}`} />
           </div>
         </div>
 
@@ -165,21 +164,18 @@ export function RecapSection({
         </div>
 
         <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #6B7A8D' }}>
-          <SecTitle>Traçabilité technique cible</SecTitle>
+          <SecTitle>Suite du traitement</SecTitle>
           <div className="divide-y divide-[#EEF3F7]">
             {[
-              ['Agences user', 'AUTH BFF / getAgenceUser'],
-              ['Client et comptes', 'REF-BQ / getClientCompteCom'],
-              ['Devises cotées', 'REF / getDeviseCotee'],
-              ['Cours et contre-valeur', 'REF-BQ / getContreValeurTnd'],
-              ['Autorisations BCT', 'MS-REGLEMENTAIRE / getAutorisationActiveClient'],
-              ['Support TCE', 'MS-DOMI / consultation puis réservation'],
-              ['Création transfert', 'MS-TR / création et workflow'],
-            ].map(([label, service]) => (
-              <div key={label} className="flex items-center gap-2 py-1.5">
-                <Zap size={12} className="text-[#435B7B] flex-shrink-0" />
-                <span className="text-[10px] text-[#6B7A8D]">{label} :</span>
-                <span className="text-[10px] font-mono font-bold text-[#435B7B]">{service}</span>
+              'Enregistrement du dossier de transfert',
+              'Transmission au circuit de validation',
+              'Contrôles règlementaires selon la nature de l’opération',
+              'Prise en compte du support règlementaire sélectionné',
+              'Exécution du transfert après validation',
+            ].map(label => (
+              <div key={label} className="flex items-center gap-2 py-2">
+                <CheckCircle2 size={13} className="text-[#435B7B] flex-shrink-0" />
+                <span className="text-xs text-[#6B7A8D]">{label}</span>
               </div>
             ))}
           </div>
@@ -201,7 +197,7 @@ export function RecapSection({
           className="flex items-center justify-center gap-2 px-7 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg sm:ml-auto"
           style={HDR}
         >
-          {submitting ? <><Loader2 size={14} className="animate-spin" />Soumission MS-TR…</> : <><Send size={14} />Soumettre au workflow</>}
+          {submitting ? <><Loader2 size={14} className="animate-spin" />Transmission en cours…</> : <><Send size={14} />Transmettre pour validation</>}
         </button>
       </div>
     </div>

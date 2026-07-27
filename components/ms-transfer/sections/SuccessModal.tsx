@@ -20,7 +20,7 @@ export function SuccessModal({
             <CheckCircle2 size={30} className="text-white" />
           </div>
           <h2 className="text-xl font-bold text-[#2D3E54] mb-1">Transfert créé avec succès</h2>
-          <p className="text-sm text-[#7A90A4]">L’ordre a été transmis à MS-TR et acheminé par MS-WORKFLOW.</p>
+          <p className="text-sm text-[#7A90A4]">Le dossier a été enregistré et transmis au circuit de validation.</p>
         </div>
 
         <div className="bg-[#F4F8FC] rounded-2xl p-4 mb-4 space-y-3">
