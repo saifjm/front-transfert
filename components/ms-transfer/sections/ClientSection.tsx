@@ -1,185 +1,419 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Loader2, Search, ShieldCheck, XCircle } from 'lucide-react';
-import { getClientCompteCom, getUserAgencies } from '../transfer.api';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Search,
+  ShieldCheck,
+} from 'lucide-react';
+
+import { Alert, AlertDescription } from '../../ui/alert';
+import { Badge } from '../../ui/badge';
+import { Button } from '../../ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../ui/card';
+
+import {
+  getClientAgence,
+  getClientCompteCom,
+} from '../transfer.api';
 import { getUserMessage } from '../transfer.errors';
-import type { AgencyInfo, ClientData, CustomerIdType } from '../transfer.types';
-import { FI, FR, HDR, SecTitle } from '../transfer.ui';
+import type {
+  ClientAgencyEligibility,
+  ClientData,
+  CustomerIdType,
+} from '../transfer.types';
+import { FI, FR } from '../transfer.ui';
+
+interface ClientSectionProps {
+  client: ClientData | null;
+  commissionAccount: string;
+  onClientLoaded: (client: ClientData) => void;
+  onClientCleared: () => void;
+  onCommissionAccountChange: (account: string) => void;
+}
+
+function agencyListLabel(codes: Array<{ code: string }>): string {
+  return codes.length > 0
+    ? codes.map(agency => agency.code).join(', ')
+    : 'Aucune';
+}
 
 export function ClientSection({
   client,
   commissionAccount,
   onClientLoaded,
+  onClientCleared,
   onCommissionAccountChange,
-}: {
-  client: ClientData | null;
-  commissionAccount: string;
-  onClientLoaded: (client: ClientData) => void;
-  onCommissionAccountChange: (account: string) => void;
-}) {
-  const [typePiece, setTypePiece] = useState<CustomerIdType>('MF');
+}: ClientSectionProps) {
+  const [typePiece, setTypePiece] =
+    useState<CustomerIdType>('CIN');
   const [noPiece, setNoPiece] = useState('');
-  const [agencies, setAgencies] = useState<AgencyInfo[]>([]);
+  const [eligibility, setEligibility] =
+    useState<ClientAgencyEligibility | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const clearPreviousResult = () => {
+    setEligibility(null);
+    setError('');
+    onClientCleared();
+  };
+
+  const handleTypePieceChange = (value: string) => {
+    setTypePiece(value as CustomerIdType);
+    clearPreviousResult();
+  };
+
+  const handleNoPieceChange = (value: string) => {
+    setNoPiece(value.toUpperCase());
+    clearPreviousResult();
+  };
+
   const search = async () => {
-    if (!noPiece.trim()) {
+    const normalizedNoPiece = noPiece.trim();
+
+    if (!normalizedNoPiece) {
       setError('Veuillez saisir le numéro de pièce.');
+      setEligibility(null);
+      onClientCleared();
       return;
     }
 
     setError('');
+    setEligibility(null);
     setLoading(true);
+    onClientCleared();
+
     try {
-      const userAgencies = await getUserAgencies(typePiece, noPiece.trim());
-      const foundClient = await getClientCompteCom(typePiece, noPiece.trim(), userAgencies);
-      setAgencies(userAgencies);
+      const agencyEligibility = await getClientAgence(
+        typePiece,
+        normalizedNoPiece,
+      );
+
+      setEligibility(agencyEligibility);
+
+      if (!agencyEligibility.eligible) {
+        return;
+      }
+
+      const foundClient = await getClientCompteCom(
+        typePiece,
+        normalizedNoPiece,
+        agencyEligibility,
+      );
+
       onClientLoaded(foundClient);
     } catch (reason) {
-      setError(getUserMessage(reason, 'La recherche du client n’a pas pu aboutir. Réessayez ultérieurement.'));
+      setEligibility(null);
+      setError(
+        getUserMessage(
+          reason,
+          'La recherche du client n’a pas pu aboutir. Réessayez ultérieurement.',
+        ),
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-5 anim-fade-in-up">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-bold text-[#2D3E54] mb-1">Identification du client donneur d’ordre</h2>
-        <p className="text-sm text-[#7A90A4]">
-          Vos agences habilitées sont déterminées automatiquement. Saisissez l’identifiant du client pour afficher sa fiche et ses comptes éligibles.
+        <h2 className="text-xl font-semibold tracking-tight">
+          Identification du client donneur d’ordre
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Le client peut initier un transfert uniquement dans son agence
+          de rattachement. L’agence courante provient de la session de
+          l’utilisateur connecté.
         </p>
       </div>
 
-      <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5" style={{ borderTop: '3px solid #435B7B' }}>
-        <SecTitle>Recherche du client</SecTitle>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-          <FI
-            label="Type de pièce"
-            value={typePiece}
-            onChange={value => setTypePiece(value as CustomerIdType)}
-            select
-            opts={[
-              { value: 'CIN', label: 'CIN' },
-              { value: 'PASSPORT', label: 'Passeport' },
-              { value: 'MF', label: 'Matricule fiscal' },
-              { value: 'RC', label: 'Registre de commerce' },
-            ]}
-          />
-          <FI
-            label="Numéro de pièce"
-            value={noPiece}
-            onChange={setNoPiece}
-            placeholder="Ex : 12345678"
-            required
-          />
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={search}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-60"
-              style={HDR}
-            >
-              {loading ? <><Loader2 size={14} className="animate-spin" />Recherche…</> : <><Search size={14} />Rechercher client</>}
-            </button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recherche du client</CardTitle>
+          <CardDescription>
+            L’éligibilité est contrôlée avant la consultation de la fiche
+            client et des comptes de l’agence courante.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <FI
+              label="Type de pièce"
+              value={typePiece}
+              onChange={handleTypePieceChange}
+              select
+              opts={[
+                { value: 'CIN', label: 'CIN' },
+                { value: 'PASSPORT', label: 'Passeport' },
+                { value: 'MF', label: 'Matricule fiscal' },
+                { value: 'RC', label: 'Registre de commerce' },
+              ]}
+            />
+
+            <FI
+              label="Numéro de pièce"
+              value={noPiece}
+              onChange={handleNoPieceChange}
+              placeholder="Ex : 07458963"
+              required
+              error={error || undefined}
+            />
+
+            <div className="flex items-end">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={search}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Vérification...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Rechercher
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {agencies.length > 0 && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-[#F4F8FC] border border-[#d1dce6] text-xs text-[#435B7B]">
-            Agences habilitées : <strong>{agencies.map(agency => agency.label).join(', ')}</strong>.
-          </div>
-        )}
+          {eligibility?.eligible && (
+            <Alert className="border-green-200 bg-green-50 text-green-800">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription>
+                <strong>Client éligible.</strong>{' '}
+                {eligibility.message}
+                <div className="mt-1 text-xs">
+                  Agence courante :{' '}
+                  <strong>{eligibility.currentAgency?.code}</strong>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {error && (
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
-            <XCircle size={14} className="text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+          {eligibility && !eligibility.eligible && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Client non éligible.</strong>{' '}
+                {eligibility.message}
+                <div className="mt-1 text-xs">
+                  Agence courante :{' '}
+                  <strong>
+                    {eligibility.currentAgency?.code || 'Non déterminée'}
+                  </strong>
+                  {' · '}Agences du client :{' '}
+                  <strong>
+                    {agencyListLabel(eligibility.clientAgencies)}
+                  </strong>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        <p className="text-xs text-[#7A90A4] mt-2">
-          Démonstration : <span className="font-mono font-bold">12345678</span> pour un client non totalement exportateur, <span className="font-mono font-bold">1234</span> pour un client totalement exportateur.
-        </p>
-      </div>
+          <p className="text-xs text-muted-foreground">
+            Démonstration du serveur bancaire : utilisateur{' '}
+            <strong>U00458</strong>, agence courante{' '}
+            <strong>012</strong>, client{' '}
+            <strong>CIN / 07458963</strong>.
+          </p>
+        </CardContent>
+      </Card>
 
-      {client && (
+      {client && eligibility?.eligible && (
         <>
-          <div className="bg-white border border-green-300 rounded-2xl shadow-sm p-5 anim-fade-in-up delay-100" style={{ borderTop: '3px solid #22C55E' }}>
-            <div className="flex items-center justify-between mb-4">
-              <SecTitle>Informations client vérifiées</SecTitle>
-              <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 -mt-3">
-                <CheckCircle2 size={12} />Client vérifié
-              </span>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <FR label="Référence client" value={client.idClient} />
-              <FR label="Numéro de pièce" value={client.noPiece} mono />
-              <FR label="Type client" value={client.typeClient} />
-              <FR label="Résident" value={client.resident ? 'Oui' : 'Non'} />
-              <div className="lg:col-span-2"><FR label="Nom / Raison sociale" value={client.nomRaison} /></div>
-              <FR label="Pays de résidence" value={`${client.codePays} — ${client.pays}`} />
-              <FR label="Ville" value={client.ville} />
-              <FR label="Agence de rattachement" value={client.agence} />
-              <FR label="Statut exportateur" value={client.totalementExportatrice ? 'Totalement exportatrice' : 'Non totalement exportatrice'} />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700">
-                <span className="w-2 h-2 rounded-full bg-green-500" />Statut : {client.statut}
-              </span>
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-[#F4F8FC] text-[#435B7B]">
-                <ShieldCheck size={11} />Risque : {client.niveauRisque}
-              </span>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>Informations client</CardTitle>
+                  <CardDescription>
+                    Données d’identification et situation du client
+                  </CardDescription>
+                </div>
 
-          <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm overflow-hidden anim-fade-in-up delay-200">
-            <div className="p-5 pb-3">
-              <SecTitle>Compte commission — comptes TND et comptes principaux actifs</SecTitle>
-              <p className="text-xs text-[#7A90A4] -mt-1">
-                Seuls les comptes actifs et éligibles sont proposés.
-              </p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ background: '#F4F8FC' }}>
-                    {['Numéro compte', 'Devise', 'Type', 'Principal', 'Statut', 'Solde disponible', 'Compte commission'].map(header => (
-                      <th key={header} className="px-4 py-3 text-left text-xs font-semibold text-[#435B7B] uppercase tracking-wide whitespace-nowrap">{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {client.comptes.map(account => (
-                    <tr
-                      key={account.numero}
-                      onClick={() => account.eligibleCommission && onCommissionAccountChange(account.numero)}
-                      className={`border-t border-[#EEF3F7] transition-all ${
-                        account.eligibleCommission ? 'cursor-pointer hover:bg-[#EEF3F7]/50' : 'opacity-60'
-                      } ${commissionAccount === account.numero ? 'bg-blue-50' : ''}`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-[#2D3E54]">{account.numero}</td>
-                      <td className="px-4 py-3 font-bold text-[#435B7B]">{account.devise}</td>
-                      <td className="px-4 py-3 text-xs text-[#6B7A8D]">{account.type}</td>
-                      <td className="px-4 py-3 text-xs">{account.principal ? 'Oui' : 'Non'}</td>
-                      <td className="px-4 py-3"><span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-50 text-green-700">{account.statut}</span></td>
-                      <td className="px-4 py-3 font-semibold text-[#2D3E54] whitespace-nowrap">{account.solde} {account.devise}</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="radio"
-                          checked={commissionAccount === account.numero}
-                          onChange={() => onCommissionAccountChange(account.numero)}
-                          disabled={!account.eligibleCommission}
-                          className="w-4 h-4 accent-[#435B7B]"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-green-200 bg-green-50 text-green-700"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  Client éligible
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <FR label="Référence client" value={client.idClient} />
+                <FR label="Numéro de pièce" value={client.noPiece} mono />
+                <FR label="Type client" value={client.typeClient} />
+                <FR
+                  label="Résident"
+                  value={client.resident ? 'Oui' : 'Non'}
+                />
+                <div className="lg:col-span-2">
+                  <FR
+                    label="Nom / Raison sociale"
+                    value={client.nomRaison}
+                  />
+                </div>
+                <FR
+                  label="Pays de résidence"
+                  value={`${client.codePays} — ${client.pays}`}
+                />
+                <FR label="Ville" value={client.ville} />
+                <FR
+                  label="Agence de rattachement"
+                  value={client.agence}
+                />
+                <FR
+                  label="Statut exportateur"
+                  value={
+                    client.totalementExportatrice
+                      ? 'Totalement exportatrice'
+                      : 'Non totalement exportatrice'
+                  }
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-green-200 bg-green-50 text-green-700"
+                >
+                  Statut : {client.statut}
+                </Badge>
+                <Badge variant="secondary" className="gap-1">
+                  <ShieldCheck className="h-3 w-3" />
+                  Risque : {client.niveauRisque}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Compte commission</CardTitle>
+              <CardDescription>
+                Seuls les comptes valides, non professionnels et
+                retournés pour l’agence courante sont proposés. Aucun
+                solde ni provision n’est consulté sur cette interface.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {client.comptes.length === 0 ? (
+                <div className="p-6">
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      Aucun compte accessible n’a été retourné pour
+                      l’agence courante.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-y bg-muted/50">
+                      <tr>
+                        {[
+                          'Numéro compte',
+                          'Agence',
+                          'Devise',
+                          'Type',
+                          'Principal',
+                          'Statut',
+                          'Sélection',
+                        ].map(header => (
+                          <th
+                            key={header}
+                            className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium text-muted-foreground"
+                          >
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {client.comptes.map(account => {
+                        const selectable = account.eligibleCommission;
+                        const selected =
+                          commissionAccount === account.numero;
+
+                        return (
+                          <tr
+                            key={account.numero}
+                            onClick={() => {
+                              if (selectable) {
+                                onCommissionAccountChange(account.numero);
+                              }
+                            }}
+                            className={`border-b transition-colors ${
+                              selectable
+                                ? 'cursor-pointer hover:bg-muted/40'
+                                : 'opacity-60'
+                            } ${selected ? 'bg-primary/5' : ''}`}
+                          >
+                            <td className="px-4 py-3 font-mono text-xs font-medium">
+                              {account.numero}
+                            </td>
+                            <td className="px-4 py-3">
+                              {account.codeAgence}
+                            </td>
+                            <td className="px-4 py-3 font-medium">
+                              {account.devise}
+                            </td>
+                            <td className="px-4 py-3">
+                              {account.type}
+                            </td>
+                            <td className="px-4 py-3">
+                              {account.principal ? 'Oui' : 'Non'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge
+                                variant="outline"
+                                className="border-green-200 bg-green-50 text-green-700"
+                              >
+                                {account.statut}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="radio"
+                                name="commission-account"
+                                checked={selected}
+                                onChange={() =>
+                                  onCommissionAccountChange(account.numero)
+                                }
+                                disabled={!selectable}
+                                aria-label={`Sélectionner le compte ${account.numero}`}
+                                className="h-4 w-4 accent-primary"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

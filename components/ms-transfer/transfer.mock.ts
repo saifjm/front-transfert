@@ -1,8 +1,6 @@
 import type {
-  AgencyInfo,
   BankData,
   BctAuthorization,
-  ClientData,
   Modality,
   QuotedCurrency,
   RegulatoryData,
@@ -12,80 +10,6 @@ import type {
   TransferOrder,
 } from './transfer.types';
 
-export const MOCK_AGENCIES: AgencyInfo[] = [
-  { code: '0010', label: 'Agence Tunis Centre', bctCode: 'BCT-10' },
-  { code: '0021', label: 'Agence Lac 1', bctCode: 'BCT-21' },
-];
-
-export const MOCK_CLIENT: ClientData = {
-  idClient: '1001',
-  noPiece: '12345678',
-  typePiece: 'MF',
-  nomRaison: 'SOCIETE IMPORTATRICE TUNISIENNE',
-  typeClient: 'PERSONNE_MORALE',
-  resident: true,
-  residence: 'Résident',
-  pays: 'Tunisie',
-  codePays: 'TN',
-  ville: 'Tunis',
-  adresse: 'Avenue Habib Bourguiba',
-  agence: 'Agence Tunis Centre — BCT-10',
-  codeAgence: '0010',
-  statut: 'ACTIF',
-  niveauRisque: 'FAIBLE',
-  totalementExportatrice: false,
-  comptes: [
-    {
-      numero: '01001000000000123456',
-      devise: 'TND',
-      type: 'Courant',
-      statut: 'ACTIF',
-      solde: '245 000,000',
-      principal: true,
-      professionnel: false,
-      eligibleCommission: true,
-    },
-    {
-      numero: '01001000000000999999',
-      devise: 'EUR',
-      type: 'Devises',
-      statut: 'ACTIF',
-      solde: '32 500,000',
-      principal: true,
-      professionnel: false,
-      eligibleCommission: true,
-    },
-    {
-      numero: '01001000000000777777',
-      devise: 'USD',
-      type: 'Devises',
-      statut: 'ACTIF',
-      solde: '8 200,000',
-      principal: false,
-      professionnel: false,
-      eligibleCommission: false,
-    },
-    {
-      numero: '01001000000000444444',
-      devise: 'TND',
-      type: 'Professionnel',
-      statut: 'ACTIF',
-      solde: '15 000,000',
-      principal: false,
-      professionnel: true,
-      eligibleCommission: false,
-    },
-  ],
-};
-
-export const MOCK_TOTAL_EXPORTER_CLIENT: ClientData = {
-  ...MOCK_CLIENT,
-  idClient: '1002',
-  noPiece: '1234',
-  nomRaison: 'TEXTILES EXPORT TUNISIE SA',
-  totalementExportatrice: true,
-};
-
 export const MOCK_QUOTED_CURRENCIES: QuotedCurrency[] = [
   { code: 'EUR', label: 'Euro', decimals: 3 },
   { code: 'USD', label: 'Dollar américain', decimals: 3 },
@@ -94,15 +18,6 @@ export const MOCK_QUOTED_CURRENCIES: QuotedCurrency[] = [
   { code: 'CAD', label: 'Dollar canadien', decimals: 3 },
   { code: 'JPY', label: 'Yen japonais', decimals: 0 },
 ];
-
-export const MOCK_RATES: Record<string, number> = {
-  EUR: 3.35,
-  USD: 3.08,
-  GBP: 3.96,
-  CHF: 3.49,
-  CAD: 2.27,
-  JPY: 0.0207,
-};
 
 export const MOCK_BCT_AUTHORIZATIONS: BctAuthorization[] = [
   {

@@ -7,8 +7,9 @@ import {
   Send,
   ShieldCheck,
 } from 'lucide-react';
+
+import { Tabs, TabsList, TabsTrigger } from '../../ui/tabs';
 import type { ClientData, TransferType } from '../transfer.types';
-import { HDR } from '../transfer.ui';
 
 export const NAVIGATION_ITEMS = [
   { label: 'Type', icon: FileText },
@@ -20,9 +21,17 @@ export const NAVIGATION_ITEMS = [
   { label: 'Récapitulatif', icon: ClipboardList },
 ];
 
-function getSupportLabel(transferType: TransferType | null, client: ClientData | null) {
+function getSupportLabel(
+  transferType: TransferType | null,
+  client: ClientData | null,
+) {
   if (transferType === 'financier') return 'FI';
-  if (transferType === 'commercial' && client?.totalementExportatrice) return 'TCE / FI';
+  if (
+    transferType === 'commercial' &&
+    client?.totalementExportatrice
+  ) {
+    return 'TCE / FI';
+  }
   return 'TCE';
 }
 
@@ -38,37 +47,33 @@ export function SimpleSectionNavigation({
   onChange: (section: number) => void;
 }) {
   return (
-    <nav
-      aria-label="Navigation du dossier transfert"
-      className="bg-white border border-[#d1dce6] rounded-xl p-1.5 shadow-sm overflow-x-auto"
+    <Tabs
+      value={String(current)}
+      onValueChange={value => onChange(Number(value))}
+      className="w-full"
     >
-      <div className="flex items-center gap-1 min-w-max">
-        {NAVIGATION_ITEMS.map((item, index) => {
-          const active = current === index;
-          const label = index === 5
-            ? getSupportLabel(transferType, client)
-            : item.label;
-          const Icon = item.icon;
+      <div className="w-full overflow-x-auto pb-1">
+        <TabsList className="grid h-auto min-w-[980px] grid-cols-7">
+          {NAVIGATION_ITEMS.map((item, index) => {
+            const label =
+              index === 5
+                ? getSupportLabel(transferType, client)
+                : item.label;
+            const Icon = item.icon;
 
-          return (
-            <button
-              key={item.label}
-              type="button"
-              aria-current={active ? 'page' : undefined}
-              onClick={() => onChange(index)}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                active
-                  ? 'text-white shadow-sm'
-                  : 'text-[#435B7B] hover:bg-[#F4F8FC]'
-              }`}
-              style={active ? HDR : undefined}
-            >
-              <Icon size={14} />
-              {label}
-            </button>
-          );
-        })}
+            return (
+              <TabsTrigger
+                key={item.label}
+                value={String(index)}
+                className="gap-2 whitespace-nowrap px-3 py-2.5 text-xs"
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
       </div>
-    </nav>
+    </Tabs>
   );
 }

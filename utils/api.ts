@@ -203,45 +203,25 @@ export const logout = async (): Promise<ApiResponse<void>> => {
  * Automatically adds Authorization and X-Session-Id headers
  * Handles token refresh on 401 responses
  */
-export const authenticatedFetch = async (
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> => {
-  const token = getAccessToken();
-  const sessionId = getSessionId();
+export async function authenticatedFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
 
-  const headers: Record<string, string> = {
-    ...((options.headers as Record<string, string>) || {}),
-  };
+  const token =
+    sessionStorage.getItem('access_token')
+    || localStorage.getItem('access_token');
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (sessionId) {
-    headers['X-Session-Id'] = sessionId;
-  }
-
-  const requestOptions: RequestInit = {
-    ...options,
+  return fetch(input, {
+    ...init,
     headers,
-    credentials: 'include', // Include cookies for refresh token
-  };
-
-  let response = await fetch(url, requestOptions);
-
-  // If we get 401 and have a token, try to refresh once
-  if (response.status === 401 && token) {
-    const refreshResult = await refreshToken();
-    if (refreshResult.data?.access_token) {
-      // Retry with new token
-      headers['Authorization'] = `Bearer ${refreshResult.data.access_token}`;
-      response = await fetch(url, requestOptions);
-    }
-  }
-
-  return response;
-};
+  });
+}
 
 /**
  * Authenticated GET request

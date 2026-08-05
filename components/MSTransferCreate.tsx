@@ -3,9 +3,17 @@ import {
   ArrowLeft,
   ArrowRight,
   Info,
+  Loader2,
+  RotateCcw,
   Search,
   Send,
 } from 'lucide-react';
+
+import { Alert, AlertDescription } from './ui/alert';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent } from './ui/card';
+
 import { getQuotedCurrencies } from './ms-transfer/transfer.api';
 import {
   INITIAL_ORDER,
@@ -25,7 +33,7 @@ import type {
   TransferSubmissionPayload,
   TransferType,
 } from './ms-transfer/transfer.types';
-import { HDR, TypeBadge } from './ms-transfer/transfer.ui';
+import { TypeBadge } from './ms-transfer/transfer.ui';
 import {
   calculateCoverage,
   clientToParty,
@@ -35,14 +43,16 @@ import {
   requiresFinancingFile,
 } from './ms-transfer/transfer.utils';
 import { ClientSection } from './ms-transfer/sections/ClientSection';
-import { NAVIGATION_ITEMS, SimpleSectionNavigation } from './ms-transfer/sections/SimpleSectionNavigation';
+import {
+  NAVIGATION_ITEMS,
+  SimpleSectionNavigation,
+} from './ms-transfer/sections/SimpleSectionNavigation';
 import { OrderSection } from './ms-transfer/sections/OrderSection';
 import { PaymentModalitiesSection } from './ms-transfer/sections/PaymentModalitiesSection';
 import { RecapSection } from './ms-transfer/sections/RecapSection';
 import { RegulatoryDataSection } from './ms-transfer/sections/RegulatoryDataSection';
 import { RegulatorySupportSection } from './ms-transfer/sections/RegulatorySupportSection';
 import { SuccessModal } from './ms-transfer/sections/SuccessModal';
-import { SummaryPanel } from './ms-transfer/sections/SummaryPanel';
 import { TransferTypeSection } from './ms-transfer/sections/TransferTypeSection';
 
 export interface MSTransferCreateProps {
@@ -53,53 +63,93 @@ const INITIATION_SOURCE: TransferInitiationSource = 'AGENCE';
 
 export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const [currentSection, setCurrentSection] = useState(0);
-  const [transferType, setTransferType] = useState<TransferType | null>(null);
+  const [transferType, setTransferType] =
+    useState<TransferType | null>(null);
   const [client, setClient] = useState<ClientData | null>(null);
   const [commissionAccount, setCommissionAccount] = useState('');
-  const [quotedCurrencies, setQuotedCurrencies] = useState<QuotedCurrency[]>(MOCK_QUOTED_CURRENCIES);
+  const [quotedCurrencies, setQuotedCurrencies] = useState<
+    QuotedCurrency[]
+  >(MOCK_QUOTED_CURRENCIES);
   const [referenceError, setReferenceError] = useState('');
   const [order, setOrder] = useState<TransferOrder>(INITIAL_ORDER);
   const [modalities, setModalities] = useState<Modality[]>([]);
-  const [regulatoryData, setRegulatoryData] = useState<RegulatoryData>(INITIAL_REGULATORY_DATA);
-  const [support, setSupport] = useState<RegulatorySupportData>(INITIAL_SUPPORT_DATA);
+  const [regulatoryData, setRegulatoryData] =
+    useState<RegulatoryData>(INITIAL_REGULATORY_DATA);
+  const [support, setSupport] =
+    useState<RegulatorySupportData>(INITIAL_SUPPORT_DATA);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     let active = true;
+
     getQuotedCurrencies()
       .then(currencies => {
         if (active) setQuotedCurrencies(currencies);
       })
-      .catch(reason => {
-        if (active) setReferenceError('La liste des devises n’a pas pu être actualisée.');
+      .catch(() => {
+        if (active) {
+          setReferenceError(
+            'La liste des devises n’a pas pu être actualisée.',
+          );
+        }
       });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    setModalities(current => current.map(modality => ({
-      ...modality,
-      deviseOrdre: order.deviseOrdre,
-      coursIndicatif: order.coursConversion,
-    })));
+    setModalities(current =>
+      current.map(modality => ({
+        ...modality,
+        deviseOrdre: order.deviseOrdre,
+        coursIndicatif: order.coursConversion,
+      })),
+    );
   }, [order.deviseOrdre, order.coursConversion]);
 
   const modalitiesComplete = () => {
-    const coverage = calculateCoverage(modalities, order.montantOrdre);
-    return modalities.length > 0
-      && coverage.complete
-      && modalities.every(modality => !requiresDebitAccount(modality.type) || Boolean(modality.compteADebiter))
-      && modalities.every(modality => !requiresFinancingFile(modality.type) || Boolean(modality.dossierFinancementId))
-      && modalities.every(modality => modality.fxRateMode === 'NORMAL' || Boolean(modality.coursSaisi));
+    const coverage = calculateCoverage(
+      modalities,
+      order.montantOrdre,
+    );
+
+    return (
+      modalities.length > 0 &&
+      coverage.complete &&
+      modalities.every(
+        modality =>
+          !requiresDebitAccount(modality.type) ||
+          Boolean(modality.compteADebiter),
+      ) &&
+      modalities.every(
+        modality =>
+          !requiresFinancingFile(modality.type) ||
+          Boolean(modality.dossierFinancementId),
+      ) &&
+      modalities.every(
+        modality =>
+          modality.fxRateMode === 'NORMAL' ||
+          Boolean(modality.coursSaisi),
+      )
+    );
   };
 
-  const regulatoryComplete = () => Boolean(regulatoryData.codeNatureOperation)
-    && (!regulatoryData.authorizationRequired || Boolean(regulatoryData.selectedAuthorizationId));
+  const regulatoryComplete = () =>
+    Boolean(regulatoryData.codeNatureOperation) &&
+    (!regulatoryData.authorizationRequired ||
+      Boolean(regulatoryData.selectedAuthorizationId));
 
   const canProceed = () => {
     if (currentSection === 0) return transferType !== null;
-    if (currentSection === 1) return client?.statut === 'ACTIF' && Boolean(commissionAccount);
+    if (currentSection === 1) {
+      return (
+        client?.statut === 'ACTIF' &&
+        Boolean(commissionAccount)
+      );
+    }
     if (currentSection === 2) return isOrderComplete(order);
     if (currentSection === 3) return modalitiesComplete();
     if (currentSection === 4) return regulatoryComplete();
@@ -141,9 +191,21 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
   const handleClientLoaded = (loadedClient: ClientData) => {
     setClient(loadedClient);
-    const defaultCommissionAccount = loadedClient.comptes.find(account => account.devise === 'TND' && account.eligibleCommission)
-      ?? loadedClient.comptes.find(account => account.eligibleCommission);
-    setCommissionAccount(defaultCommissionAccount?.numero ?? '');
+
+    const defaultCommissionAccount =
+      loadedClient.comptes.find(
+        account =>
+          account.devise === 'TND' &&
+          account.eligibleCommission,
+      ) ??
+      loadedClient.comptes.find(
+        account => account.eligibleCommission,
+      );
+
+    setCommissionAccount(
+      defaultCommissionAccount?.numero ?? '',
+    );
+
     setOrder(current => ({
       ...current,
       debtor: {
@@ -151,8 +213,23 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         compte: defaultCommissionAccount?.numero ?? '',
       },
     }));
+
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(current => ({ ...current, tceResult: null }));
+  };
+
+  const handleClientCleared = () => {
+    setClient(null);
+    setCommissionAccount('');
+    setOrder(current => ({
+      ...current,
+      debtor: { ...INITIAL_ORDER.debtor },
+    }));
+    setRegulatoryData(INITIAL_REGULATORY_DATA);
+    setSupport(current => ({
+      ...current,
+      tceResult: null,
+    }));
   };
 
   const handlePrevious = () => {
@@ -160,34 +237,44 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       openConsultation();
       return;
     }
+
     setCurrentSection(section => section - 1);
   };
 
   const handleNext = () => {
     if (!canProceed()) return;
-    setCurrentSection(section => Math.min(NAVIGATION_ITEMS.length - 1, section + 1));
+
+    setCurrentSection(section =>
+      Math.min(NAVIGATION_ITEMS.length - 1, section + 1),
+    );
   };
 
-  const buildSubmissionPayload = (): TransferSubmissionPayload | null => {
-    if (!transferType || !client) return null;
-    return {
-      initiationSource: INITIATION_SOURCE,
-      transferType,
-      clientId: client.idClient,
-      clientTypePiece: client.typePiece,
-      clientNoPiece: client.noPiece,
-      commissionAccount,
-      order,
-      modalities,
-      regulatoryData,
-      regulatorySupport: support,
+  const buildSubmissionPayload =
+    (): TransferSubmissionPayload | null => {
+      if (!transferType || !client) return null;
+
+      return {
+        initiationSource: INITIATION_SOURCE,
+        transferType,
+        clientId: client.idClient,
+        clientTypePiece: client.typePiece,
+        clientNoPiece: client.noPiece,
+        commissionAccount,
+        order,
+        modalities,
+        regulatoryData,
+        regulatorySupport: support,
+      };
     };
-  };
 
   const handleSaveDraft = () => {
     const payload = buildSubmissionPayload();
+
     if (payload) {
-      sessionStorage.setItem('ms_tr_draft', JSON.stringify(payload));
+      sessionStorage.setItem(
+        'ms_tr_draft',
+        JSON.stringify(payload),
+      );
     }
   };
 
@@ -196,7 +283,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     if (!payload) return;
 
     setSubmitting(true);
-    // TODO: replace with the production submission call.
+
+    // TODO: replace with the production transfer submission call.
     window.setTimeout(() => {
       void payload;
       setSubmitting(false);
@@ -205,69 +293,66 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5 page-transition">
-      {showSuccess && (
-        <SuccessModal
-          transferType={transferType}
-          onClose={openConsultation}
-          onNew={resetForm}
-        />
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {submitting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/95 backdrop-blur-sm">
+          <Loader2 className="h-16 w-16 animate-spin text-primary" />
+          <p className="text-xl font-semibold tracking-wide text-foreground">
+            Soumission du dossier en cours...
+          </p>
+        </div>
       )}
 
-      <div className="rounded-2xl p-5 text-white anim-fade-in-up" style={HDR}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-              <Send size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">Dossier Transfert</h1>
-              <p className="text-xs text-white/70 mt-0.5">
-                Nouveau dossier — transfert initié en agence et émis vers l’étranger
-              </p>
-            </div>
-          </div>
+      <SuccessModal
+        open={showSuccess}
+        transferType={transferType}
+        onClose={openConsultation}
+        onNew={resetForm}
+      />
 
-          <button
-            type="button"
-            onClick={openConsultation}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm bg-white/20 hover:bg-white/30 transition-all border border-white/20"
-          >
-            <Search size={15} />Consultation
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-[#d1dce6] rounded-2xl shadow-sm p-5 anim-fade-in-up">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={openConsultation}
-              className="w-9 h-9 rounded-xl border border-[#d1dce6] hover:bg-[#F4F8FC] flex items-center justify-center transition-all"
-              aria-label="Retour à la consultation"
-            >
-              <ArrowLeft size={16} className="text-[#435B7B]" />
-            </button>
-            <div>
-              <h2 className="text-base font-bold text-[#2D3E54]">Saisie d’un ordre de transfert</h2>
-              <p className="text-xs text-[#7A90A4]">Naviguez librement entre les rubriques du dossier.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#F4F8FC] text-[#435B7B]">
-              Origine : Agence
-            </span>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Dossier Transfert
+            </h1>
+            <Badge variant="outline">Origine : Agence</Badge>
             {transferType && <TypeBadge type={transferType} />}
           </div>
+          <p className="mt-1 text-muted-foreground">
+            Saisie d’un transfert commercial ou financier émis vers
+            l’étranger
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={openConsultation}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            Consultation
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={resetForm}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Réinitialiser
+          </Button>
         </div>
       </div>
 
       {referenceError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">{referenceError} La liste actuellement disponible reste utilisable.</p>
-        </div>
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            {referenceError} La liste actuellement disponible reste
+            utilisable.
+          </AlertDescription>
+        </Alert>
       )}
 
       <SimpleSectionNavigation
@@ -277,98 +362,62 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         onChange={setCurrentSection}
       />
 
-      <div className={`flex gap-5 anim-fade-in-up delay-100 ${currentSection > 0 ? '' : 'justify-center'}`}>
-        <div className="flex-1 min-w-0">
-          {currentSection === 0 && (
-            <TransferTypeSection selected={transferType} onSelect={selectTransferType} />
-          )}
+      <div className="space-y-6">
+        {currentSection === 0 && (
+          <TransferTypeSection
+            selected={transferType}
+            onSelect={selectTransferType}
+          />
+        )}
 
-          {currentSection === 1 && (
-            <ClientSection
-              client={client}
-              commissionAccount={commissionAccount}
-              onClientLoaded={handleClientLoaded}
-              onCommissionAccountChange={setCommissionAccount}
-            />
-          )}
+        {currentSection === 1 && (
+          <ClientSection
+            client={client}
+            commissionAccount={commissionAccount}
+            onClientLoaded={handleClientLoaded}
+            onClientCleared={handleClientCleared}
+            onCommissionAccountChange={setCommissionAccount}
+          />
+        )}
 
-          {currentSection === 2 && (
-            <OrderSection
-              order={order}
-              client={client}
-              quotedCurrencies={quotedCurrencies}
-              onChange={setOrder}
-            />
-          )}
+        {currentSection === 2 && (
+          <OrderSection
+            order={order}
+            client={client}
+            quotedCurrencies={quotedCurrencies}
+            onChange={setOrder}
+          />
+        )}
 
-          {currentSection === 3 && (
-            <PaymentModalitiesSection
-              modalities={modalities}
-              order={order}
-              accounts={client?.comptes ?? []}
-              onChange={setModalities}
-            />
-          )}
+        {currentSection === 3 && (
+          <PaymentModalitiesSection
+            modalities={modalities}
+            order={order}
+            accounts={client?.comptes ?? []}
+            onChange={setModalities}
+          />
+        )}
 
-          {currentSection === 4 && (
-            <RegulatoryDataSection
-              client={client}
-              value={regulatoryData}
-              onChange={setRegulatoryData}
-            />
-          )}
+        {currentSection === 4 && (
+          <RegulatoryDataSection
+            client={client}
+            value={regulatoryData}
+            onChange={setRegulatoryData}
+          />
+        )}
 
-          {currentSection === 5 && (
-            <RegulatorySupportSection
-              transferType={transferType}
-              client={client}
-              order={order}
-              value={support}
-              onChange={setSupport}
-            />
-          )}
+        {currentSection === 5 && (
+          <RegulatorySupportSection
+            transferType={transferType}
+            client={client}
+            order={order}
+            value={support}
+            onChange={setSupport}
+          />
+        )}
 
-          {currentSection === 6 && (
-            <RecapSection
-              transferType={transferType}
-              client={client}
-              commissionAccount={commissionAccount}
-              order={order}
-              modalities={modalities}
-              regulatoryData={regulatoryData}
-              support={support}
-              onSaveDraft={handleSaveDraft}
-              onSubmit={handleSubmit}
-              submitting={submitting}
-            />
-          )}
-
-          {currentSection < NAVIGATION_ITEMS.length - 1 && (
-            <div className="flex items-center justify-between mt-5">
-              <button
-                type="button"
-                onClick={handlePrevious}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1dce6] text-sm font-semibold text-[#435B7B] hover:bg-[#F4F8FC] transition-all"
-              >
-                <ArrowLeft size={14} />
-                {currentSection === 0 ? 'Consultation' : 'Précédent'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!canProceed()}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-                style={HDR}
-              >
-                Suivant <ArrowRight size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {currentSection > 0 && (
-          <SummaryPanel
+        {currentSection === 6 && (
+          <RecapSection
             transferType={transferType}
             client={client}
             commissionAccount={commissionAccount}
@@ -376,10 +425,38 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
             modalities={modalities}
             regulatoryData={regulatoryData}
             support={support}
-            section={currentSection}
+            onSaveDraft={handleSaveDraft}
+            onSubmit={handleSubmit}
+            submitting={submitting}
           />
         )}
       </div>
+
+      {currentSection < NAVIGATION_ITEMS.length - 1 && (
+        <Card>
+          <CardContent className="flex items-center justify-between pt-6">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevious}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              {currentSection === 0
+                ? 'Retour à la consultation'
+                : 'Précédent'}
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={!canProceed()}
+            >
+              Suivant
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

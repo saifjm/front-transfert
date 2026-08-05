@@ -8,10 +8,6 @@ export type PartyType = 'PERSONNE_MORALE' | 'PERSONNE_PHYSIQUE';
 
 export type SupportType = 'FI' | 'TCE' | null;
 
-/**
- * Conserved for compatibility with earlier screens. New code should use
- * SupportType and RegulatoryData instead.
- */
 export type RegulatoryType =
   | 'autorisation_bct'
   | 'fiche_information'
@@ -29,17 +25,40 @@ export type ModalityType =
   | 'NEGOCIATION_INTERBANCAIRE';
 
 export interface AgencyInfo {
+  /** BCT agency code, normalized to three digits. */
   code: string;
   label: string;
   bctCode: string;
 }
 
+export type ClientAgencyEligibilityReason =
+  | 'ELIGIBLE'
+  | 'CLIENT_NOT_FOUND'
+  | 'SESSION_AGENCY_MISSING'
+  | 'USER_NOT_AUTHORIZED_IN_CURRENT_AGENCY'
+  | 'CLIENT_NOT_ATTACHED_TO_CURRENT_AGENCY'
+  | 'UNKNOWN_REFUSAL';
+
+export interface ClientAgencyEligibility {
+  eligible: boolean;
+  currentAgency: AgencyInfo | null;
+  authorizedAgencies: AgencyInfo[];
+  clientAgencies: AgencyInfo[];
+  reason: ClientAgencyEligibilityReason;
+  message: string;
+
+  /** Compatibility fields for components created before the strict-agency rule. */
+  userAgencyCode: string;
+  clientAgency: AgencyInfo | null;
+}
+
 export interface AccountRow {
   numero: string;
+  codeAgence: string;
   devise: string;
   type: string;
   statut: 'ACTIF' | 'INACTIF' | 'BLOQUE';
-  solde: string;
+  dateCloture?: string | null;
   principal: boolean;
   professionnel: boolean;
   eligibleCommission: boolean;
@@ -77,6 +96,7 @@ export interface CounterValueResult {
   coursConversion: number;
   contreValeurTnd: number;
   indicative: boolean;
+  dateValeur?: string;
 }
 
 export interface PartyData {
@@ -101,6 +121,14 @@ export interface BankData {
   pays: string;
   townName: string;
   adresse: string;
+  active?: boolean;
+}
+
+export interface NostroAccount {
+  currency: string;
+  accountRef: string;
+  bicfi: string;
+  routeType: string;
 }
 
 export interface TransferOrder {
@@ -217,6 +245,153 @@ export interface TransferSubmissionPayload {
   modalities: Modality[];
   regulatoryData: RegulatoryData;
   regulatorySupport: RegulatorySupportData;
+}
+
+export interface FundsBlockRequest {
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  compteRib: string;
+  montantBlocage: number;
+  codeDevise: string;
+  referenceOperationIbansys: string;
+}
+
+export type FundsBlockResult =
+  | {
+      statut: 'OK';
+      referenceBlocage: string;
+      montantEffectivementBloque: number;
+      montantRestantBloque: number;
+      codeDevise: string;
+    }
+  | {
+      statut: 'KO';
+      codeErreur: string;
+      messageErreur: string;
+    };
+
+export interface FundsReleaseRequest {
+  referenceBlocage: string;
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  compteRib: string;
+  montantALiberer: number;
+  codeDevise: string;
+  referenceOperationIbansys: string;
+}
+
+export type FundsReleaseResult =
+  | {
+      statut: 'OK';
+      montantEffectivementLibere: number;
+      montantRestantBloque: number;
+      codeDevise: string;
+      referenceDeblocage?: string;
+    }
+  | {
+      statut: 'KO';
+      motifEchec: string;
+    };
+
+export type FinancingResourceType =
+  | 'COMPTE_CLIENT'
+  | 'DOSSIER_FINANCEMENT_IMPORT'
+  | 'FONDS_RECUS_AUTRE_BANQUE'
+  | 'NEGOCIATION_INTERBANCAIRE'
+  | string;
+
+export interface FinancingResourceSearchCriteria {
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  typeRessource?: FinancingResourceType;
+  statutRessource?: string;
+  codeDevise?: string;
+  dateValiditeDebut?: string;
+  dateValiditeFin?: string;
+  identifiantRessource?: string;
+}
+
+export interface FinancingResource {
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  statutRessource: string;
+  eligible: boolean;
+  codeDeviseRessource: string;
+  montantRessourceOrigine?: number;
+  montantDisponible?: number;
+  dateDebutValidite?: string;
+  dateFinValidite?: string;
+  motifIneligibilite?: string | null;
+}
+
+export interface FinancingAllocationRequest {
+  referenceOperationIbansys: string;
+  sequenceRessource: string | number;
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  montantDemandeOrigine: number;
+  codeDeviseRessource: string;
+  codeDeviseTransfert: string;
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+}
+
+export type FinancingAllocationResult =
+  | {
+      statut: 'OK';
+      referenceAffectation: string;
+      montantEffectivementAffecte: number;
+      codeDeviseRessource: string;
+      reliquatDisponible?: number;
+    }
+  | {
+      statut: 'KO';
+      codeErreur: string;
+      messageErreur: string;
+    };
+
+export interface FinancingReleaseRequest {
+  referenceOperationIbansys: string;
+  referenceAffectation: string;
+  sequenceRessource: string | number;
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  montantALiberer: number;
+  codeDeviseRessource: string;
+  motifLiberation: string;
+}
+
+export type FinancingReleaseResult =
+  | {
+      statut: 'OK';
+      montantEffectivementLibere: number;
+      reliquatAffecte?: number;
+      message?: string;
+    }
+  | {
+      statut: 'KO';
+      codeErreur?: string;
+      messageErreur?: string;
+      motifEchec?: string;
+    };
+
+export interface AsyncReceptionAck {
+  accuseReception: 'ACK';
+  messageId?: string;
+  referenceOperationIbansys?: string;
+}
+
+export interface BackOfficeResult {
+  referenceOperationIbansys: string;
+  statutTraitement: 'OK' | 'KO' | string;
+  motifEchec?: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface DocumentReference {
+  documentId: string;
+  createdAt?: string;
+  [key: string]: unknown;
 }
 
 export type TransferNavigationHandler = (
