@@ -64,11 +64,25 @@ export interface AccountRow {
   eligibleCommission: boolean;
 }
 
+export interface ClientActivityCode {
+  section?: string;
+  division?: number;
+  groupe?: number;
+  classe?: number;
+}
+
 export interface ClientData {
   idClient: string;
   noPiece: string;
   typePiece: CustomerIdType;
   nomRaison: string;
+  nom?: string;
+  prenom?: string;
+  nationalite?: string;
+  telephone?: string;
+  email?: string;
+  typeRefClientInterne?: string;
+  numRefClientInterne?: string;
   typeClient: PartyType;
   resident: boolean;
   residence: string;
@@ -80,7 +94,13 @@ export interface ClientData {
   codeAgence: string;
   statut: 'ACTIF' | 'SUSPENDU' | 'CLOTURE';
   niveauRisque: 'FAIBLE' | 'MOYEN' | 'ELEVE';
+  taxable?: boolean;
   totalementExportatrice: boolean;
+  clientProhibe?: boolean;
+  codeDouane?: string;
+  activiteCode?: string;
+  activitePrincipale?: ClientActivityCode;
+  activiteSecondaire?: ClientActivityCode;
   comptes: AccountRow[];
 }
 
@@ -101,6 +121,13 @@ export interface CounterValueResult {
 
 export interface PartyData {
   nomRaison: string;
+  nom?: string;
+  prenom?: string;
+  nationalite?: string;
+  telephone?: string;
+  email?: string;
+  typeRefClientInterne?: string;
+  numRefClientInterne?: string;
   type: PartyType;
   codePays: string;
   pays: string;
@@ -398,3 +425,10 @@ export type TransferNavigationHandler = (
   section: string,
   dossierNum?: string,
 ) => void;
+
+export interface AgencyInitiationResult {
+  operationRef: string;
+  status: string;
+  message?: string | null;
+  raw: Record<string, unknown>;
+}

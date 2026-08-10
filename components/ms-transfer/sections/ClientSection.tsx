@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AlertTriangle,
-  CheckCircle2,
-  Loader2,
   Search,
-  ShieldCheck,
 } from 'lucide-react';
 
 import { Alert, AlertDescription } from '../../ui/alert';
@@ -17,56 +19,316 @@ import {
   CardHeader,
   CardTitle,
 } from '../../ui/card';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
 
+import { ClientSearchResult } from '../client/ClientSearchResult';
+import { ClientAccountsTable } from '../client/ClientAccountsTable';
 import {
-  getClientAgence,
-  getClientCompteCom,
+  getClientTndActiveAccounts,
+  searchClientWithAgencyScope,
 } from '../transfer.api';
-import { getUserMessage } from '../transfer.errors';
+import {
+  agencyOptionLabel,
+  isCommissionAccountValid,
+  resolveDefaultClientAgencyCode,
+  type ClientAgencyOption,
+} from '../transfer.client-agency';
+import {
+  FINANCIAL_CUSTOMER_ID_OPTIONS,
+  getCustomerIdentifierFieldLabel,
+  getCustomerIdentifierHelp,
+  getCustomerIdentifierMaxLength,
+  getCustomerIdentifierPlaceholder,
+  getCustomerIdTypeLabel,
+  isCommercialTransfer,
+  isRneCustomerIdType,
+  normalizeCustomerIdentifier,
+  resolveCustomerIdType,
+  validateCustomerIdentifier,
+  validateRneRealtime,
+} from '../transfer.client-identification';
+import {
+  getUserMessage,
+  isClientNotFoundError,
+} from '../transfer.errors';
 import type {
-  ClientAgencyEligibility,
+  AccountRow,
   ClientData,
   CustomerIdType,
+  TransferType,
 } from '../transfer.types';
-import { FI, FR } from '../transfer.ui';
 
 interface ClientSectionProps {
+  transferType: TransferType;
   client: ClientData | null;
+  eligibleAgencies: ClientAgencyOption[];
+  selectedClientAgency: string;
+  agencyAccounts: AccountRow[];
   commissionAccount: string;
   onClientLoaded: (client: ClientData) => void;
   onClientCleared: () => void;
+  onEligibleAgenciesChange: (agencies: ClientAgencyOption[]) => void;
+  onClientAgencyChange: (agencyCode: string) => void;
+  onAgencyAccountsChange: (accounts: AccountRow[]) => void;
   onCommissionAccountChange: (account: string) => void;
 }
 
-function agencyListLabel(codes: Array<{ code: string }>): string {
-  return codes.length > 0
-    ? codes.map(agency => agency.code).join(', ')
-    : 'Aucune';
-}
+type ClientSearchStatus =
+  | 'IDLE'
+  | 'LOADING'
+  | 'SUCCESS'
+  | 'NO_RESULT'
+  | 'AGENCY_BLOCKED'
+  | 'ERROR';
 
 export function ClientSection({
+  transferType,
   client,
+  eligibleAgencies,
+  selectedClientAgency,
+  agencyAccounts,
   commissionAccount,
   onClientLoaded,
   onClientCleared,
+  onEligibleAgenciesChange,
+  onClientAgencyChange,
+  onAgencyAccountsChange,
   onCommissionAccountChange,
 }: ClientSectionProps) {
-  const [typePiece, setTypePiece] =
-    useState<CustomerIdType>('CIN');
-  const [noPiece, setNoPiece] = useState('');
-  const [eligibility, setEligibility] =
-    useState<ClientAgencyEligibility | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const commercial = isCommercialTransfer(transferType);
+
+  const [financialTypePiece, setFinancialTypePiece] =
+    useState<CustomerIdType>(() => (
+      client && client.typePiece !== 'MF'
+        ? client.typePiece
+        : 'CIN'
+    ));
+  const [noPiece, setNoPiece] = useState(client?.noPiece ?? '');
+  const [searchStatus, setSearchStatus] =
+    useState<ClientSearchStatus>(() => {
+      if (!client) return 'IDLE';
+      return eligibleAgencies.length > 0
+        ? 'SUCCESS'
+        : 'AGENCY_BLOCKED';
+    });
+  const [identifierError, setIdentifierError] = useState('');
+  const [searchError, setSearchError] = useState('');
+  const [showFicheClient, setShowFicheClient] = useState(false);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountsError, setAccountsError] = useState('');
+
+  const onClientClearedRef = useRef(onClientCleared);
+  const onClientAgencyChangeRef = useRef(onClientAgencyChange);
+  const onEligibleAgenciesChangeRef = useRef(onEligibleAgenciesChange);
+  const onAgencyAccountsChangeRef = useRef(onAgencyAccountsChange);
+  const onCommissionAccountChangeRef = useRef(onCommissionAccountChange);
+  const commissionAccountRef = useRef(commissionAccount);
+  const previousTransferTypeRef = useRef(transferType);
+  const searchSequenceRef = useRef(0);
+  const accountsSequenceRef = useRef(0);
+
+  const effectiveTypePiece = useMemo(
+    () => resolveCustomerIdType(
+      transferType,
+      financialTypePiece,
+    ),
+    [financialTypePiece, transferType],
+  );
+
+  const usesRneControl = isRneCustomerIdType(effectiveTypePiece);
+
+  const rneFeedback = useMemo(
+    () => (
+      usesRneControl
+        ? validateRneRealtime(noPiece)
+        : null
+    ),
+    [noPiece, usesRneControl],
+  );
+
+  const loading = searchStatus === 'LOADING';
+  const clientNotFound = searchStatus === 'NO_RESULT';
+  const agencyBlocked = searchStatus === 'AGENCY_BLOCKED';
+  const clientFound =
+    client != null
+    && (searchStatus === 'SUCCESS' || agencyBlocked);
+
+  const realtimeIdentifierError =
+    usesRneControl
+    && noPiece.length > 0
+    && (
+      rneFeedback?.state === 'INVALID_FORMAT'
+      || rneFeedback?.state === 'INVALID_CONTROL_LETTER'
+    )
+      ? rneFeedback.message
+      : '';
+
+  const displayedIdentifierError =
+    identifierError || realtimeIdentifierError;
+
+  const identifierHasError = Boolean(
+    displayedIdentifierError
+    || clientNotFound
+    || searchError,
+  );
+
+  const identifierInputClassName = [
+    'flex-1',
+    identifierHasError
+      ? 'border-red-500 focus-visible:ring-red-500'
+      : '',
+    clientFound && !identifierHasError
+      ? 'border-green-500 focus-visible:ring-green-500'
+      : '',
+  ].filter(Boolean).join(' ');
+
+  const identifierLabel = getCustomerIdentifierFieldLabel(
+    effectiveTypePiece,
+  );
+  const identifierPlaceholder = getCustomerIdentifierPlaceholder(
+    effectiveTypePiece,
+  );
+  const identifierHelp = getCustomerIdentifierHelp(
+    effectiveTypePiece,
+  );
+  const identifierTypeLabel = getCustomerIdTypeLabel(
+    effectiveTypePiece,
+  );
+
+  useEffect(() => {
+    onClientClearedRef.current = onClientCleared;
+  }, [onClientCleared]);
+
+  useEffect(() => {
+    onClientAgencyChangeRef.current = onClientAgencyChange;
+  }, [onClientAgencyChange]);
+
+  useEffect(() => {
+    onEligibleAgenciesChangeRef.current = onEligibleAgenciesChange;
+  }, [onEligibleAgenciesChange]);
+
+  useEffect(() => {
+    onAgencyAccountsChangeRef.current = onAgencyAccountsChange;
+  }, [onAgencyAccountsChange]);
+
+  useEffect(() => {
+    onCommissionAccountChangeRef.current = onCommissionAccountChange;
+  }, [onCommissionAccountChange]);
+
+  useEffect(() => {
+    commissionAccountRef.current = commissionAccount;
+  }, [commissionAccount]);
+
+  useEffect(() => {
+    if (previousTransferTypeRef.current === transferType) return;
+
+    previousTransferTypeRef.current = transferType;
+    searchSequenceRef.current += 1;
+    accountsSequenceRef.current += 1;
+    setFinancialTypePiece('CIN');
+    setNoPiece('');
+    setSearchStatus('IDLE');
+    setIdentifierError('');
+    setSearchError('');
+    setAccountsError('');
+    setLoadingAccounts(false);
+    setShowFicheClient(false);
+    onEligibleAgenciesChangeRef.current([]);
+    onClientAgencyChangeRef.current('');
+    onAgencyAccountsChangeRef.current([]);
+    onCommissionAccountChangeRef.current('');
+    onClientClearedRef.current();
+  }, [transferType]);
+
+  useEffect(() => {
+    if (!client || !selectedClientAgency) {
+      accountsSequenceRef.current += 1;
+      setLoadingAccounts(false);
+      setAccountsError('');
+      onAgencyAccountsChangeRef.current([]);
+      return;
+    }
+
+    const requestSequence = ++accountsSequenceRef.current;
+    let active = true;
+
+    setLoadingAccounts(true);
+    setAccountsError('');
+    onAgencyAccountsChangeRef.current([]);
+
+    getClientTndActiveAccounts(
+      client.typePiece,
+      client.noPiece,
+      selectedClientAgency,
+    )
+      .then(accounts => {
+        if (!active || requestSequence !== accountsSequenceRef.current) {
+          return;
+        }
+
+        onAgencyAccountsChangeRef.current(accounts);
+
+        const selectedCommissionAccount = commissionAccountRef.current;
+
+        if (
+          selectedCommissionAccount
+          && !isCommissionAccountValid(
+            accounts,
+            selectedClientAgency,
+            selectedCommissionAccount,
+          )
+        ) {
+          onCommissionAccountChangeRef.current('');
+        }
+      })
+      .catch(reason => {
+        if (!active || requestSequence !== accountsSequenceRef.current) {
+          return;
+        }
+
+        onAgencyAccountsChangeRef.current([]);
+        onCommissionAccountChangeRef.current('');
+        setAccountsError(
+          getUserMessage(
+            reason,
+            'Les comptes du client n’ont pas pu être chargés. Réessayez ultérieurement.',
+          ),
+        );
+      })
+      .finally(() => {
+        if (active && requestSequence === accountsSequenceRef.current) {
+          setLoadingAccounts(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    client,
+    selectedClientAgency,
+  ]);
 
   const clearPreviousResult = () => {
-    setEligibility(null);
-    setError('');
+    searchSequenceRef.current += 1;
+    accountsSequenceRef.current += 1;
+    setSearchStatus('IDLE');
+    setIdentifierError('');
+    setSearchError('');
+    setAccountsError('');
+    setLoadingAccounts(false);
+    setShowFicheClient(false);
+    onEligibleAgenciesChange([]);
+    onClientAgencyChange('');
+    onAgencyAccountsChange([]);
+    onCommissionAccountChange('');
     onClientCleared();
   };
 
-  const handleTypePieceChange = (value: string) => {
-    setTypePiece(value as CustomerIdType);
+  const handleFinancialTypePieceChange = (value: string) => {
+    setFinancialTypePiece(value as CustomerIdType);
+    setNoPiece('');
     clearPreviousResult();
   };
 
@@ -75,51 +337,108 @@ export function ClientSection({
     clearPreviousResult();
   };
 
-  const search = async () => {
-    const normalizedNoPiece = noPiece.trim();
+  const handleNoPieceBlur = () => {
+    if (!noPiece.trim()) return;
 
-    if (!normalizedNoPiece) {
-      setError('Veuillez saisir le numéro de pièce.');
-      setEligibility(null);
+    const normalizedNoPiece = normalizeCustomerIdentifier(noPiece);
+    const validationError = validateCustomerIdentifier(
+      effectiveTypePiece,
+      normalizedNoPiece,
+    );
+
+    setIdentifierError(validationError ?? '');
+  };
+
+  const search = async () => {
+    const normalizedNoPiece = normalizeCustomerIdentifier(noPiece);
+    const validationError = validateCustomerIdentifier(
+      effectiveTypePiece,
+      normalizedNoPiece,
+    );
+
+    if (validationError) {
+      setIdentifierError(validationError);
+      setSearchError('');
+      setSearchStatus('IDLE');
+      setShowFicheClient(false);
+      onEligibleAgenciesChange([]);
+      onClientAgencyChange('');
+      onAgencyAccountsChange([]);
+      onCommissionAccountChange('');
       onClientCleared();
       return;
     }
 
-    setError('');
-    setEligibility(null);
-    setLoading(true);
+    setIdentifierError('');
+    setSearchError('');
+    setAccountsError('');
+    onEligibleAgenciesChange([]);
+    onAgencyAccountsChange([]);
+    onCommissionAccountChange('');
+    const requestSequence = ++searchSequenceRef.current;
+    setSearchStatus('LOADING');
+    setShowFicheClient(false);
+    onClientAgencyChange('');
     onClientCleared();
 
     try {
-      const agencyEligibility = await getClientAgence(
-        typePiece,
+      const result = await searchClientWithAgencyScope(
+        effectiveTypePiece,
         normalizedNoPiece,
       );
 
-      setEligibility(agencyEligibility);
+      if (requestSequence !== searchSequenceRef.current) return;
 
-      if (!agencyEligibility.eligible) {
+      onEligibleAgenciesChange(result.eligibleAgencies);
+
+      if (!result.client) {
+        setSearchStatus('AGENCY_BLOCKED');
         return;
       }
 
-      const foundClient = await getClientCompteCom(
-        typePiece,
-        normalizedNoPiece,
-        agencyEligibility,
+      onClientLoaded(result.client);
+
+      if (result.eligibleAgencies.length === 0) {
+        setSearchStatus('AGENCY_BLOCKED');
+        return;
+      }
+
+      const defaultAgencyCode = resolveDefaultClientAgencyCode(
+        result.eligibleAgencies,
       );
 
-      onClientLoaded(foundClient);
+      onClientAgencyChange(defaultAgencyCode);
+      setSearchStatus('SUCCESS');
     } catch (reason) {
-      setEligibility(null);
-      setError(
-        getUserMessage(
-          reason,
-          'La recherche du client n’a pas pu aboutir. Réessayez ultérieurement.',
-        ),
-      );
-    } finally {
-      setLoading(false);
+      if (requestSequence !== searchSequenceRef.current) return;
+
+      onEligibleAgenciesChange([]);
+      onClientAgencyChange('');
+      onAgencyAccountsChange([]);
+      onCommissionAccountChange('');
+
+      if (isClientNotFoundError(reason)) {
+        setSearchStatus('NO_RESULT');
+        setSearchError('');
+      } else {
+        setSearchStatus('ERROR');
+        setSearchError(
+          getUserMessage(
+            reason,
+            'La recherche du client n’a pas pu aboutir. Réessayez ultérieurement.',
+          ),
+        );
+      }
     }
+  };
+
+  const handleAgencyChange = (agencyCode: string) => {
+    accountsSequenceRef.current += 1;
+    setAccountsError('');
+    setLoadingAccounts(false);
+    onAgencyAccountsChange([]);
+    onCommissionAccountChange('');
+    onClientAgencyChange(agencyCode);
   };
 
   return (
@@ -129,9 +448,9 @@ export function ClientSection({
           Identification du client donneur d’ordre
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Le client peut initier un transfert uniquement dans son agence
-          de rattachement. L’agence courante provient de la session de
-          l’utilisateur connecté.
+          {commercial
+            ? 'Recherchez la société par son matricule fiscal / RNE.'
+            : 'Sélectionnez le type de pièce et renseignez le numéro d’identification du client.'}
         </p>
       </div>
 
@@ -139,283 +458,239 @@ export function ClientSection({
         <CardHeader>
           <CardTitle>Recherche du client</CardTitle>
           <CardDescription>
-            L’éligibilité est contrôlée avant la consultation de la fiche
-            client et des comptes de l’agence courante.
+            Identifiez le donneur d’ordre, puis choisissez l’agence dans
+            laquelle l’opération sera initiée.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <FI
-              label="Type de pièce"
-              value={typePiece}
-              onChange={handleTypePieceChange}
-              select
-              opts={[
-                { value: 'CIN', label: 'CIN' },
-                { value: 'PASSPORT', label: 'Passeport' },
-                { value: 'MF', label: 'Matricule fiscal' },
-                { value: 'RC', label: 'Registre de commerce' },
-              ]}
-            />
+          <form
+            onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              void search();
+            }}
+          >
+            <div
+              className={
+                commercial
+                  ? 'space-y-4'
+                  : 'grid grid-cols-1 gap-4 md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:items-start'
+              }
+            >
+              {!commercial && (
+                <div className="space-y-2">
+                  <Label htmlFor="typePieceClient">
+                    Type de pièce *
+                  </Label>
 
-            <FI
-              label="Numéro de pièce"
-              value={noPiece}
-              onChange={handleNoPieceChange}
-              placeholder="Ex : 07458963"
-              required
-              error={error || undefined}
-            />
-
-            <div className="flex items-end">
-              <Button
-                type="button"
-                className="w-full"
-                onClick={search}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Vérification...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    Rechercher
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {eligibility?.eligible && (
-            <Alert className="border-green-200 bg-green-50 text-green-800">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription>
-                <strong>Client éligible.</strong>{' '}
-                {eligibility.message}
-                <div className="mt-1 text-xs">
-                  Agence courante :{' '}
-                  <strong>{eligibility.currentAgency?.code}</strong>
+                  <select
+                    id="typePieceClient"
+                    value={financialTypePiece}
+                    onChange={event =>
+                      handleFinancialTypePieceChange(event.target.value)
+                    }
+                    disabled={loading}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {FINANCIAL_CUSTOMER_ID_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </AlertDescription>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="noPieceClient">
+                  {identifierLabel} *
+                </Label>
+
+                <div className="flex gap-2">
+                  <Input
+                    id="noPieceClient"
+                    value={noPiece}
+                    onChange={event =>
+                      handleNoPieceChange(event.target.value)
+                    }
+                    onBlur={handleNoPieceBlur}
+                    placeholder={identifierPlaceholder}
+                    className={identifierInputClassName}
+                    maxLength={getCustomerIdentifierMaxLength(
+                      effectiveTypePiece,
+                    )}
+                    autoComplete="off"
+                    aria-invalid={identifierHasError}
+                    aria-describedby="client-identifier-feedback client-identifier-format"
+                  />
+
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="outline"
+                    disabled={loading || !noPiece.trim()}
+                    title="Rechercher le client"
+                    aria-label={`Rechercher le client par ${identifierTypeLabel}`}
+                  >
+                    {loading ? (
+                      <span
+                        aria-hidden="true"
+                        className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
+                      />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                <div
+                  id="client-identifier-feedback"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {loading && (
+                    <div className="mt-1 flex items-center gap-2 text-xs text-blue-600">
+                      <span
+                        aria-hidden="true"
+                        className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
+                      />
+                      <span>Recherche en cours...</span>
+                    </div>
+                  )}
+
+                  {displayedIdentifierError && !loading && (
+                    <p className="mt-1 text-xs text-red-600">
+                      ❌ {displayedIdentifierError}
+                    </p>
+                  )}
+
+                  {!displayedIdentifierError
+                    && !loading
+                    && usesRneControl
+                    && rneFeedback?.state === 'INCOMPLETE'
+                    && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {rneFeedback.message}
+                      </p>
+                    )}
+
+                  {clientNotFound
+                    && !loading
+                    && !displayedIdentifierError
+                    && (
+                      <p className="mt-1 text-xs text-red-600">
+                        ❌ Client non trouvé pour ce numéro {usesRneControl ? 'RNE' : identifierTypeLabel}
+                      </p>
+                    )}
+
+                  {clientFound && !loading && !displayedIdentifierError && (
+                    <ClientSearchResult
+                      client={client}
+                      open={showFicheClient}
+                      onOpenChange={setShowFicheClient}
+                    />
+                  )}
+                </div>
+
+                <p
+                  id="client-identifier-format"
+                  className="mt-1 text-xs text-muted-foreground"
+                >
+                  {identifierHelp}
+                </p>
+              </div>
+            </div>
+          </form>
+
+          {searchStatus === 'ERROR' && searchError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{searchError}</AlertDescription>
             </Alert>
           )}
 
-          {eligibility && !eligibility.eligible && (
+          {agencyBlocked && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Client non éligible.</strong>{' '}
-                {eligibility.message}
-                <div className="mt-1 text-xs">
-                  Agence courante :{' '}
-                  <strong>
-                    {eligibility.currentAgency?.code || 'Non déterminée'}
-                  </strong>
-                  {' · '}Agences du client :{' '}
-                  <strong>
-                    {agencyListLabel(eligibility.clientAgencies)}
-                  </strong>
-                </div>
+                <strong>Aucune agence disponible pour ce client.</strong>{' '}
+                Vous ne disposez pas d’une agence permettant d’initier cette
+                opération pour ce client.
               </AlertDescription>
             </Alert>
           )}
 
-          <p className="text-xs text-muted-foreground">
-            Démonstration du serveur bancaire : utilisateur{' '}
-            <strong>U00458</strong>, agence courante{' '}
-            <strong>012</strong>, client{' '}
-            <strong>CIN / 07458963</strong>.
-          </p>
+          {clientFound && !agencyBlocked && eligibleAgencies.length > 0 && (
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="clientAgency">
+                    Agence client *
+                  </Label>
+
+                  <select
+                    id="clientAgency"
+                    value={selectedClientAgency}
+                    onChange={event => handleAgencyChange(event.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {eligibleAgencies.length > 1 && (
+                      <option value="">
+                        Sélectionner une agence
+                      </option>
+                    )}
+
+                    {eligibleAgencies.map(agency => (
+                      <option key={agency.code} value={agency.code}>
+                        {agencyOptionLabel(agency)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className="text-xs text-muted-foreground">
+                    Sélectionnez l’agence dans laquelle vous souhaitez initier
+                    l’opération pour ce client.
+                  </p>
+                </div>
+
+                {eligibleAgencies.length === 1 && (
+                  <Badge variant="secondary" className="w-fit">
+                    Agence unique disponible
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {client && eligibility?.eligible && (
-        <>
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle>Informations client</CardTitle>
-                  <CardDescription>
-                    Données d’identification et situation du client
-                  </CardDescription>
-                </div>
+      {client
+        && searchStatus === 'SUCCESS'
+        && eligibleAgencies.length > 1
+        && !selectedClientAgency
+        && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Plusieurs agences sont disponibles pour ce client. Sélectionnez
+              l’agence dans laquelle l’opération doit être initiée.
+            </AlertDescription>
+          </Alert>
+        )}
 
-                <Badge
-                  variant="outline"
-                  className="gap-1 border-green-200 bg-green-50 text-green-700"
-                >
-                  <CheckCircle2 className="h-3 w-3" />
-                  Client éligible
-                </Badge>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-5">
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <FR label="Référence client" value={client.idClient} />
-                <FR label="Numéro de pièce" value={client.noPiece} mono />
-                <FR label="Type client" value={client.typeClient} />
-                <FR
-                  label="Résident"
-                  value={client.resident ? 'Oui' : 'Non'}
-                />
-                <div className="lg:col-span-2">
-                  <FR
-                    label="Nom / Raison sociale"
-                    value={client.nomRaison}
-                  />
-                </div>
-                <FR
-                  label="Pays de résidence"
-                  value={`${client.codePays} — ${client.pays}`}
-                />
-                <FR label="Ville" value={client.ville} />
-                <FR
-                  label="Agence de rattachement"
-                  value={client.agence}
-                />
-                <FR
-                  label="Statut exportateur"
-                  value={
-                    client.totalementExportatrice
-                      ? 'Totalement exportatrice'
-                      : 'Non totalement exportatrice'
-                  }
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  className="border-green-200 bg-green-50 text-green-700"
-                >
-                  Statut : {client.statut}
-                </Badge>
-                <Badge variant="secondary" className="gap-1">
-                  <ShieldCheck className="h-3 w-3" />
-                  Risque : {client.niveauRisque}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Compte commission</CardTitle>
-              <CardDescription>
-                Seuls les comptes valides, non professionnels et
-                retournés pour l’agence courante sont proposés. Aucun
-                solde ni provision n’est consulté sur cette interface.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="p-0">
-              {client.comptes.length === 0 ? (
-                <div className="p-6">
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Aucun compte accessible n’a été retourné pour
-                      l’agence courante.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="border-y bg-muted/50">
-                      <tr>
-                        {[
-                          'Numéro compte',
-                          'Agence',
-                          'Devise',
-                          'Type',
-                          'Principal',
-                          'Statut',
-                          'Sélection',
-                        ].map(header => (
-                          <th
-                            key={header}
-                            className="whitespace-nowrap px-4 py-3 text-left text-xs font-medium text-muted-foreground"
-                          >
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {client.comptes.map(account => {
-                        const selectable = account.eligibleCommission;
-                        const selected =
-                          commissionAccount === account.numero;
-
-                        return (
-                          <tr
-                            key={account.numero}
-                            onClick={() => {
-                              if (selectable) {
-                                onCommissionAccountChange(account.numero);
-                              }
-                            }}
-                            className={`border-b transition-colors ${
-                              selectable
-                                ? 'cursor-pointer hover:bg-muted/40'
-                                : 'opacity-60'
-                            } ${selected ? 'bg-primary/5' : ''}`}
-                          >
-                            <td className="px-4 py-3 font-mono text-xs font-medium">
-                              {account.numero}
-                            </td>
-                            <td className="px-4 py-3">
-                              {account.codeAgence}
-                            </td>
-                            <td className="px-4 py-3 font-medium">
-                              {account.devise}
-                            </td>
-                            <td className="px-4 py-3">
-                              {account.type}
-                            </td>
-                            <td className="px-4 py-3">
-                              {account.principal ? 'Oui' : 'Non'}
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge
-                                variant="outline"
-                                className="border-green-200 bg-green-50 text-green-700"
-                              >
-                                {account.statut}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3">
-                              <input
-                                type="radio"
-                                name="commission-account"
-                                checked={selected}
-                                onChange={() =>
-                                  onCommissionAccountChange(account.numero)
-                                }
-                                disabled={!selectable}
-                                aria-label={`Sélectionner le compte ${account.numero}`}
-                                className="h-4 w-4 accent-primary"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+      {client
+        && searchStatus === 'SUCCESS'
+        && selectedClientAgency
+        && (
+          <ClientAccountsTable
+            agencyCode={selectedClientAgency}
+            accounts={agencyAccounts}
+            loading={loadingAccounts}
+            error={accountsError}
+            commissionAccount={commissionAccount}
+            onCommissionAccountChange={onCommissionAccountChange}
+          />
+        )}
     </div>
   );
 }

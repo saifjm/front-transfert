@@ -1,5 +1,12 @@
-import { authenticatedFetch } from '../../utils/api';
 import { UserMessageError } from './transfer.errors';
+import {
+  resolveEligibleClientAgencies,
+  type ClientAgencyOption,
+} from './transfer.client-agency';
+import type {
+  AgencyWorkflowCommandResponse,
+} from './transfer.agency-initiation.contracts';
+import { buildAgencyInitiationCommand } from './transfer.agency-initiation.mapper';
 import {
   MOCK_BCT_AUTHORIZATIONS,
   MOCK_QUOTED_CURRENCIES,
@@ -25,6 +32,7 @@ import type {
 } from './transfer.api.contracts';
 import {
   buildAddress,
+  mapClientAccounts,
   mapClientData,
   toAgencyInfo,
   toBnaCustomerIdType,
@@ -33,11 +41,13 @@ import {
   toNumber,
 } from './transfer.mappers';
 import {
+  getAgencyInitiationRequestContext,
   getTransferRequestContext,
   normalizeAgencyCode,
   requireSessionAgencyCode,
 } from './transfer.session';
 import type {
+  AgencyInitiationResult,
   AsyncReceptionAck,
   BackOfficeResult,
   BankData,
@@ -62,11 +72,20 @@ import type {
   QuotedCurrency,
   TCEResult,
   TceSearchData,
+  TransferSubmissionPayload,
 } from './transfer.types';
 
 const BNA_API_BASE_URL = String(
   import.meta.env.VITE_BNA_API_BASE_URL || '/api/v1/bna',
 ).replace(/\/+$/, '');
+
+const MS_TR_API_BASE_URL = String(
+  import.meta.env.VITE_MS_TR_API_BASE_URL || '/api/ms-tr',
+).replace(/\/+$/, '');
+
+const BNA_MOCK_USER_ID = String(
+  import.meta.env.VITE_DEV_USER_ID || '',
+).trim();
 
 const BNA_ENDPOINTS = {
   verifyAuthorization: `${BNA_API_BASE_URL}/auth/verify`,
@@ -89,8 +108,21 @@ const BNA_ENDPOINTS = {
     `${BNA_API_BASE_URL}/reference/nostro?currency=${encodeURIComponent(currency)}`,
 } as const;
 
-interface RequestOptions extends RequestInit {
+const MS_TR_ENDPOINTS = {
+  agencyWorkflowCommand: `${MS_TR_API_BASE_URL}/operations/workflow-command`,
+} as const;
+
+interface BnaRequestOptions extends RequestInit {
   userMessage: string;
+  /** Overrides the agency carried by the connected-user session. */
+  agencyCode?: string;
+}
+
+interface MsTrRequestOptions extends RequestInit {
+  userMessage: string;
+  idempotencyKey: string;
+  /** Agency explicitly selected in the Client step. */
+  branchCode: string;
 }
 
 function createCorrelationId(): string {
@@ -104,21 +136,46 @@ function createCorrelationId(): string {
   return `CORR-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function buildHeaders(extra?: HeadersInit): Headers {
+function buildHeaders(
+  extra?: HeadersInit,
+  agencyCodeOverride?: string,
+): Headers {
   const headers = new Headers(extra);
   const context = getTransferRequestContext();
+  const agencyCode = normalizeAgencyCode(
+    agencyCodeOverride
+    || headers.get('X-Agency-Code')
+    || context.agencyCode,
+  );
 
   if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  headers.set('Accept', 'application/json');
-  headers.set('X-Correlation-Id', createCorrelationId());
-  headers.set('X-User-Id', 'U00458');
-  headers.set('X-Role-Code', context.roleCode);
-  headers.set('X-Agency-Code', '012');
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json');
+  }
 
-  if (context.orgNodeId) {
+  if (!headers.has('X-Correlation-Id')) {
+    headers.set('X-Correlation-Id', createCorrelationId());
+  }
+
+  if (!headers.has('X-User-Id')) {
+    headers.set(
+      'X-User-Id',
+      BNA_MOCK_USER_ID || context.userId,
+    );
+  }
+
+  if (!headers.has('X-Role-Code')) {
+    headers.set('X-Role-Code', context.roleCode);
+  }
+
+  if (agencyCode) {
+    headers.set('X-Agency-Code', agencyCode);
+  }
+
+  if (context.orgNodeId && !headers.has('X-Org-Node-Id')) {
     headers.set('X-Org-Node-Id', context.orgNodeId);
   }
 
@@ -230,24 +287,21 @@ function mapHttpError(
 
 async function requestBna<T>(
   url: string,
-  { userMessage, headers, ...init }: RequestOptions,
+  {
+    userMessage,
+    headers,
+    agencyCode,
+    ...init
+  }: BnaRequestOptions,
 ): Promise<T> {
-
-  const finalHeaders = buildHeaders(headers);
-
-  console.log('[BNA REQUEST]', {
-    url,
-    method: init.method,
-    headers: Object.fromEntries(finalHeaders.entries()),
-    body: init.body,
-  });
-
   let response: Response;
 
   try {
-    response = await authenticatedFetch(url, {
+    const finalHeaders = buildHeaders(headers, agencyCode);
+    response = await window.fetch(url, {
       ...init,
-      headers: finalHeaders,
+      headers: Object.fromEntries(finalHeaders.entries()),
+      credentials: 'same-origin',
     });
   } catch (error) {
     console.error('[BNA API] Network error', { url, error });
@@ -277,6 +331,136 @@ async function requestBna<T>(
   }
 
   return unwrapPayload<T>(rawPayload);
+}
+
+export function createAgencyInitiationIdempotencyKey(): string {
+  if (
+    typeof crypto !== 'undefined'
+    && typeof crypto.randomUUID === 'function'
+  ) {
+    return `IDEMP-${crypto.randomUUID()}`;
+  }
+
+  return `IDEMP-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildAgencyInitiationHeaders(
+  idempotencyKey: string,
+  branchCode: string,
+  extra?: HeadersInit,
+): Headers {
+  const headers = new Headers(extra);
+  const context = getAgencyInitiationRequestContext();
+  const selectedBranchCode = normalizeAgencyCode(branchCode);
+
+  if (!selectedBranchCode) {
+    throw new UserMessageError(
+      'Veuillez sélectionner une agence client avant de poursuivre.',
+    );
+  }
+
+  headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'application/json');
+  headers.set('X-WF-Instance-Id', context.wfInstanceId);
+  headers.set('X-WF-Task-Id', context.wfTaskId);
+  headers.set('X-WF-Node-Code', 'AGENCY_INITIATION');
+  headers.set('X-WF-Actor-Role', 'AGENCY_OPERATOR');
+  headers.set('X-User-Id', context.userId);
+  headers.set('X-Branch-Code', selectedBranchCode);
+  headers.set('X-Correlation-Id', createCorrelationId());
+  headers.set('Idempotency-Key', idempotencyKey);
+
+  return headers;
+}
+
+async function requestMsTr<T>(
+  url: string,
+  {
+    userMessage,
+    headers,
+    idempotencyKey,
+    branchCode,
+    ...init
+  }: MsTrRequestOptions,
+): Promise<T> {
+  const finalHeaders = buildAgencyInitiationHeaders(
+    idempotencyKey,
+    branchCode,
+    headers,
+  );
+
+  let response: Response;
+
+  try {
+    response = await window.fetch(url, {
+      ...init,
+      headers: Object.fromEntries(finalHeaders.entries()),
+      credentials: 'same-origin',
+    });
+  } catch (error) {
+    console.error('[MS-TR API] Network error', {
+      url,
+      method: init.method || 'GET',
+      error,
+    });
+
+    throw error instanceof UserMessageError
+      ? error
+      : new UserMessageError(userMessage);
+  }
+
+  const rawPayload = await readJson<unknown>(response);
+
+  if (!response.ok) {
+    console.error('[MS-TR API] HTTP error', {
+      url,
+      status: response.status,
+      payload: rawPayload,
+    });
+
+    throw mapHttpError(
+      response,
+      rawPayload as BnaErrorPayload | null,
+      userMessage,
+    );
+  }
+
+  if (rawPayload == null) {
+    throw new UserMessageError(userMessage);
+  }
+
+  return unwrapPayload<T>(rawPayload);
+}
+
+function normalizeAgencyInitiationResponse(
+  response: AgencyWorkflowCommandResponse,
+): AgencyInitiationResult {
+  const operationRef =
+    response.operationRef
+    ?? response.refOrdre
+    ?? response.referenceOrdre
+    ?? response.refOperation
+    ?? response.id;
+
+  if (operationRef == null || String(operationRef).trim() === '') {
+    throw new UserMessageError(
+      "MS-TR a accepté la demande sans retourner la référence de l'opération.",
+    );
+  }
+
+  const status =
+    response.status
+    ?? response.operationStatus
+    ?? response.statut
+    ?? response.statutOperation
+    ?? 'DRAFT';
+
+  return {
+    operationRef: String(operationRef),
+    status: String(status),
+    message: response.message,
+    raw: response,
+  };
 }
 
 function normalizeNoPiece(noPieceClient: string): string {
@@ -326,6 +510,24 @@ function eligibilityMessage(
   }
 }
 
+async function requestClientAuthorization(
+  typePieceClient: CustomerIdType,
+  noPieceClient: string,
+): Promise<BnaAuthorizationResponse> {
+  return requestBna<BnaAuthorizationResponse>(
+    BNA_ENDPOINTS.verifyAuthorization,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        typePieceClient: toBnaCustomerIdType(typePieceClient),
+        noPieceClient: normalizeNoPiece(noPieceClient),
+      }),
+      userMessage:
+        'La vérification des habilitations agence est momentanément indisponible.',
+    },
+  );
+}
+
 /** BNA-AUTH-001 — strict current-agency eligibility check. */
 export async function getClientAgence(
   typePieceClient: CustomerIdType,
@@ -334,17 +536,9 @@ export async function getClientAgence(
   const normalizedNoPiece = normalizeNoPiece(noPieceClient);
   const sessionAgencyCode = requireSessionAgencyCode();
 
-  const response = await requestBna<BnaAuthorizationResponse>(
-    BNA_ENDPOINTS.verifyAuthorization,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        typePieceClient: toBnaCustomerIdType(typePieceClient),
-        noPieceClient: normalizedNoPiece,
-      }),
-      userMessage:
-        'La vérification de l’éligibilité du client est momentanément indisponible.',
-    },
+  const response = await requestClientAuthorization(
+    typePieceClient,
+    normalizedNoPiece,
   );
 
   const currentAgencyCode = normalizeAgencyCode(
@@ -373,7 +567,248 @@ export async function getClientAgence(
   };
 }
 
-/** BNA-CLI-001 + BNA-ACC-001. */
+
+export interface ClientAgencyScopedSearchResult {
+  client: ClientData | null;
+  authorization: ClientAgencyEligibility;
+  eligibleAgencies: ClientAgencyOption[];
+}
+
+function uniqueAgencyCodes(
+  agencies: ClientAgencyEligibility['authorizedAgencies'],
+): string[] {
+  return agencies
+    .map(agency => normalizeAgencyCode(agency.code))
+    .filter(Boolean)
+    .filter((code, index, all) => all.indexOf(code) === index);
+}
+
+function uniqueAccountRows(
+  responses: BnaAccountSearchResponse[],
+): BnaAccountSearchResponse['comptes'] {
+  const seen = new Set<string>();
+
+  return responses
+    .flatMap(response => response.comptes || [])
+    .filter(account => {
+      const agencyCode = normalizeAgencyCode(account.codeAgenceBct);
+      const key = `${agencyCode}:${account.compteRib}`;
+
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/**
+ * BNA-AUTH-001 + BNA-CLI-001 + BNA-ACC-001.
+ *
+ * New agency-selection rule:
+ * eligible agencies = agencies containing at least one client account
+ *                     ∩ agencies authorized for the connected user.
+ *
+ * The old `habilite` flag is a current-agency result and therefore must not
+ * reject a client that can legitimately be processed in another authorized
+ * agency. Actual account ownership is verified by probing BNA-ACC-001 with
+ * each authorized agency in X-Agency-Code.
+ */
+export async function searchClientWithAgencyScope(
+  typePieceClient: CustomerIdType,
+  noPieceClient: string,
+): Promise<ClientAgencyScopedSearchResult> {
+  const normalizedNoPiece = normalizeNoPiece(noPieceClient);
+  const sessionAgencyCode = requireSessionAgencyCode();
+  const bnaTypePiece = toBnaCustomerIdType(typePieceClient);
+
+  const authorizationResponse = await requestClientAuthorization(
+    typePieceClient,
+    normalizedNoPiece,
+  );
+
+  const currentAgencyCode = normalizeAgencyCode(
+    authorizationResponse.agenceCourante || sessionAgencyCode,
+  );
+  const authorizedAgencies = authorizationResponse.agencesAutorisees
+    .map(toAgencyInfo);
+  const authorizedAgencyCodes = uniqueAgencyCodes(authorizedAgencies);
+  const profileAgencyCode = authorizedAgencyCodes[0] || currentAgencyCode;
+
+  const profilePromise = requestBna<BnaClientProfileResponse>(
+    BNA_ENDPOINTS.clientProfile,
+    {
+      method: 'POST',
+      agencyCode: profileAgencyCode,
+      body: JSON.stringify({
+        typePiecePersonne: bnaTypePiece,
+        noPiecePersonne: normalizedNoPiece,
+      }),
+      userMessage: 'La fiche du client n’a pas pu être chargée.',
+    },
+  );
+
+  const accountSearchPromise = Promise.allSettled(
+    authorizedAgencyCodes.map(agencyCode =>
+      requestBna<BnaAccountSearchResponse>(BNA_ENDPOINTS.accountSearch, {
+        method: 'POST',
+        agencyCode,
+        body: JSON.stringify({
+          typePieceClient: bnaTypePiece,
+          noPieceClient: normalizedNoPiece,
+          // The agency LOV is based on account ownership. We deliberately do
+          // not apply commission-account filters at this stage.
+          filtres: {},
+        }),
+        userMessage:
+          `Les comptes du client n’ont pas pu être consultés pour l’agence ${agencyCode}.`,
+      }),
+    ),
+  );
+
+  const [profile, settledAccountResponses] = await Promise.all([
+    profilePromise,
+    accountSearchPromise,
+  ]);
+
+  const successfulAccountResponses = settledAccountResponses
+    .filter(
+      (result): result is PromiseFulfilledResult<BnaAccountSearchResponse> =>
+        result.status === 'fulfilled',
+    )
+    .map(result => result.value);
+
+  const failedAccountResponses = settledAccountResponses.filter(
+    result => result.status === 'rejected',
+  );
+
+  if (
+    authorizedAgencyCodes.length > 0
+    && successfulAccountResponses.length === 0
+    && failedAccountResponses.length > 0
+  ) {
+    throw failedAccountResponses[0].reason;
+  }
+
+  if (failedAccountResponses.length > 0) {
+    console.warn('[BNA API] Partial account-agency lookup failure', {
+      client: normalizedNoPiece,
+      failedAgencies: failedAccountResponses.length,
+      totalAgencies: authorizedAgencyCodes.length,
+    });
+  }
+
+  const accountRows = uniqueAccountRows(successfulAccountResponses);
+  const client = mapClientData(
+    typePieceClient,
+    profile,
+    accountRows,
+    '',
+  );
+
+  const eligibleAgencies = resolveEligibleClientAgencies(
+    client.comptes,
+    authorizedAgencies,
+  );
+
+  const clientAccountAgencyCodes = new Set(
+    client.comptes
+      .map(account => normalizeAgencyCode(account.codeAgence))
+      .filter(Boolean),
+  );
+  const clientAccountAgencies = [...clientAccountAgencyCodes]
+    .map(toAgencyInfo);
+
+  const currentAgency = currentAgencyCode
+    ? toAgencyInfo(currentAgencyCode)
+    : null;
+  const clientAgency =
+    clientAccountAgencies.find(agency => agency.code === currentAgencyCode)
+    || clientAccountAgencies[0]
+    || null;
+  const eligible = eligibleAgencies.length > 0;
+  const reason: ClientAgencyEligibilityReason = eligible
+    ? 'ELIGIBLE'
+    : mapEligibilityReason(authorizationResponse.codeMotifRefus);
+
+  const authorization: ClientAgencyEligibility = {
+    eligible,
+    currentAgency,
+    authorizedAgencies,
+    clientAgencies: clientAccountAgencies,
+    reason,
+    message: eligible
+      ? 'Au moins une agence commune existe entre les comptes du client et vos habilitations.'
+      : 'Aucune agence commune n’existe entre les comptes du client et votre périmètre d’habilitation.',
+    userAgencyCode: currentAgencyCode,
+    clientAgency,
+  };
+
+  return {
+    client,
+    authorization,
+    eligibleAgencies,
+  };
+}
+
+/**
+ * BNA-ACC-001 — operational accounts for the selected client agency.
+ *
+ * Ticket rule:
+ * - no operational account lookup before the agency is selected;
+ * - selected agency is carried in X-Agency-Code;
+ * - server-side filters request active (V) TND accounts;
+ * - a defensive frontend filter keeps only rows that actually belong to the
+ *   selected agency, are TND and active.
+ *
+ * Account type exclusions are intentionally not added here until the business
+ * rule is confirmed. Professional accounts may therefore be returned but the
+ * mapper can mark them ineligible for commission selection.
+ */
+export async function getClientTndActiveAccounts(
+  typePieceClient: CustomerIdType,
+  noPieceClient: string,
+  agencyCode: string,
+): Promise<ClientData['comptes']> {
+  const normalizedNoPiece = normalizeNoPiece(noPieceClient);
+  const normalizedAgencyCode = normalizeAgencyCode(agencyCode);
+
+  if (!normalizedAgencyCode) {
+    throw new UserMessageError(
+      'Veuillez sélectionner une agence client avant de charger les comptes.',
+    );
+  }
+
+  const response = await requestBna<BnaAccountSearchResponse>(
+    BNA_ENDPOINTS.accountSearch,
+    {
+      method: 'POST',
+      agencyCode: normalizedAgencyCode,
+      body: JSON.stringify({
+        typePieceClient: toBnaCustomerIdType(typePieceClient),
+        noPieceClient: normalizedNoPiece,
+        filtres: {
+          etatCompte: 'V',
+          codeDevise: toCurrencyNumeric('TND'),
+        },
+      }),
+      userMessage:
+        `Les comptes TND actifs du client n’ont pas pu être chargés pour l’agence ${normalizedAgencyCode}.`,
+    },
+  );
+
+  const mappedAccounts = mapClientAccounts(response.comptes || []);
+
+  return mappedAccounts.filter(account => (
+    normalizeAgencyCode(account.codeAgence) === normalizedAgencyCode
+    && account.devise.trim().toUpperCase() === 'TND'
+    && account.statut === 'ACTIF'
+  ));
+}
+
+/**
+ * BNA-CLI-001 + BNA-ACC-001.
+ * @deprecated Prefer searchClientWithAgencyScope() for the new Agency client
+ * selection flow. This function keeps the legacy current-agency behavior.
+ */
 export async function getClientCompteCom(
   typePieceClient: CustomerIdType,
   noPieceClient: string,
@@ -812,6 +1247,53 @@ export async function listDocumentReferences(): Promise<DocumentReference[]> {
   );
 
   return response.documents as DocumentReference[];
+}
+
+/**
+ * AgencyIntegrationApi — direct temporary integration.
+ *
+ * finalize=false is intentional: agency initiation creates a draft only.
+ * It must not block funds, reserve financing/TCE resources or create an
+ * imputation. MS-WF will orchestrate this command later.
+ */
+export async function submitAgencyInitiation(
+  payload: TransferSubmissionPayload,
+  options: {
+    /** Agency selected after the accounts/habilitations intersection. */
+    branchCode: string;
+    operationRef?: string | null;
+    idempotencyKey?: string;
+  },
+): Promise<AgencyInitiationResult> {
+  const branchCode = normalizeAgencyCode(options.branchCode);
+
+  if (!branchCode) {
+    throw new UserMessageError(
+      'Veuillez sélectionner une agence client avant de poursuivre.',
+    );
+  }
+
+  const command = buildAgencyInitiationCommand(
+    payload,
+    options.operationRef ?? null,
+  );
+  const idempotencyKey =
+    options.idempotencyKey
+    || createAgencyInitiationIdempotencyKey();
+
+  const response = await requestMsTr<AgencyWorkflowCommandResponse>(
+    `${MS_TR_ENDPOINTS.agencyWorkflowCommand}?finalize=false`,
+    {
+      method: 'POST',
+      body: JSON.stringify(command),
+      idempotencyKey,
+      branchCode,
+      userMessage:
+        "Le brouillon de l'opération n'a pas pu être créé dans MS-TR.",
+    },
+  );
+
+  return normalizeAgencyInitiationResponse(response);
 }
 
 /** Internal MS-DOMI service — no corresponding BNA endpoint. */

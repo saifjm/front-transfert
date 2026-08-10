@@ -210,6 +210,11 @@ export default defineConfig({
         changeOrigin: true,
       },
 
+      '^/api/ms-tr': {
+      target: 'http://localhost:8080',
+      changeOrigin: true,
+    },
+
       /*
        * Local callback receiver exposed by the mock server.
        * Keep this route only for local end-to-end tests.

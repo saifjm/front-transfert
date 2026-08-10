@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,14 +14,25 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 
-import { getQuotedCurrencies } from './ms-transfer/transfer.api';
+import {
+  createAgencyInitiationIdempotencyKey,
+  getQuotedCurrencies,
+  submitAgencyInitiation,
+} from './ms-transfer/transfer.api';
 import {
   INITIAL_ORDER,
   INITIAL_REGULATORY_DATA,
   INITIAL_SUPPORT_DATA,
   MOCK_QUOTED_CURRENCIES,
 } from './ms-transfer/transfer.mock';
+import { getUserMessage } from './ms-transfer/transfer.errors';
+import {
+  isCommissionAccountValid,
+  type ClientAgencyOption,
+} from './ms-transfer/transfer.client-agency';
 import type {
+  AccountRow,
+  AgencyInitiationResult,
   ClientData,
   Modality,
   QuotedCurrency,
@@ -61,11 +72,27 @@ export interface MSTransferCreateProps {
 
 const INITIATION_SOURCE: TransferInitiationSource = 'AGENCE';
 
+function clearModalityAccountSelection(modality: Modality): Modality {
+  return {
+    ...modality,
+    compteADebiter: '',
+    deviseCompte: '',
+    montantDebit: '',
+  };
+}
+
 export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const [currentSection, setCurrentSection] = useState(0);
   const [transferType, setTransferType] =
     useState<TransferType | null>(null);
   const [client, setClient] = useState<ClientData | null>(null);
+  const [eligibleClientAgencies, setEligibleClientAgencies] = useState<
+    ClientAgencyOption[]
+  >([]);
+  const [selectedClientAgency, setSelectedClientAgency] = useState('');
+  const [clientAgencyAccounts, setClientAgencyAccounts] = useState<
+    AccountRow[]
+  >([]);
   const [commissionAccount, setCommissionAccount] = useState('');
   const [quotedCurrencies, setQuotedCurrencies] = useState<
     QuotedCurrency[]
@@ -79,6 +106,12 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     useState<RegulatorySupportData>(INITIAL_SUPPORT_DATA);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submissionResult, setSubmissionResult] =
+    useState<AgencyInitiationResult | null>(null);
+  const [submissionError, setSubmissionError] = useState('');
+  const idempotencyKeyRef = useRef(
+    createAgencyInitiationIdempotencyKey(),
+  );
 
   useEffect(() => {
     let active = true;
@@ -146,8 +179,13 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     if (currentSection === 0) return transferType !== null;
     if (currentSection === 1) {
       return (
-        client?.statut === 'ACTIF' &&
-        Boolean(commissionAccount)
+        client?.statut === 'ACTIF'
+        && Boolean(selectedClientAgency)
+        && isCommissionAccountValid(
+          clientAgencyAccounts,
+          selectedClientAgency,
+          commissionAccount,
+        )
       );
     }
     if (currentSection === 2) return isOrderComplete(order);
@@ -161,6 +199,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setCurrentSection(0);
     setTransferType(null);
     setClient(null);
+    setEligibleClientAgencies([]);
+    setSelectedClientAgency('');
+    setClientAgencyAccounts([]);
     setCommissionAccount('');
     setOrder(INITIAL_ORDER);
     setModalities([]);
@@ -168,6 +209,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSupport(INITIAL_SUPPORT_DATA);
     setSubmitting(false);
     setShowSuccess(false);
+    setSubmissionResult(null);
+    setSubmissionError('');
+    idempotencyKeyRef.current = createAgencyInitiationIdempotencyKey();
   };
 
   const openConsultation = () => {
@@ -177,6 +221,11 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
   const selectTransferType = (type: TransferType) => {
     setTransferType(type);
+    setEligibleClientAgencies([]);
+    setSelectedClientAgency('');
+    setClientAgencyAccounts([]);
+    setCommissionAccount('');
+    setModalities(current => current.map(clearModalityAccountSelection));
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport({
       ...INITIAL_SUPPORT_DATA,
@@ -191,40 +240,61 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
   const handleClientLoaded = (loadedClient: ClientData) => {
     setClient(loadedClient);
-
-    const defaultCommissionAccount =
-      loadedClient.comptes.find(
-        account =>
-          account.devise === 'TND' &&
-          account.eligibleCommission,
-      ) ??
-      loadedClient.comptes.find(
-        account => account.eligibleCommission,
-      );
-
-    setCommissionAccount(
-      defaultCommissionAccount?.numero ?? '',
-    );
+    setSelectedClientAgency('');
+    setClientAgencyAccounts([]);
+    setCommissionAccount('');
 
     setOrder(current => ({
       ...current,
       debtor: {
         ...clientToParty(loadedClient),
-        compte: defaultCommissionAccount?.numero ?? '',
+        compte: '',
       },
     }));
+    setModalities(current => current.map(clearModalityAccountSelection));
 
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(current => ({ ...current, tceResult: null }));
   };
 
+  const handleClientAgencyChange = (agencyCode: string) => {
+    setSelectedClientAgency(agencyCode);
+    setClientAgencyAccounts([]);
+    setCommissionAccount('');
+    setOrder(current => ({
+      ...current,
+      debtor: {
+        ...current.debtor,
+        compte: '',
+      },
+    }));
+    setModalities(current => current.map(clearModalityAccountSelection));
+  };
+
+  const handleCommissionAccountChange = (accountNumber: string) => {
+    setCommissionAccount(accountNumber);
+    setOrder(current => ({
+      ...current,
+      debtor: {
+        ...current.debtor,
+        compte: accountNumber,
+      },
+    }));
+  };
+
+
+
   const handleClientCleared = () => {
     setClient(null);
+    setEligibleClientAgencies([]);
+    setSelectedClientAgency('');
+    setClientAgencyAccounts([]);
     setCommissionAccount('');
     setOrder(current => ({
       ...current,
       debtor: { ...INITIAL_ORDER.debtor },
     }));
+    setModalities(current => current.map(clearModalityAccountSelection));
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(current => ({
       ...current,
@@ -273,23 +343,50 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     if (payload) {
       sessionStorage.setItem(
         'ms_tr_draft',
-        JSON.stringify(payload),
+        JSON.stringify({
+          ...payload,
+          clientAgencyCode: selectedClientAgency,
+        }),
       );
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const payload = buildSubmissionPayload();
     if (!payload) return;
 
-    setSubmitting(true);
+    if (!selectedClientAgency) {
+      setSubmissionError(
+        'Sélectionnez une agence client autorisée avant de créer le brouillon.',
+      );
+      return;
+    }
 
-    // TODO: replace with the production transfer submission call.
-    window.setTimeout(() => {
-      void payload;
-      setSubmitting(false);
+    setSubmitting(true);
+    setSubmissionError('');
+
+    try {
+      const result = await submitAgencyInitiation(payload, {
+        operationRef: null,
+        idempotencyKey: idempotencyKeyRef.current,
+        branchCode: selectedClientAgency,
+      });
+
+      setSubmissionResult(result);
       setShowSuccess(true);
-    }, 1200);
+
+      // A future retry after a successful creation must target a new command.
+      idempotencyKeyRef.current = createAgencyInitiationIdempotencyKey();
+    } catch (reason) {
+      setSubmissionError(
+        getUserMessage(
+          reason,
+          "Le brouillon agence n'a pas pu être créé. Vérifiez les données puis réessayez.",
+        ),
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -298,7 +395,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/95 backdrop-blur-sm">
           <Loader2 className="h-16 w-16 animate-spin text-primary" />
           <p className="text-xl font-semibold tracking-wide text-foreground">
-            Soumission du dossier en cours...
+            Création du brouillon agence en cours...
           </p>
         </div>
       )}
@@ -306,6 +403,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       <SuccessModal
         open={showSuccess}
         transferType={transferType}
+        result={submissionResult}
         onClose={openConsultation}
         onNew={resetForm}
       />
@@ -355,6 +453,12 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         </Alert>
       )}
 
+      {submissionError && (
+        <Alert variant="destructive">
+          <AlertDescription>{submissionError}</AlertDescription>
+        </Alert>
+      )}
+
       <SimpleSectionNavigation
         current={currentSection}
         transferType={transferType}
@@ -370,13 +474,20 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
           />
         )}
 
-        {currentSection === 1 && (
+        {currentSection === 1 && transferType && (
           <ClientSection
+            transferType={transferType}
             client={client}
+            eligibleAgencies={eligibleClientAgencies}
+            selectedClientAgency={selectedClientAgency}
+            agencyAccounts={clientAgencyAccounts}
             commissionAccount={commissionAccount}
             onClientLoaded={handleClientLoaded}
             onClientCleared={handleClientCleared}
-            onCommissionAccountChange={setCommissionAccount}
+            onEligibleAgenciesChange={setEligibleClientAgencies}
+            onClientAgencyChange={handleClientAgencyChange}
+            onAgencyAccountsChange={setClientAgencyAccounts}
+            onCommissionAccountChange={handleCommissionAccountChange}
           />
         )}
 
@@ -393,7 +504,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
           <PaymentModalitiesSection
             modalities={modalities}
             order={order}
-            accounts={client?.comptes ?? []}
+            accounts={clientAgencyAccounts}
             onChange={setModalities}
           />
         )}

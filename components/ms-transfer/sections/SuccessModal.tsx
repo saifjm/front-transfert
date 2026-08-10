@@ -11,17 +11,22 @@ import {
   DialogTitle,
 } from '../../ui/dialog';
 
-import type { TransferType } from '../transfer.types';
+import type {
+  AgencyInitiationResult,
+  TransferType,
+} from '../transfer.types';
 import { StatusBadge, TypeBadge } from '../transfer.ui';
 
 export function SuccessModal({
   open,
   transferType,
+  result,
   onClose,
   onNew,
 }: {
   open: boolean;
   transferType: TransferType | null;
+  result: AgencyInitiationResult | null;
   onClose: () => void;
   onNew: () => void;
 }) {
@@ -32,10 +37,11 @@ export function SuccessModal({
           <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
             <CheckCircle2 className="h-9 w-9 text-green-600" />
           </div>
-          <DialogTitle>Transfert créé avec succès</DialogTitle>
+          <DialogTitle>Brouillon agence créé avec succès</DialogTitle>
           <DialogDescription>
-            Le dossier a été enregistré et transmis au circuit de
-            validation.
+            MS-TR a enregistré l’opération avec finalize=false. Aucun
+            blocage, aucune réservation TCE/financement et aucune
+            imputation ne sont exécutés à cette étape.
           </DialogDescription>
         </DialogHeader>
 
@@ -45,7 +51,7 @@ export function SuccessModal({
               Référence opération
             </span>
             <span className="font-mono text-sm font-semibold">
-              TR-2026-000001
+              {result?.operationRef || '—'}
             </span>
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -56,14 +62,14 @@ export function SuccessModal({
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-muted-foreground">Statut</span>
-            <StatusBadge status="en_cours_agence" />
+            <StatusBadge status={result?.status || 'brouillon'} />
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-muted-foreground">
               Prochaine étape
             </span>
             <span className="text-sm font-medium">
-              Services centraux
+              Orchestration MS-WF / soumission ultérieure
             </span>
           </div>
         </div>
@@ -71,7 +77,7 @@ export function SuccessModal({
         <DialogFooter className="sm:justify-between">
           <Button type="button" variant="outline" onClick={onClose}>
             <Eye className="mr-2 h-4 w-4" />
-            Consulter dossier
+            Consulter le brouillon
           </Button>
           <Button type="button" onClick={onNew}>
             <Plus className="mr-2 h-4 w-4" />

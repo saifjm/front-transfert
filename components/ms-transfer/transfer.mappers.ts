@@ -14,7 +14,7 @@ import { normalizeAgencyCode } from './transfer.session';
 export const CUSTOMER_ID_TYPE_TO_BNA: Record<CustomerIdType, number> = {
   CIN: 1,
   PASSPORT: 2,
-  MF: 4,
+  MF: 3,
   RC: 7,
 };
 
@@ -170,27 +170,59 @@ function mapClientStatus(value: unknown): ClientData['statut'] {
   return 'ACTIF';
 }
 
-export function mapClientData(
-  requestedTypePiece: CustomerIdType,
-  profile: BnaClientProfileResponse,
-  accountRows: BnaAccountRow[],
-  currentAgencyCode: string,
-): ClientData {
-  const address = profile.postalAddress || profile.adresse || {};
-  const countryNumeric = String(
-    address.countryNumericCode ?? '',
-  ).padStart(3, '0');
-  const codePays =
-    address.countryAlpha2?.trim().toUpperCase()
-    || COUNTRY_NUMERIC_TO_ALPHA2[countryNumeric]
-    || countryNumeric;
-  const pays =
-    address.countryName?.trim()
-    || COUNTRY_NUMERIC_TO_LABEL[countryNumeric]
-    || codePays;
+function mapActivityCode(value: unknown): ClientData['activitePrincipale'] {
+  if (!value || typeof value !== 'object') return undefined;
 
-  const accounts = accountRows.map(account => {
-    const devise = toCurrencyAlpha(account.codeDevise);
+  const activity = value as {
+    section?: unknown;
+    division?: unknown;
+    groupe?: unknown;
+    classe?: unknown;
+  };
+
+  const toOptionalNumber = (raw: unknown): number | undefined => {
+    if (raw == null || raw === '') return undefined;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  const mapped = {
+    section: activity.section != null
+      ? String(activity.section).trim() || undefined
+      : undefined,
+    division: toOptionalNumber(activity.division),
+    groupe: toOptionalNumber(activity.groupe),
+    classe: toOptionalNumber(activity.classe),
+  };
+
+  return Object.values(mapped).some(value => value != null)
+    ? mapped
+    : undefined;
+}
+
+function resolveActivities(profile: BnaClientProfileResponse): {
+  activiteCode?: string;
+  principale?: ClientData['activitePrincipale'];
+  secondaire?: ClientData['activiteSecondaire'];
+} {
+  if (typeof profile.activite === 'string') {
+    return {
+      activiteCode: profile.activite.trim() || undefined,
+    };
+  }
+
+  return {
+    activiteCode: profile.codeActivite?.trim() || undefined,
+    principale: mapActivityCode(profile.activite?.principale),
+    secondaire: mapActivityCode(profile.activite?.secondaire),
+  };
+}
+
+export function mapClientAccounts(
+  accountRows: BnaAccountRow[],
+): ClientData['comptes'] {
+  return accountRows.map(account => {
+    const devise = toCurrencyAlpha(account.codeDevise).trim().toUpperCase();
     const active = account.etatCompte === 'V';
     const professionnel = account.compteProfessionnelON === 'O';
     const principal =
@@ -214,6 +246,29 @@ export function mapClientData(
         && (devise === 'TND' || principal),
     };
   });
+}
+
+export function mapClientData(
+  requestedTypePiece: CustomerIdType,
+  profile: BnaClientProfileResponse,
+  accountRows: BnaAccountRow[],
+  currentAgencyCode: string,
+): ClientData {
+  const address = profile.postalAddress || profile.adresse || {};
+  const activities = resolveActivities(profile);
+  const countryNumeric = String(
+    address.countryNumericCode ?? '',
+  ).padStart(3, '0');
+  const codePays =
+    address.countryAlpha2?.trim().toUpperCase()
+    || COUNTRY_NUMERIC_TO_ALPHA2[countryNumeric]
+    || countryNumeric;
+  const pays =
+    address.countryName?.trim()
+    || COUNTRY_NUMERIC_TO_LABEL[countryNumeric]
+    || codePays;
+
+  const accounts = mapClientAccounts(accountRows);
 
   const nomRaison =
     profile.natureClient === 'P'
@@ -228,6 +283,15 @@ export function mapClientData(
     noPiece: profile.noPiecePersonne,
     typePiece: requestedTypePiece,
     nomRaison,
+    nom: profile.nom?.trim() || undefined,
+    prenom: profile.prenom?.trim() || undefined,
+    nationalite: profile.nationalite?.trim() || undefined,
+    telephone: profile.telephone?.trim() || undefined,
+    email: profile.email?.trim() || undefined,
+    typeRefClientInterne:
+      profile.typeRefClientInterne?.trim() || undefined,
+    numRefClientInterne:
+      profile.numRefClientInterne?.trim() || undefined,
     typeClient:
       profile.natureClient === 'P'
         ? 'PERSONNE_PHYSIQUE'
@@ -241,12 +305,22 @@ export function mapClientData(
     codePays,
     ville: String(address.townName ?? ''),
     adresse: buildAddress(address),
-    agence: currentAgencyCode
-      ? `Agence ${currentAgencyCode}`
-      : '',
+    agence:
+      profile.libelleAgence?.trim()
+      || (currentAgencyCode ? `Agence ${currentAgencyCode}` : ''),
     codeAgence: currentAgencyCode,
     statut: mapClientStatus(profile.statut),
     niveauRisque: mapRiskLevel(profile.niveauRisque),
+    taxable: profile.taxable == null
+      ? undefined
+      : profile.taxable === 'O',
+    clientProhibe: profile.clientProhibe == null
+      ? undefined
+      : profile.clientProhibe === 'O',
+    codeDouane: profile.codeDouane?.trim() || undefined,
+    activiteCode: activities.activiteCode,
+    activitePrincipale: activities.principale,
+    activiteSecondaire: activities.secondaire,
     totalementExportatrice:
       profile.totalementExportatrice === 'O',
     comptes: accounts,

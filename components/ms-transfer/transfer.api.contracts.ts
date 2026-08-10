@@ -35,6 +35,18 @@ export interface BnaPostalAddress {
   countryName?: string | null;
 }
 
+export interface BnaNat09Activity {
+  section?: string | null;
+  division?: number | null;
+  groupe?: number | null;
+  classe?: number | null;
+}
+
+export interface BnaClientActivity {
+  principale?: BnaNat09Activity | null;
+  secondaire?: BnaNat09Activity | null;
+}
+
 export interface BnaClientProfileResponse {
   idFiche: string;
   noPiecePersonne: string;
@@ -44,12 +56,20 @@ export interface BnaClientProfileResponse {
   nationalite?: string | null;
   telephone?: string | null;
   email?: string | null;
+  typeRefClientInterne?: string | null;
+  numRefClientInterne?: string | null;
   natureClient: 'P' | 'M';
   residentON: 'O' | 'N';
   taxable?: 'O' | 'N';
   totalementExportatrice: 'O' | 'N';
+  clientProhibe?: 'O' | 'N' | null;
+  codeDouane?: string | null;
+  activite?: BnaClientActivity | string | null;
+  codeActivite?: string | null;
   statut?: string;
   niveauRisque?: string;
+  codeAgenceBct?: string | number | null;
+  libelleAgence?: string | null;
   postalAddress?: BnaPostalAddress;
   adresse?: BnaPostalAddress;
 }

@@ -27,21 +27,21 @@ export function TransferTypeSection({
       title: 'Transfert commercial',
       badge: 'TCE / FI',
       description:
-        'Transfert lié à une opération commerciale. Le support dépend du statut exportateur du client.',
+        'Transfert lié à une opération commerciale.',
       points: [
-        'TCE obligatoire hors totalement exportateur',
-        'TCE ou FI pour un client totalement exportateur',
+        'TCE obligatoire hors société totalement exportatrice',
+        'TCE ou FI pour une société totalement exportatrice',
         'Contrôle préalable du titre de commerce extérieur',
-        'Réservation du montant lors de la validation',
+        'Réservation du montant sur TCE à la validation du transfert',
       ],
     },
     {
       type: 'financier' as const,
       icon: Banknote,
       title: 'Transfert financier',
-      badge: 'FI / BCT',
+      badge: 'FI',
       description:
-        'Transfert non commercial traité selon la nature de l’opération et les éventuelles autorisations BCT.',
+        'Transfert non commercial traité selon la nature de l’opération.',
       points: [
         'Fiche d’information comme support règlementaire',
         'Code nature opération obligatoire',
