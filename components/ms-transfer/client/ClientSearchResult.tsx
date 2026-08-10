@@ -87,7 +87,7 @@ export function ClientSearchResult({
     : 'border-violet-300 bg-white hover:bg-violet-100 text-violet-700 dark:bg-violet-900/60 dark:border-violet-700 dark:text-violet-200 dark:hover:bg-violet-900';
 
   return (
-    <div className="mt-2.5">
+    <div>
       <div
         className={[
           'flex min-h-[58px] items-center gap-3 rounded-lg border px-3.5 py-2.5 shadow-sm',
@@ -152,15 +152,23 @@ export function ClientSearchResult({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               {isPhysical ? (
-                <User className="h-5 w-5 text-primary" aria-hidden="true" />
+                <User
+                  className="h-5 w-5 text-primary"
+                  aria-hidden="true"
+                />
               ) : (
-                <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
+                <Building2
+                  className="h-5 w-5 text-primary"
+                  aria-hidden="true"
+                />
               )}
+
               Fiche Signalétique Client
             </DialogTitle>
+
             <DialogDescription>
-              Informations d&apos;identité, de contact et données réglementaires
-              du client.
+              Informations d&apos;identité, de contact et données
+              réglementaires du client.
             </DialogDescription>
           </DialogHeader>
 
@@ -183,8 +191,13 @@ export function ClientSearchResult({
   );
 }
 
-function ClientProfileDetails({ client }: { client: ClientData }) {
+function ClientProfileDetails({
+  client,
+}: {
+  client: ClientData;
+}) {
   const view = client as ClientView;
+
   const activityLabel = view.activiteCode
     ? view.activiteLibelle
       ? `${view.activiteCode} — ${view.activiteLibelle}`
@@ -192,15 +205,17 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
     : '—';
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-      <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-base font-semibold">
+    <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <div>
+          <p className="font-semibold">
             {client.nomRaison || '—'}
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+
+          <p className="text-xs text-muted-foreground">
             {clientPersonTypeLabel(client)} —{' '}
-            {customerIdTypeLabel(client.typePiece)} / {client.noPiece || '—'}
+            {customerIdTypeLabel(client.typePiece)} /{' '}
+            {client.noPiece || '—'}
           </p>
         </div>
 
@@ -217,12 +232,35 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
             Identité &amp; Contact
           </p>
 
-          <Row label="Référence client" value={displayValue(client.idClient)} />
-          <Row label="Nationalité" value={displayValue(view.nationalite)} />
-          <Row label="Téléphone" value={displayValue(view.telephone)} />
-          <Row label="Email" value={displayValue(view.email)} />
-          <Row label="Adresse" value={displayValue(client.adresse)} />
-          <Row label="Ville" value={displayValue(client.ville)} />
+          <Row
+            label="Référence client"
+            value={displayValue(client.idClient)}
+          />
+
+          <Row
+            label="Nationalité"
+            value={displayValue(view.nationalite)}
+          />
+
+          <Row
+            label="Téléphone"
+            value={displayValue(view.telephone)}
+          />
+
+          <Row
+            label="Email"
+            value={displayValue(view.email)}
+          />
+
+          <Row
+            label="Adresse"
+            value={displayValue(client.adresse)}
+          />
+
+          <Row
+            label="Ville"
+            value={displayValue(client.ville)}
+          />
 
           {(view.typeRefClientInterne || view.numRefClientInterne) && (
             <Row
@@ -230,7 +268,9 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
               value={[
                 view.typeRefClientInterne,
                 view.numRefClientInterne,
-              ].filter(Boolean).join(' / ')}
+              ]
+                .filter(Boolean)
+                .join(' / ')}
             />
           )}
         </section>
@@ -240,13 +280,28 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
             Données réglementaires
           </p>
 
-          <Row label="Nature" value={clientPersonTypeLabel(client)} />
-          <Row label="Résident" value={yesNo(client.resident)} />
-          <Row label="Taxable" value={yesNo(view.taxable)} />
           <Row
-            label="Tot. exportatrice"
-            value={yesNo(client.totalementExportatrice)}
+            label="Nature"
+            value={clientPersonTypeLabel(client)}
           />
+
+          <Row
+            label="Résident"
+            value={yesNo(client.resident)}
+          />
+
+          <Row
+            label="Taxable"
+            value={yesNo(view.taxable)}
+          />
+
+          {!isPhysicalClient(client) && (
+            <ReadOnlyCheckbox
+              label="Totalement exportatrice"
+              checked={client.totalementExportatrice}
+            />
+          )}
+
           <Row
             label="Pays"
             value={
@@ -257,7 +312,10 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
           />
 
           {view.codeDouane && (
-            <Row label="Code douane" value={view.codeDouane} />
+            <Row
+              label="Code douane"
+              value={view.codeDouane}
+            />
           )}
 
           <Row
@@ -272,18 +330,61 @@ function ClientProfileDetails({ client }: { client: ClientData }) {
             />
           )}
 
-          <Row label="Code activité" value={activityLabel} />
+          <Row
+            label="Code activité"
+            value={activityLabel}
+          />
         </section>
       </div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function isPhysicalClient(client: ClientData): boolean {
+  return clientPersonKind(client) === 'P';
+}
+
+function ReadOnlyCheckbox({
+  label,
+  checked,
+}: {
+  label: string;
+  checked: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">
+        {label}
+      </span>
+
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          readOnly
+          tabIndex={-1}
+          aria-label={label}
+          className="h-4 w-4 cursor-default accent-primary"
+        />
+      </div>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex justify-between gap-2 text-sm">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words text-right font-medium">
+      <span className="shrink-0 text-muted-foreground">
+        {label}
+      </span>
+
+      <span className="text-right font-medium">
         {value || '—'}
       </span>
     </div>
