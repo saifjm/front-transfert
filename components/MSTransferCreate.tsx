@@ -16,6 +16,7 @@ import { Card, CardContent } from './ui/card';
 
 import {
   createAgencyInitiationIdempotencyKey,
+  getCountries,
   getQuotedCurrencies,
   submitAgencyInitiation,
 } from './ms-transfer/transfer.api';
@@ -34,7 +35,9 @@ import type {
   AccountRow,
   AgencyInitiationResult,
   ClientData,
+  CountryOption,
   Modality,
+  PartyData,
   QuotedCurrency,
   RegulatoryData,
   RegulatorySupportData,
@@ -97,6 +100,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const [quotedCurrencies, setQuotedCurrencies] = useState<
     QuotedCurrency[]
   >(MOCK_QUOTED_CURRENCIES);
+  const [countries, setCountries] = useState<CountryOption[]>([]);
+  const [countriesLoading, setCountriesLoading] = useState(false);
+  const [countryReferenceError, setCountryReferenceError] = useState('');
   const [referenceError, setReferenceError] = useState('');
   const [order, setOrder] = useState<TransferOrder>(INITIAL_ORDER);
   const [modalities, setModalities] = useState<Modality[]>([]);
@@ -112,6 +118,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const idempotencyKeyRef = useRef(
     createAgencyInitiationIdempotencyKey(),
   );
+  const previousCommissionAccountRef = useRef('');
 
   useEffect(() => {
     let active = true;
@@ -125,6 +132,37 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
           setReferenceError(
             'La liste des devises n’a pas pu être actualisée.',
           );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    setCountriesLoading(true);
+    setCountryReferenceError('');
+
+    getCountries()
+      .then(countryOptions => {
+        if (active) {
+          setCountries(countryOptions);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setCountries([]);
+          setCountryReferenceError(
+            'La liste des pays n’a pas pu être chargée.',
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setCountriesLoading(false);
         }
       });
 
@@ -175,6 +213,48 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     (!regulatoryData.authorizationRequired ||
       Boolean(regulatoryData.selectedAuthorizationId));
 
+  const partyCountryIsValid = (
+    party: PartyData,
+    required: boolean,
+  ) => {
+    if (!party.codePays && !party.pays) {
+      return !required;
+    }
+
+    if (!party.codePays || !party.pays) {
+      return false;
+    }
+
+    return countries.some(
+      country =>
+        country.alpha2 === party.codePays
+        && country.label === party.pays,
+    );
+  };
+
+  const orderPartyCountriesAreValid = () => (
+    partyCountryIsValid(order.debtor, true)
+    && partyCountryIsValid(order.beneficiary, true)
+    && (
+      !order.ultimateDebtorEnabled
+      || partyCountryIsValid(order.ultimateDebtor, true)
+    )
+    && (
+      !order.ultimateCreditorEnabled
+      || partyCountryIsValid(order.ultimateCreditor, true)
+    )
+  );
+
+  const debtorAccountIsValid = () => (
+    Boolean(order.debtor.compte)
+    && clientAgencyAccounts.some(
+      account =>
+        account.numero === order.debtor.compte
+        && account.codeAgence === selectedClientAgency
+        && account.statut === 'ACTIF',
+    )
+  );
+
   const canProceed = () => {
     if (currentSection === 0) return transferType !== null;
     if (currentSection === 1) {
@@ -188,7 +268,14 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         )
       );
     }
-    if (currentSection === 2) return isOrderComplete(order);
+    if (currentSection === 2) {
+      return (
+        isOrderComplete(order)
+        && !countriesLoading
+        && orderPartyCountriesAreValid()
+        && debtorAccountIsValid()
+      );
+    }
     if (currentSection === 3) return modalitiesComplete();
     if (currentSection === 4) return regulatoryComplete();
     if (currentSection === 5) return isSupportComplete(support);
@@ -203,6 +290,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
+    previousCommissionAccountRef.current = '';
     setOrder(INITIAL_ORDER);
     setModalities([]);
     setRegulatoryData(INITIAL_REGULATORY_DATA);
@@ -225,6 +313,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
+    previousCommissionAccountRef.current = '';
     setModalities(current => current.map(clearModalityAccountSelection));
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport({
@@ -243,6 +332,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
+    previousCommissionAccountRef.current = '';
 
     setOrder(current => ({
       ...current,
@@ -258,6 +348,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   };
 
   const handleClientAgencyChange = (agencyCode: string) => {
+    previousCommissionAccountRef.current = '';
     setSelectedClientAgency(agencyCode);
     setClientAgencyAccounts([]);
     setCommissionAccount('');
@@ -272,14 +363,68 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   };
 
   const handleCommissionAccountChange = (accountNumber: string) => {
+    const previousCommissionAccount =
+      previousCommissionAccountRef.current;
+
     setCommissionAccount(accountNumber);
-    setOrder(current => ({
-      ...current,
-      debtor: {
-        ...current.debtor,
-        compte: accountNumber,
-      },
-    }));
+
+    setOrder(current => {
+      const currentDebtorAccount = current.debtor.compte;
+      const shouldApplyCommissionAsDefault =
+        !currentDebtorAccount
+        || currentDebtorAccount === previousCommissionAccount;
+
+      return {
+        ...current,
+        debtor: {
+          ...current.debtor,
+          compte: shouldApplyCommissionAsDefault
+            ? accountNumber
+            : currentDebtorAccount,
+        },
+      };
+    });
+
+    previousCommissionAccountRef.current = accountNumber;
+  };
+
+  const handleAgencyAccountsChange = (accounts: AccountRow[]) => {
+    setClientAgencyAccounts(accounts);
+
+    setOrder(current => {
+      const currentDebtorAccount = current.debtor.compte;
+      const currentAccountStillAvailable =
+        Boolean(currentDebtorAccount)
+        && accounts.some(
+          account =>
+            account.numero === currentDebtorAccount
+            && account.codeAgence === selectedClientAgency
+            && account.statut === 'ACTIF',
+        );
+
+      if (currentAccountStillAvailable) {
+        return current;
+      }
+
+      const commissionAccountAvailable =
+        Boolean(commissionAccount)
+        && accounts.some(
+          account =>
+            account.numero === commissionAccount
+            && account.codeAgence === selectedClientAgency
+            && account.statut === 'ACTIF',
+        );
+
+      return {
+        ...current,
+        debtor: {
+          ...current.debtor,
+          compte: commissionAccountAvailable
+            ? commissionAccount
+            : '',
+        },
+      };
+    });
   };
 
 
@@ -290,6 +435,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
+    previousCommissionAccountRef.current = '';
     setOrder(current => ({
       ...current,
       debtor: { ...INITIAL_ORDER.debtor },
@@ -453,6 +599,16 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         </Alert>
       )}
 
+      {countryReferenceError && (
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            {countryReferenceError} Les pays des intervenants doivent être
+            sélectionnés dans la liste disponible avant de poursuivre.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {submissionError && (
         <Alert variant="destructive">
           <AlertDescription>{submissionError}</AlertDescription>
@@ -486,7 +642,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
             onClientCleared={handleClientCleared}
             onEligibleAgenciesChange={setEligibleClientAgencies}
             onClientAgencyChange={handleClientAgencyChange}
-            onAgencyAccountsChange={setClientAgencyAccounts}
+            onAgencyAccountsChange={handleAgencyAccountsChange}
             onCommissionAccountChange={handleCommissionAccountChange}
           />
         )}
@@ -496,6 +652,10 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
             order={order}
             client={client}
             quotedCurrencies={quotedCurrencies}
+            countries={countries}
+            countriesLoading={countriesLoading}
+            clientAccounts={clientAgencyAccounts}
+            commissionAccount={commissionAccount}
             onChange={setOrder}
           />
         )}

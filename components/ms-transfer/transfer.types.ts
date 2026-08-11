@@ -432,3 +432,31 @@ export interface AgencyInitiationResult {
   message?: string | null;
   raw: Record<string, unknown>;
 }
+
+
+export interface CountryOption {
+  /**
+   * Code ISO utilisé dans MS-TR / ISO 20022.
+   * Ex: TN, FR, DE.
+   */
+  alpha2: string;
+
+  /**
+   * Code numérique éventuel du référentiel.
+   * Ex: 788.
+   */
+  numericCode?: string;
+
+  /**
+   * Code ISO alpha-3 éventuel.
+   * Ex: TUN.
+   */
+  alpha3?: string;
+
+  /**
+   * Libellé affiché à l'utilisateur.
+   */
+  label: string;
+
+  active?: boolean;
+}

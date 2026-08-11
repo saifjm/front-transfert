@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 
 import { Alert, AlertDescription } from '../../ui/alert';
-import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import {
   Card,
@@ -18,12 +17,13 @@ import {
   CardHeader,
   CardTitle,
 } from '../../ui/card';
-import { Label } from '../../ui/label';
 
 import { getBankByBic, getCounterValueTnd } from '../transfer.api';
 import { getUserMessage } from '../transfer.errors';
 import type {
+  AccountRow,
   ClientData,
+  CountryOption,
   QuotedCurrency,
   TransferOrder,
 } from '../transfer.types';
@@ -31,17 +31,27 @@ import { FI } from '../transfer.ui';
 import { formatAmount, parseAmount } from '../transfer.utils';
 import { PartyForm } from './PartyForm';
 
+interface OrderSectionProps {
+  order: TransferOrder;
+  client: ClientData | null;
+  quotedCurrencies: QuotedCurrency[];
+  countries: CountryOption[];
+  countriesLoading?: boolean;
+  clientAccounts: AccountRow[];
+  commissionAccount: string;
+  onChange: (order: TransferOrder) => void;
+}
+
 export function OrderSection({
   order,
   client,
   quotedCurrencies,
+  countries,
+  countriesLoading = false,
+  clientAccounts,
+  commissionAccount,
   onChange,
-}: {
-  order: TransferOrder;
-  client: ClientData | null;
-  quotedCurrencies: QuotedCurrency[];
-  onChange: (order: TransferOrder) => void;
-}) {
+}: OrderSectionProps) {
   const [counterValueLoading, setCounterValueLoading] = useState(false);
   const [counterValueError, setCounterValueError] = useState('');
   const [bankLoading, setBankLoading] = useState(false);
@@ -58,6 +68,15 @@ export function OrderSection({
     value: currency.code,
     label: `${currency.code} — ${currency.label}`,
   }));
+
+  const debtorAccountOptions = clientAccounts.filter(account => (
+    account.numero.trim() !== ''
+    && account.statut === 'ACTIF'
+  ));
+
+  const commissionAccountAvailable = debtorAccountOptions.some(
+    account => account.numero === commissionAccount,
+  );
 
   const calculateCounterValue = async () => {
     const amount = parseAmount(order.montantOrdre);
@@ -238,6 +257,14 @@ export function OrderSection({
             title="Informations du donneur d’ordre"
             value={order.debtor}
             onChange={value => update('debtor', value)}
+            countryLov
+            countryOptions={countries}
+            countryLoading={countriesLoading}
+            countryRequired
+            accountLov
+            accountOptions={debtorAccountOptions}
+            accountRequired
+            identifierReadOnly
           />
 
           {client && (
@@ -245,6 +272,14 @@ export function OrderSection({
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
                 Les données du client ont été chargées automatiquement.
+                Le pays et le compte peuvent être ajustés parmi les valeurs
+                disponibles.
+                {commissionAccountAvailable && commissionAccount && (
+                  <>
+                    {' '}Le compte commission est proposé par défaut comme
+                    compte du donneur d’ordre.
+                  </>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -283,6 +318,10 @@ export function OrderSection({
               title="Informations du donneur d’ordre final"
               value={order.ultimateDebtor}
               onChange={value => update('ultimateDebtor', value)}
+              countryLov
+              countryOptions={countries}
+              countryLoading={countriesLoading}
+              countryRequired
             />
           </CardContent>
         )}
@@ -302,6 +341,10 @@ export function OrderSection({
             value={order.beneficiary}
             onChange={value => update('beneficiary', value)}
             beneficiary
+            countryLov
+            countryOptions={countries}
+            countryLoading={countriesLoading}
+            countryRequired
           />
         </CardContent>
       </Card>
@@ -339,6 +382,10 @@ export function OrderSection({
               value={order.ultimateCreditor}
               onChange={value => update('ultimateCreditor', value)}
               beneficiary
+              countryLov
+              countryOptions={countries}
+              countryLoading={countriesLoading}
+              countryRequired
             />
           </CardContent>
         )}

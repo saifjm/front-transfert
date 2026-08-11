@@ -55,6 +55,7 @@ import type {
   ClientAgencyEligibility,
   ClientAgencyEligibilityReason,
   ClientData,
+  CountryOption,
   CounterValueResult,
   CustomerIdType,
   DocumentReference,
@@ -111,6 +112,68 @@ const BNA_ENDPOINTS = {
 const MS_TR_ENDPOINTS = {
   agencyWorkflowCommand: `${MS_TR_API_BASE_URL}/operations/workflow-command`,
 } as const;
+
+
+/**
+ * Temporary country reference used by the Donneur d'ordre LOV.
+ *
+ * The master country source is still to be confirmed. Until then, MS-TR uses
+ * ISO 3166-1 alpha-2 codes as the normalized value carried by PartyData and
+ * derives the user-facing French label through Intl.DisplayNames.
+ *
+ * Once the master reference service is available, only getCountries() should
+ * need to change; OrderSection and PartyForm remain isolated from the source.
+ */
+const ISO_COUNTRY_ALPHA2_CODES = [
+  'AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR', 'AS', 'AT',
+  'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI',
+  'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BV', 'BW', 'BY',
+  'BZ', 'CA', 'CC', 'CD', 'CF', 'CG', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN',
+  'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ', 'DE', 'DJ', 'DK', 'DM',
+  'DO', 'DZ', 'EC', 'EE', 'EG', 'EH', 'ER', 'ES', 'ET', 'FI', 'FJ', 'FK',
+  'FM', 'FO', 'FR', 'GA', 'GB', 'GD', 'GE', 'GF', 'GG', 'GH', 'GI', 'GL',
+  'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY', 'HK', 'HM',
+  'HN', 'HR', 'HT', 'HU', 'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR',
+  'IS', 'IT', 'JE', 'JM', 'JO', 'JP', 'KE', 'KG', 'KH', 'KI', 'KM', 'KN',
+  'KP', 'KR', 'KW', 'KY', 'KZ', 'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS',
+  'LT', 'LU', 'LV', 'LY', 'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK',
+  'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW',
+  'MX', 'MY', 'MZ', 'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP',
+  'NR', 'NU', 'NZ', 'OM', 'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM',
+  'PN', 'PR', 'PS', 'PT', 'PW', 'PY', 'QA', 'RE', 'RO', 'RS', 'RU', 'RW',
+  'SA', 'SB', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM',
+  'SN', 'SO', 'SR', 'SS', 'ST', 'SV', 'SX', 'SY', 'SZ', 'TC', 'TD', 'TF',
+  'TG', 'TH', 'TJ', 'TK', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW',
+  'TZ', 'UA', 'UG', 'UM', 'US', 'UY', 'UZ', 'VA', 'VC', 'VE', 'VG', 'VI',
+  'VN', 'VU', 'WF', 'WS', 'YE', 'YT', 'ZA', 'ZM', 'ZW',
+] as const;
+
+function buildCountryReference(): CountryOption[] {
+  const DisplayNamesCtor = (
+    Intl as typeof Intl & {
+      DisplayNames?: new (
+        locales?: string | string[],
+        options?: { type: 'region' },
+      ) => { of(code: string): string | undefined };
+    }
+  ).DisplayNames;
+
+  const displayNames = DisplayNamesCtor
+    ? new DisplayNamesCtor(['fr-FR'], { type: 'region' })
+    : null;
+
+  return ISO_COUNTRY_ALPHA2_CODES
+    .map(alpha2 => ({
+      alpha2,
+      label: displayNames?.of(alpha2) || alpha2,
+      active: true,
+    }))
+    .sort((left, right) =>
+      left.label.localeCompare(right.label, 'fr-FR', {
+        sensitivity: 'base',
+      }),
+    );
+}
 
 interface BnaRequestOptions extends RequestInit {
   userMessage: string;
@@ -864,6 +927,22 @@ export async function getClientCompteCom(
 /** Internal IBANSYS reference data — not a BNA interface. */
 export async function getQuotedCurrencies(): Promise<QuotedCurrency[]> {
   return Promise.resolve(MOCK_QUOTED_CURRENCIES);
+}
+
+
+/**
+ * Country reference used by the Donneur d'ordre LOV.
+ *
+ * Current temporary source: local ISO 3166-1 alpha-2 reference.
+ * The selected country always exposes a normalized alpha-2 code and its
+ * matching label, so PartyForm can update codePays/pays atomically.
+ *
+ * When the master country reference is confirmed, replace the implementation
+ * of this function with the real reference call while preserving the
+ * CountryOption[] contract.
+ */
+export async function getCountries(): Promise<CountryOption[]> {
+  return Promise.resolve(buildCountryReference());
 }
 
 /** BNA-FX-001 — seller rate used for an outbound currency purchase. */
