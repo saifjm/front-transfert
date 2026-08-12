@@ -24,13 +24,15 @@ import {
   INITIAL_ORDER,
   INITIAL_REGULATORY_DATA,
   INITIAL_SUPPORT_DATA,
-  MOCK_QUOTED_CURRENCIES,
 } from './ms-transfer/transfer.mock';
 import { getUserMessage } from './ms-transfer/transfer.errors';
 import {
   isCommissionAccountValid,
   type ClientAgencyOption,
 } from './ms-transfer/transfer.client-agency';
+import {
+  normalizeAgencyCode,
+} from './ms-transfer/transfer.session';
 import type {
   AccountRow,
   AgencyInitiationResult,
@@ -99,7 +101,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const [commissionAccount, setCommissionAccount] = useState('');
   const [quotedCurrencies, setQuotedCurrencies] = useState<
     QuotedCurrency[]
-  >(MOCK_QUOTED_CURRENCIES);
+  >([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [countriesLoading, setCountriesLoading] = useState(false);
   const [countryReferenceError, setCountryReferenceError] = useState('');
@@ -214,23 +216,29 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       Boolean(regulatoryData.selectedAuthorizationId));
 
   const partyCountryIsValid = (
-    party: PartyData,
-    required: boolean,
-  ) => {
-    if (!party.codePays && !party.pays) {
-      return !required;
-    }
+  party: PartyData | null | undefined,
+  required: boolean,
+) => {
+  if (!party) {
+    return !required;
+  }
 
-    if (!party.codePays || !party.pays) {
-      return false;
-    }
+  const countryCode = String(
+    party.codePays ?? '',
+  )
+    .trim()
+    .toUpperCase();
 
-    return countries.some(
-      country =>
-        country.alpha2 === party.codePays
-        && country.label === party.pays,
-    );
-  };
+  if (!countryCode) {
+    return !required;
+  }
+
+  return countries.some(country => (
+    String(country.alpha2 ?? '')
+      .trim()
+      .toUpperCase() === countryCode
+  ));
+};
 
   const orderPartyCountriesAreValid = () => (
     partyCountryIsValid(order.debtor, true)
@@ -245,15 +253,55 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     )
   );
 
-  const debtorAccountIsValid = () => (
-    Boolean(order.debtor.compte)
-    && clientAgencyAccounts.some(
-      account =>
-        account.numero === order.debtor.compte
-        && account.codeAgence === selectedClientAgency
-        && account.statut === 'ACTIF',
-    )
+  const debtorAccountIsValid = () => {
+  const accountNumber = String(
+    order.debtor?.compte ?? '',
+  ).trim();
+
+  const agencyCode = normalizeAgencyCode(
+    selectedClientAgency,
   );
+
+  if (!accountNumber || !agencyCode) {
+    return false;
+  }
+
+  return clientAgencyAccounts.some(account => (
+    String(account.numero ?? '').trim() === accountNumber
+    && normalizeAgencyCode(account.codeAgence) === agencyCode
+    && account.statut === 'ACTIF'
+  ));
+};
+
+  const orderValidationErrors = (): string[] => {
+    const errors: string[] = [];
+
+    if (!isOrderComplete(order)) {
+      errors.push(
+        'Certaines données obligatoires de l’ordre sont incomplètes.',
+      );
+    }
+
+    if (countriesLoading) {
+      errors.push(
+        'Le référentiel des pays est encore en cours de chargement.',
+      );
+    }
+
+    if (!orderPartyCountriesAreValid()) {
+      errors.push(
+        'Le pays d’un intervenant doit être sélectionné dans la liste.',
+      );
+    }
+
+    if (!debtorAccountIsValid()) {
+      errors.push(
+        'Le compte du donneur d’ordre n’est pas valide pour l’agence sélectionnée.',
+      );
+    }
+
+    return errors;
+  };
 
   const canProceed = () => {
     if (currentSection === 0) return transferType !== null;
@@ -271,12 +319,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       );
     }
     if (currentSection === 2) {
-      return (
-        isOrderComplete(order)
-        && !countriesLoading
-        && orderPartyCountriesAreValid()
-        && debtorAccountIsValid()
-      );
+      return orderValidationErrors().length === 0;
     }
     if (currentSection === 3) return modalitiesComplete();
     if (currentSection === 4) return regulatoryComplete();
@@ -393,14 +436,19 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const handleAgencyAccountsChange = (accounts: AccountRow[]) => {
     setClientAgencyAccounts(accounts);
 
+    const agencyCode = normalizeAgencyCode(
+      selectedClientAgency,
+    );
+
     setOrder(current => {
-      const currentDebtorAccount = current.debtor.compte;
+      const currentDebtorAccount = current.debtor.compte.trim();
+
       const currentAccountStillAvailable =
         Boolean(currentDebtorAccount)
         && accounts.some(
           account =>
-            account.numero === currentDebtorAccount
-            && account.codeAgence === selectedClientAgency
+            account.numero.trim() === currentDebtorAccount
+            && normalizeAgencyCode(account.codeAgence) === agencyCode
             && account.statut === 'ACTIF',
         );
 
@@ -408,12 +456,13 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         return current;
       }
 
+      const commissionAccountNumber = commissionAccount.trim();
       const commissionAccountAvailable =
-        Boolean(commissionAccount)
+        Boolean(commissionAccountNumber)
         && accounts.some(
           account =>
-            account.numero === commissionAccount
-            && account.codeAgence === selectedClientAgency
+            account.numero.trim() === commissionAccountNumber
+            && normalizeAgencyCode(account.codeAgence) === agencyCode
             && account.statut === 'ACTIF',
         );
 
@@ -422,7 +471,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         debtor: {
           ...current.debtor,
           compte: commissionAccountAvailable
-            ? commissionAccount
+            ? commissionAccountNumber
             : '',
         },
       };
@@ -704,6 +753,17 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
           />
         )}
       </div>
+
+      {currentSection === 2
+        && orderValidationErrors().length > 0
+        && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              {orderValidationErrors()[0]}
+            </AlertDescription>
+          </Alert>
+        )}
 
       {currentSection < NAVIGATION_ITEMS.length - 1 && (
         <Card>
