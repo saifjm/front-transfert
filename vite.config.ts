@@ -1,265 +1,350 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const localFsWriterPlugin = {
-  name: 'local-fs-writer',
+type JsonObject = Record<string, unknown>;
 
-  configureServer(server: any) {
-    server.middlewares.use('/__localfs/write', async (req: any, res: any) => {
-      if (req.method !== 'POST') {
-        res.statusCode = 405;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: 'METHOD_NOT_ALLOWED',
-          }),
-        );
-        return;
-      }
+function sendJson(
+  res: ServerResponse,
+  statusCode: number,
+  payload: JsonObject,
+): void {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
 
-      try {
-        const chunks: Buffer[] = [];
+async function readJsonBody(
+  req: IncomingMessage,
+): Promise<JsonObject> {
+  const chunks: Buffer[] = [];
 
-        for await (const chunk of req) {
-          chunks.push(
-            Buffer.isBuffer(chunk)
-              ? chunk
-              : Buffer.from(chunk),
-          );
-        }
+  for await (const chunk of req) {
+    chunks.push(
+      Buffer.isBuffer(chunk)
+        ? chunk
+        : Buffer.from(chunk),
+    );
+  }
 
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const body = JSON.parse(raw || '{}');
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return JSON.parse(raw || '{}') as JsonObject;
+}
 
-        const targetPath = String(
-          body?.targetPath || '',
-        ).trim();
+function normalizeTargetPath(
+  targetPath: string,
+  projectRoot: string,
+): string {
+  const normalized = targetPath.replace(
+    /^\/([A-Za-z]:[\\/])/,
+    '$1',
+  );
 
-        const contentBase64 = String(
-          body?.contentBase64 || '',
-        ).trim();
+  return path.isAbsolute(normalized)
+    ? path.normalize(normalized)
+    : path.resolve(projectRoot, normalized);
+}
 
-        if (!targetPath || !contentBase64) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({
+function isPathInside(
+  candidatePath: string,
+  allowedRoot: string,
+): boolean {
+  const relative = path.relative(
+    path.resolve(allowedRoot),
+    path.resolve(candidatePath),
+  );
+
+  return (
+    relative === ''
+    || (
+      !relative.startsWith('..')
+      && !path.isAbsolute(relative)
+    )
+  );
+}
+
+function createLocalFsWriterPlugin(
+  allowedRoots: string[],
+): Plugin {
+  const resolvedAllowedRoots = allowedRoots.map(root =>
+    path.resolve(root),
+  );
+
+  const resolveAllowedPath = (targetPath: string) => {
+    const finalPath = normalizeTargetPath(
+      targetPath,
+      __dirname,
+    );
+
+    const allowed = resolvedAllowedRoots.some(root =>
+      isPathInside(finalPath, root),
+    );
+
+    if (!allowed) {
+      throw new Error('TARGET_PATH_NOT_ALLOWED');
+    }
+
+    return finalPath;
+  };
+
+  return {
+    name: 'local-fs-writer',
+    apply: 'serve',
+
+    configureServer(server: ViteDevServer) {
+      server.middlewares.use(
+        '/__localfs/write',
+        async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, {
               ok: false,
-              error: 'INVALID_PAYLOAD',
-            }),
-          );
-          return;
-        }
+              error: 'METHOD_NOT_ALLOWED',
+            });
+            return;
+          }
 
-        const normalized = targetPath.replace(
-          /^\/([A-Za-z]:[\\/])/,
-          '$1',
-        );
+          try {
+            const body = await readJsonBody(req);
 
-        const finalPath = path.isAbsolute(normalized)
-          ? path.normalize(normalized)
-          : path.resolve(__dirname, normalized);
+            const targetPath = String(
+              body.targetPath || '',
+            ).trim();
 
-        await fs.mkdir(path.dirname(finalPath), {
-          recursive: true,
-        });
+            const contentBase64 = String(
+              body.contentBase64 || '',
+            ).trim();
 
-        await fs.writeFile(
-          finalPath,
-          Buffer.from(contentBase64, 'base64'),
-        );
+            if (!targetPath || !contentBase64) {
+              sendJson(res, 400, {
+                ok: false,
+                error: 'INVALID_PAYLOAD',
+              });
+              return;
+            }
 
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: true,
-            path: finalPath,
-          }),
-        );
-      } catch (error: any) {
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: error?.message || 'WRITE_FAILED',
-          }),
-        );
-      }
-    });
+            const finalPath =
+              resolveAllowedPath(targetPath);
 
-    server.middlewares.use('/__localfs/delete', async (req: any, res: any) => {
-      if (req.method !== 'POST') {
-        res.statusCode = 405;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: 'METHOD_NOT_ALLOWED',
-          }),
-        );
-        return;
-      }
+            await fs.mkdir(path.dirname(finalPath), {
+              recursive: true,
+            });
 
-      try {
-        const chunks: Buffer[] = [];
+            await fs.writeFile(
+              finalPath,
+              Buffer.from(contentBase64, 'base64'),
+            );
 
-        for await (const chunk of req) {
-          chunks.push(
-            Buffer.isBuffer(chunk)
-              ? chunk
-              : Buffer.from(chunk),
-          );
-        }
-
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const body = JSON.parse(raw || '{}');
-
-        const targetPath = String(
-          body?.targetPath || '',
-        ).trim();
-
-        if (!targetPath) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({
+            sendJson(res, 200, {
+              ok: true,
+              path: finalPath,
+            });
+          } catch (error) {
+            sendJson(res, 500, {
               ok: false,
-              error: 'INVALID_PAYLOAD',
-            }),
-          );
-          return;
-        }
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'WRITE_FAILED',
+            });
+          }
+        },
+      );
 
-        const normalized = targetPath.replace(
-          /^\/([A-Za-z]:[\\/])/,
-          '$1',
-        );
+      server.middlewares.use(
+        '/__localfs/delete',
+        async (req, res) => {
+          if (req.method !== 'POST') {
+            sendJson(res, 405, {
+              ok: false,
+              error: 'METHOD_NOT_ALLOWED',
+            });
+            return;
+          }
 
-        const finalPath = path.isAbsolute(normalized)
-          ? path.normalize(normalized)
-          : path.resolve(__dirname, normalized);
+          try {
+            const body = await readJsonBody(req);
 
-        await fs.rm(finalPath, {
-          force: true,
-        });
+            const targetPath = String(
+              body.targetPath || '',
+            ).trim();
 
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: true,
-            path: finalPath,
-          }),
-        );
-      } catch (error: any) {
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(
-          JSON.stringify({
-            ok: false,
-            error: error?.message || 'DELETE_FAILED',
-          }),
-        );
-      }
-    });
-  },
-};
+            if (!targetPath) {
+              sendJson(res, 400, {
+                ok: false,
+                error: 'INVALID_PAYLOAD',
+              });
+              return;
+            }
 
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    localFsWriterPlugin,
-  ],
+            const finalPath =
+              resolveAllowedPath(targetPath);
 
-  publicDir: 'components/public',
+            await fs.rm(finalPath, {
+              force: true,
+            });
 
-  server: {
-    port: 3000,
-    open: true,
+            sendJson(res, 200, {
+              ok: true,
+              path: finalPath,
+            });
+          } catch (error) {
+            sendJson(res, 500, {
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'DELETE_FAILED',
+            });
+          }
+        },
+      );
+    },
+  };
+}
 
-    proxy: {
-      /*
-       * BNA Bank Mock Server
-       *
-       * These routes must be declared before the generic /api proxy,
-       * otherwise they will be forwarded to port 8888.
-       */
-      '^/api/v1/bna': {
-        target: 'http://localhost:8095',
-        changeOrigin: true,
-      },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
 
-      /*
-       * Health check and state reset endpoints:
-       *
-       * GET  /api/v1/mock/health
-       * POST /api/v1/mock/reset
-       */
-      '^/api/v1/mock': {
-        target: 'http://localhost:8095',
-        changeOrigin: true,
-      },
+  const refProxyTarget =
+    String(env.REF_PROXY_TARGET || '').trim();
 
-      '^/api/ms-tr': {
-      target: 'http://localhost:8080',
+  const domiProxyTarget =
+    String(env.DOMI_PROXY_TARGET || '').trim();
+
+  const domiBearerToken =
+    String(env.DOMI_BEARER_TOKEN || '').trim();
+
+  const bnaMockProxyTarget =
+    String(env.BNA_MOCK_PROXY_TARGET || '').trim();
+
+  const msTrProxyTarget =
+    String(env.MS_TR_PROXY_TARGET || '').trim();
+
+  const decProxyTarget =
+    String(env.DEC_PROXY_TARGET || '').trim();
+
+  const ibansysProxyTarget =
+    String(env.IBANSYS_PROXY_TARGET || '').trim();
+
+  const localFsAllowedRoots = String(
+    env.LOCAL_FS_ALLOWED_ROOTS || __dirname,
+  )
+    .split(path.delimiter)
+    .map(value => value.trim())
+    .filter(Boolean);
+
+  const proxy: Record<string, any> = {};
+
+  if (refProxyTarget) {
+    proxy['^/api/ref'] = {
+      target: refProxyTarget,
       changeOrigin: true,
+    };
+  }
+
+  if (domiProxyTarget) {
+    proxy['^/api/domi'] = {
+      target: domiProxyTarget,
+      changeOrigin: true,
+      rewrite: (requestPath: string) =>
+        requestPath.replace(
+          /^\/api\/domi/,
+          '/api/v1',
+        ),
+      configure(proxyServer: any) {
+        if (!domiBearerToken) {
+          return;
+        }
+
+        proxyServer.on(
+          'proxyReq',
+          (proxyReq: any) => {
+            proxyReq.setHeader(
+              'Authorization',
+              `Bearer ${domiBearerToken}`,
+            );
+          },
+        );
+      },
+    };
+  }
+
+  if (bnaMockProxyTarget) {
+    proxy['^/api/v1/bna'] = {
+      target: bnaMockProxyTarget,
+      changeOrigin: true,
+    };
+
+    proxy['^/api/v1/mock'] = {
+      target: bnaMockProxyTarget,
+      changeOrigin: true,
+    };
+  }
+
+  if (msTrProxyTarget) {
+    proxy['^/api/ms-tr'] = {
+      target: msTrProxyTarget,
+      changeOrigin: true,
+    };
+  }
+
+  if (bnaMockProxyTarget) {
+    proxy['^/api/v1/ibansys/back-office/callback'] = {
+      target: bnaMockProxyTarget,
+      changeOrigin: true,
+    };
+  }
+
+  if (decProxyTarget) {
+    proxy['^/api/dec-auth'] = {
+      target: decProxyTarget,
+      changeOrigin: true,
+      rewrite: (requestPath: string) =>
+        requestPath.replace(
+          /^\/api\/dec-auth/,
+          '/api/auth',
+        ),
+    };
+
+    proxy['^/api/dc-ava'] = {
+      target: decProxyTarget,
+      changeOrigin: true,
+    };
+  }
+
+  if (ibansysProxyTarget) {
+    proxy['^/(api|auth|alimentation-bct)'] = {
+      target: ibansysProxyTarget,
+      changeOrigin: true,
+    };
+  }
+
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      createLocalFsWriterPlugin(
+        localFsAllowedRoots,
+      ),
+    ],
+
+    publicDir: 'components/public',
+
+    server: {
+      port: 3000,
+      open: true,
+      proxy,
     },
 
-      /*
-       * Local callback receiver exposed by the mock server.
-       * Keep this route only for local end-to-end tests.
-       */
-      '^/api/v1/ibansys/back-office/callback': {
-        target: 'http://localhost:8095',
-        changeOrigin: true,
-      },
-
-      /*
-       * DEC authentication.
-       * Must remain before /api/dc-ava.
-       */
-      '^/api/dec-auth': {
-        target: 'http://localhost:8086',
-        changeOrigin: true,
-        rewrite: (requestPath: string) =>
-          requestPath.replace(
-            /^\/api\/dec-auth/,
-            '/api/auth',
-          ),
-      },
-
-      /*
-       * DEC microservice.
-       */
-      '^/api/dc-ava': {
-        target: 'http://localhost:8086',
-        changeOrigin: true,
-      },
-
-      /*
-       * Generic IBANSYS backend proxy.
-       * Must remain last because it captures every /api route
-       * not matched by a more specific rule above.
-       */
-      '^/(api|auth|alimentation-bct)': {
-        target: 'http://localhost:8888',
-        changeOrigin: true,
-      },
+    build: {
+      outDir: 'dist',
+      sourcemap: true,
     },
-  },
-
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-  },
+  };
 });

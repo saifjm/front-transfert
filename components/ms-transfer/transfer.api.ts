@@ -1,24 +1,34 @@
 import { UserMessageError } from './transfer.errors';
-import {
-  resolveEligibleClientAgencies,
-  type ClientAgencyOption,
-} from './transfer.client-agency';
+import type { ClientAgencyOption } from './transfer.client-agency';
 import type {
   AgencyWorkflowCommandResponse,
 } from './transfer.agency-initiation.contracts';
+import type {
+  RefAccountSearchResponse,
+  RefAuthorizationResponse,
+  RefBankResponse,
+  RefCoursJourneeAvaResponse,
+  RefDeviseListResponse,
+  RefNostroResponse,
+  RefPaysListResponse,
+  RefPersonneResponse,
+  RefPersonneSearchResponse,
+} from './transfer.ref.contracts';
+import type { DomiTceDetailResponse } from './transfer.domi.contracts';
+import {
+  findRefPersonne,
+  mapRefAccountRows,
+  mapRefDeviseToQuotedCurrency,
+  mapRefPaysToCountryOption,
+  mapRefPersonneToClientData,
+} from './transfer.ref.mappers';
 import { buildAgencyInitiationCommand } from './transfer.agency-initiation.mapper';
 import {
   MOCK_BCT_AUTHORIZATIONS,
-  MOCK_QUOTED_CURRENCIES,
-  MOCK_TCE,
 } from './transfer.mock';
 import type {
-  BnaAccountSearchResponse,
   BnaAsyncAck,
-  BnaAuthorizationResponse,
   BnaBackOfficeResult,
-  BnaBankResponse,
-  BnaClientProfileResponse,
   BnaDocumentCreateResponse,
   BnaDocumentListResponse,
   BnaErrorPayload,
@@ -27,13 +37,9 @@ import type {
   BnaFinancingSearchResponse,
   BnaFundsBlockResponse,
   BnaFundsReleaseResponse,
-  BnaFxRateResponse,
-  BnaNostroResponse,
 } from './transfer.api.contracts';
 import {
   buildAddress,
-  mapClientAccounts,
-  mapClientData,
   toAgencyInfo,
   toBnaCustomerIdType,
   toCurrencyAlpha,
@@ -80,19 +86,21 @@ const BNA_API_BASE_URL = String(
   import.meta.env.VITE_BNA_API_BASE_URL || '/api/v1/bna',
 ).replace(/\/+$/, '');
 
+const REF_API_BASE_URL = String(
+  import.meta.env.VITE_REF_API_BASE_URL || '/api/ref',
+).replace(/\/+$/, '');
+
+const DOMI_API_BASE_URL = String(
+  import.meta.env.VITE_DOMI_API_BASE_URL || '/api/domi',
+).replace(/\/+$/, '');
+
 const MS_TR_API_BASE_URL = String(
   import.meta.env.VITE_MS_TR_API_BASE_URL || '/api/ms-tr',
 ).replace(/\/+$/, '');
 
-const BNA_MOCK_USER_ID = String(
-  import.meta.env.VITE_DEV_USER_ID || '',
-).trim();
+
 
 const BNA_ENDPOINTS = {
-  verifyAuthorization: `${BNA_API_BASE_URL}/auth/verify`,
-  clientProfile: `${BNA_API_BASE_URL}/clients/profile`,
-  accountSearch: `${BNA_API_BASE_URL}/accounts/search`,
-  fxRates: `${BNA_API_BASE_URL}/fx/rates`,
   fundsBlock: `${BNA_API_BASE_URL}/funds/block`,
   fundsRelease: `${BNA_API_BASE_URL}/funds/release`,
   financingSearch: `${BNA_API_BASE_URL}/financing/resources/search`,
@@ -103,77 +111,44 @@ const BNA_ENDPOINTS = {
   backOfficeFlows: `${BNA_API_BASE_URL}/back-office/flows`,
   backOfficeResults: `${BNA_API_BASE_URL}/back-office/results/query`,
   documents: `${BNA_API_BASE_URL}/documents`,
+} as const;
+
+const REF_ENDPOINTS = {
+  authorizations: `${REF_API_BASE_URL}/ibansys/authorizations`,
+  personneByNoPiece: (noPiecePersonne: string) =>
+    `${REF_API_BASE_URL}/personnes/by-nopiececlient/${encodeURIComponent(noPiecePersonne)}`,
+  accountSearch: `${REF_API_BASE_URL}/ibansys/comptes/search`,
+  devisesCotes: `${REF_API_BASE_URL}/ibansys/devises/cotes`,
+  pays: `${REF_API_BASE_URL}/pays/getall`,
   bankByBic: (bicfi: string) =>
-    `${BNA_API_BASE_URL}/reference/banks/${encodeURIComponent(bicfi)}`,
-  nostro: (currency: string) =>
-    `${BNA_API_BASE_URL}/reference/nostro?currency=${encodeURIComponent(currency)}`,
+    `${REF_API_BASE_URL}/ibansys/banques/by-bic/${encodeURIComponent(bicfi)}`,
+  nostroBySigle: (sigle: string) =>
+    `${REF_API_BASE_URL}/ibansys/nostro/by-sigle/${encodeURIComponent(sigle)}`,
+  coursJourneeAva: (codeDevise: string | number, dateJournee: string) =>
+    `${REF_API_BASE_URL}/cours-journee-ava/${encodeURIComponent(String(codeDevise))}/${encodeURIComponent(dateJournee)}`,
+} as const;
+
+const DOMI_ENDPOINTS = {
+  tceDetail: (
+    codeTitre: string,
+    numDom: string,
+    dateDom: string,
+    idClient: string,
+  ) => {
+    const query = new URLSearchParams({
+      codeTitre,
+      numDom,
+      dateDom,
+      idClient,
+    });
+
+    return `${DOMI_API_BASE_URL}/ressources/detail_TCE?${query.toString()}`;
+  },
 } as const;
 
 const MS_TR_ENDPOINTS = {
   agencyWorkflowCommand: `${MS_TR_API_BASE_URL}/operations/workflow-command`,
 } as const;
-
-
-/**
- * Temporary country reference used by the Donneur d'ordre LOV.
- *
- * The master country source is still to be confirmed. Until then, MS-TR uses
- * ISO 3166-1 alpha-2 codes as the normalized value carried by PartyData and
- * derives the user-facing French label through Intl.DisplayNames.
- *
- * Once the master reference service is available, only getCountries() should
- * need to change; OrderSection and PartyForm remain isolated from the source.
- */
-const ISO_COUNTRY_ALPHA2_CODES = [
-  'AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR', 'AS', 'AT',
-  'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI',
-  'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BV', 'BW', 'BY',
-  'BZ', 'CA', 'CC', 'CD', 'CF', 'CG', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN',
-  'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ', 'DE', 'DJ', 'DK', 'DM',
-  'DO', 'DZ', 'EC', 'EE', 'EG', 'EH', 'ER', 'ES', 'ET', 'FI', 'FJ', 'FK',
-  'FM', 'FO', 'FR', 'GA', 'GB', 'GD', 'GE', 'GF', 'GG', 'GH', 'GI', 'GL',
-  'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY', 'HK', 'HM',
-  'HN', 'HR', 'HT', 'HU', 'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR',
-  'IS', 'IT', 'JE', 'JM', 'JO', 'JP', 'KE', 'KG', 'KH', 'KI', 'KM', 'KN',
-  'KP', 'KR', 'KW', 'KY', 'KZ', 'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS',
-  'LT', 'LU', 'LV', 'LY', 'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK',
-  'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW',
-  'MX', 'MY', 'MZ', 'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP',
-  'NR', 'NU', 'NZ', 'OM', 'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM',
-  'PN', 'PR', 'PS', 'PT', 'PW', 'PY', 'QA', 'RE', 'RO', 'RS', 'RU', 'RW',
-  'SA', 'SB', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM',
-  'SN', 'SO', 'SR', 'SS', 'ST', 'SV', 'SX', 'SY', 'SZ', 'TC', 'TD', 'TF',
-  'TG', 'TH', 'TJ', 'TK', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW',
-  'TZ', 'UA', 'UG', 'UM', 'US', 'UY', 'UZ', 'VA', 'VC', 'VE', 'VG', 'VI',
-  'VN', 'VU', 'WF', 'WS', 'YE', 'YT', 'ZA', 'ZM', 'ZW',
-] as const;
-
-function buildCountryReference(): CountryOption[] {
-  const DisplayNamesCtor = (
-    Intl as typeof Intl & {
-      DisplayNames?: new (
-        locales?: string | string[],
-        options?: { type: 'region' },
-      ) => { of(code: string): string | undefined };
-    }
-  ).DisplayNames;
-
-  const displayNames = DisplayNamesCtor
-    ? new DisplayNamesCtor(['fr-FR'], { type: 'region' })
-    : null;
-
-  return ISO_COUNTRY_ALPHA2_CODES
-    .map(alpha2 => ({
-      alpha2,
-      label: displayNames?.of(alpha2) || alpha2,
-      active: true,
-    }))
-    .sort((left, right) =>
-      left.label.localeCompare(right.label, 'fr-FR', {
-        sensitivity: 'base',
-      }),
-    );
-}
 
 interface BnaRequestOptions extends RequestInit {
   userMessage: string;
@@ -186,6 +161,14 @@ interface MsTrRequestOptions extends RequestInit {
   idempotencyKey: string;
   /** Agency explicitly selected in the Client step. */
   branchCode: string;
+}
+
+interface RefRequestOptions extends RequestInit {
+  userMessage: string;
+}
+
+interface DomiRequestOptions extends RequestInit {
+  userMessage: string;
 }
 
 function createCorrelationId(): string {
@@ -224,10 +207,10 @@ function buildHeaders(
   }
 
   if (!headers.has('X-User-Id')) {
-    headers.set(
-      'X-User-Id',
-      BNA_MOCK_USER_ID || context.userId,
-    );
+  headers.set(
+    'X-User-Id',
+    context.userId,
+  );
   }
 
   if (!headers.has('X-Role-Code')) {
@@ -386,6 +369,150 @@ async function requestBna<T>(
       response,
       rawPayload as BnaErrorPayload | null,
       userMessage,
+    );
+  }
+
+  if (rawPayload == null) {
+    throw new UserMessageError(userMessage);
+  }
+
+  return unwrapPayload<T>(rawPayload);
+}
+
+async function requestRef<T>(
+  url: string,
+  { userMessage, headers, ...init }: RefRequestOptions,
+): Promise<T> {
+  if (!REF_API_BASE_URL) {
+    throw new UserMessageError(
+      'Le service de référence client n’est pas configuré.',
+    );
+  }
+
+  const finalHeaders = new Headers(headers);
+  finalHeaders.set('Accept', 'application/json');
+
+  if (!finalHeaders.has('X-Correlation-Id')) {
+    finalHeaders.set('X-Correlation-Id', createCorrelationId());
+  }
+
+  let response: Response;
+
+  try {
+    response = await window.fetch(url, {
+      ...init,
+      headers: Object.fromEntries(finalHeaders.entries()),
+      credentials: 'same-origin',
+    });
+  } catch (error) {
+    console.error('[REF API] Network error', { url, error });
+    throw error instanceof UserMessageError
+      ? error
+      : new UserMessageError(userMessage);
+  }
+
+  const rawPayload = await readJson<unknown>(response);
+
+  if (!response.ok) {
+    const payload =
+      rawPayload && typeof rawPayload === 'object'
+        ? rawPayload as { message?: string; messageErreur?: string }
+        : null;
+
+    throw new UserMessageError(
+      payload?.message
+      || payload?.messageErreur
+      || userMessage,
+    );
+  }
+
+  if (rawPayload == null) {
+    throw new UserMessageError(userMessage);
+  }
+
+  return unwrapPayload<T>(rawPayload);
+}
+
+export async function getRefPersonneByNoPiece(
+  typePieceClient: CustomerIdType,
+  noPieceClient: string,
+): Promise<RefPersonneResponse> {
+  const normalizedNoPiece = normalizeNoPiece(noPieceClient);
+  const expectedTypePiece = toBnaCustomerIdType(typePieceClient);
+
+  const response = await requestRef<RefPersonneSearchResponse>(
+    REF_ENDPOINTS.personneByNoPiece(normalizedNoPiece),
+    {
+      method: 'GET',
+      userMessage:
+        'La fiche d’identité du client n’a pas pu être chargée.',
+    },
+  );
+
+  const personne = findRefPersonne(
+    response,
+    expectedTypePiece,
+    normalizedNoPiece,
+  );
+
+  if (!personne) {
+    throw new UserMessageError(
+      'Aucun client ne correspond au numéro et au type de pièce renseignés.',
+    );
+  }
+
+  return personne;
+}
+
+async function requestDomi<T>(
+  url: string,
+  { userMessage, headers, ...init }: DomiRequestOptions,
+): Promise<T> {
+  if (!DOMI_API_BASE_URL) {
+    throw new UserMessageError(
+      'Le service de domiciliation n’est pas configuré.',
+    );
+  }
+
+  const finalHeaders = new Headers(headers);
+  finalHeaders.set('Accept', 'application/json');
+  finalHeaders.set('Content-Type', 'application/json');
+
+  if (!finalHeaders.has('X-Correlation-Id')) {
+    finalHeaders.set('X-Correlation-Id', createCorrelationId());
+  }
+
+  let response: Response;
+
+  try {
+    response = await window.fetch(url, {
+      ...init,
+      headers: Object.fromEntries(finalHeaders.entries()),
+      credentials: 'same-origin',
+    });
+  } catch (error) {
+    console.error('[DOMI API] Network error', { url, error });
+    throw error instanceof UserMessageError
+      ? error
+      : new UserMessageError(userMessage);
+  }
+
+  const rawPayload = await readJson<unknown>(response);
+
+  if (!response.ok) {
+    const payload = rawPayload && typeof rawPayload === 'object'
+      ? rawPayload as {
+          message?: string;
+          messageErreur?: string;
+          Libelle_Erreur?: string;
+        }
+      : null;
+
+    throw new UserMessageError(
+      payload?.message
+      || payload?.messageErreur
+      || payload?.Libelle_Erreur
+      || userMessage,
     );
   }
 
@@ -576,11 +703,26 @@ function eligibilityMessage(
 async function requestClientAuthorization(
   typePieceClient: CustomerIdType,
   noPieceClient: string,
-): Promise<BnaAuthorizationResponse> {
-  return requestBna<BnaAuthorizationResponse>(
-    BNA_ENDPOINTS.verifyAuthorization,
+): Promise<RefAuthorizationResponse> {
+  const context = getTransferRequestContext();
+  const agencyCode = requireSessionAgencyCode();
+  const userId = String(context.userId || '').trim();
+
+  if (!userId) {
+    throw new UserMessageError(
+      "L'identifiant de l'utilisateur connecté est indisponible.",
+    );
+  }
+
+  return requestRef<RefAuthorizationResponse>(
+    REF_ENDPOINTS.authorizations,
     {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Agency-Code': agencyCode,
+        'X-User-Id': userId,
+      },
       body: JSON.stringify({
         typePieceClient: toBnaCustomerIdType(typePieceClient),
         noPieceClient: normalizeNoPiece(noPieceClient),
@@ -591,7 +733,27 @@ async function requestClientAuthorization(
   );
 }
 
-/** BNA-AUTH-001 — strict current-agency eligibility check. */
+function resolveAuthorizedAgencies(
+  response: RefAuthorizationResponse,
+  currentAgencyCode: string,
+): ClientAgencyEligibility['authorizedAgencies'] {
+  const agencies = response.agencesAutorisees.map(toAgencyInfo);
+
+  // The supplied contract may return an empty `agencesAutorisees` while
+  // `habilite=true` for `agenceCourante`. In that case the current agency is
+  // itself an authorized agency and must not disappear from the LOV scope.
+  if (
+    response.habilite
+    && currentAgencyCode
+    && !agencies.some(agency => agency.code === currentAgencyCode)
+  ) {
+    agencies.unshift(toAgencyInfo(currentAgencyCode));
+  }
+
+  return agencies;
+}
+
+/** REF — strict current-agency eligibility check. */
 export async function getClientAgence(
   typePieceClient: CustomerIdType,
   noPieceClient: string,
@@ -607,7 +769,10 @@ export async function getClientAgence(
   const currentAgencyCode = normalizeAgencyCode(
     response.agenceCourante || sessionAgencyCode,
   );
-  const authorizedAgencies = response.agencesAutorisees.map(toAgencyInfo);
+  const authorizedAgencies = resolveAuthorizedAgencies(
+    response,
+    currentAgencyCode,
+  );
   const clientAgencies = response.clientAgences.map(toAgencyInfo);
   const currentAgency = toAgencyInfo(currentAgencyCode);
   const clientAgency =
@@ -637,43 +802,28 @@ export interface ClientAgencyScopedSearchResult {
   eligibleAgencies: ClientAgencyOption[];
 }
 
-function uniqueAgencyCodes(
-  agencies: ClientAgencyEligibility['authorizedAgencies'],
-): string[] {
-  return agencies
-    .map(agency => normalizeAgencyCode(agency.code))
-    .filter(Boolean)
-    .filter((code, index, all) => all.indexOf(code) === index);
-}
+function toAgencyCodeNumber(agencyCode: string): number {
+  const value = Number(normalizeAgencyCode(agencyCode));
 
-function uniqueAccountRows(
-  responses: BnaAccountSearchResponse[],
-): BnaAccountSearchResponse['comptes'] {
-  const seen = new Set<string>();
+  if (!Number.isInteger(value) || value < 0) {
+    throw new UserMessageError(
+      'Le code agence sélectionné est invalide.',
+    );
+  }
 
-  return responses
-    .flatMap(response => response.comptes || [])
-    .filter(account => {
-      const agencyCode = normalizeAgencyCode(account.codeAgenceBct);
-      const key = `${agencyCode}:${account.compteRib}`;
-
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+  return value;
 }
 
 /**
- * BNA-AUTH-001 + BNA-CLI-001 + BNA-ACC-001.
+ * REF authorizations + REF person.
  *
- * New agency-selection rule:
- * eligible agencies = agencies containing at least one client account
- *                     ∩ agencies authorized for the connected user.
+ * The authorization contract already exposes both `agencesAutorisees` and
+ * `clientAgences`; therefore the agency LOV is obtained directly from their
+ * intersection. There is no reason to probe a legacy BNA profile or to query
+ * every agency account during client identification.
  *
- * The old `habilite` flag is a current-agency result and therefore must not
- * reject a client that can legitimately be processed in another authorized
- * agency. Actual account ownership is verified by probing BNA-ACC-001 with
- * each authorized agency in X-Agency-Code.
+ * Accounts are deliberately loaded later, only after the operator selects the
+ * client agency, through getClientTndActiveAccounts().
  */
 export async function searchClientWithAgencyScope(
   typePieceClient: CustomerIdType,
@@ -681,111 +831,44 @@ export async function searchClientWithAgencyScope(
 ): Promise<ClientAgencyScopedSearchResult> {
   const normalizedNoPiece = normalizeNoPiece(noPieceClient);
   const sessionAgencyCode = requireSessionAgencyCode();
-  const bnaTypePiece = toBnaCustomerIdType(typePieceClient);
 
-  const authorizationResponse = await requestClientAuthorization(
-    typePieceClient,
-    normalizedNoPiece,
-  );
+  const [authorizationResponse, refPersonne] = await Promise.all([
+    requestClientAuthorization(typePieceClient, normalizedNoPiece),
+    getRefPersonneByNoPiece(typePieceClient, normalizedNoPiece),
+  ]);
 
   const currentAgencyCode = normalizeAgencyCode(
     authorizationResponse.agenceCourante || sessionAgencyCode,
   );
-  const authorizedAgencies = authorizationResponse.agencesAutorisees
+  const authorizedAgencies = resolveAuthorizedAgencies(
+    authorizationResponse,
+    currentAgencyCode,
+  );
+  const clientAgencies = authorizationResponse.clientAgences
     .map(toAgencyInfo);
-  const authorizedAgencyCodes = uniqueAgencyCodes(authorizedAgencies);
-  const profileAgencyCode = authorizedAgencyCodes[0] || currentAgencyCode;
-
-  const profilePromise = requestBna<BnaClientProfileResponse>(
-    BNA_ENDPOINTS.clientProfile,
-    {
-      method: 'POST',
-      agencyCode: profileAgencyCode,
-      body: JSON.stringify({
-        typePiecePersonne: bnaTypePiece,
-        noPiecePersonne: normalizedNoPiece,
-      }),
-      userMessage: 'La fiche du client n’a pas pu être chargée.',
-    },
-  );
-
-  const accountSearchPromise = Promise.allSettled(
-    authorizedAgencyCodes.map(agencyCode =>
-      requestBna<BnaAccountSearchResponse>(BNA_ENDPOINTS.accountSearch, {
-        method: 'POST',
-        agencyCode,
-        body: JSON.stringify({
-          typePieceClient: bnaTypePiece,
-          noPieceClient: normalizedNoPiece,
-          // The agency LOV is based on account ownership. We deliberately do
-          // not apply commission-account filters at this stage.
-          filtres: {},
-        }),
-        userMessage:
-          `Les comptes du client n’ont pas pu être consultés pour l’agence ${agencyCode}.`,
-      }),
-    ),
-  );
-
-  const [profile, settledAccountResponses] = await Promise.all([
-    profilePromise,
-    accountSearchPromise,
-  ]);
-
-  const successfulAccountResponses = settledAccountResponses
-    .filter(
-      (result): result is PromiseFulfilledResult<BnaAccountSearchResponse> =>
-        result.status === 'fulfilled',
-    )
-    .map(result => result.value);
-
-  const failedAccountResponses = settledAccountResponses.filter(
-    result => result.status === 'rejected',
-  );
-
-  if (
-    authorizedAgencyCodes.length > 0
-    && successfulAccountResponses.length === 0
-    && failedAccountResponses.length > 0
-  ) {
-    throw failedAccountResponses[0].reason;
-  }
-
-  if (failedAccountResponses.length > 0) {
-    console.warn('[BNA API] Partial account-agency lookup failure', {
-      client: normalizedNoPiece,
-      failedAgencies: failedAccountResponses.length,
-      totalAgencies: authorizedAgencyCodes.length,
-    });
-  }
-
-  const accountRows = uniqueAccountRows(successfulAccountResponses);
-  const client = mapClientData(
-    typePieceClient,
-    profile,
-    accountRows,
-    '',
-  );
-
-  const eligibleAgencies = resolveEligibleClientAgencies(
-    client.comptes,
-    authorizedAgencies,
-  );
-
-  const clientAccountAgencyCodes = new Set(
-    client.comptes
-      .map(account => normalizeAgencyCode(account.codeAgence))
+  const clientAgencyCodes = new Set(
+    clientAgencies
+      .map(agency => normalizeAgencyCode(agency.code))
       .filter(Boolean),
   );
-  const clientAccountAgencies = [...clientAccountAgencyCodes]
-    .map(toAgencyInfo);
+
+  const eligibleAgencies = authorizedAgencies.filter(agency =>
+    clientAgencyCodes.has(normalizeAgencyCode(agency.code)),
+  );
+
+  const client = mapRefPersonneToClientData(
+    refPersonne,
+    typePieceClient,
+    currentAgencyCode,
+    [],
+  );
 
   const currentAgency = currentAgencyCode
     ? toAgencyInfo(currentAgencyCode)
     : null;
   const clientAgency =
-    clientAccountAgencies.find(agency => agency.code === currentAgencyCode)
-    || clientAccountAgencies[0]
+    clientAgencies.find(agency => agency.code === currentAgencyCode)
+    || clientAgencies[0]
     || null;
   const eligible = eligibleAgencies.length > 0;
   const reason: ClientAgencyEligibilityReason = eligible
@@ -796,11 +879,11 @@ export async function searchClientWithAgencyScope(
     eligible,
     currentAgency,
     authorizedAgencies,
-    clientAgencies: clientAccountAgencies,
+    clientAgencies,
     reason,
     message: eligible
-      ? 'Au moins une agence commune existe entre les comptes du client et vos habilitations.'
-      : 'Aucune agence commune n’existe entre les comptes du client et votre périmètre d’habilitation.',
+      ? 'Au moins une agence disponible permet d’initier l’opération pour ce client.'
+      : eligibilityMessage(reason),
     userAgencyCode: currentAgencyCode,
     clientAgency,
   };
@@ -813,7 +896,7 @@ export async function searchClientWithAgencyScope(
 }
 
 /**
- * BNA-ACC-001 — operational accounts for the selected client agency.
+ * REF — operational accounts for the selected client agency.
  *
  * Ticket rule:
  * - no operational account lookup before the agency is selected;
@@ -840,11 +923,14 @@ export async function getClientTndActiveAccounts(
     );
   }
 
-  const response = await requestBna<BnaAccountSearchResponse>(
-    BNA_ENDPOINTS.accountSearch,
+  const response = await requestRef<RefAccountSearchResponse>(
+    REF_ENDPOINTS.accountSearch,
     {
       method: 'POST',
-      agencyCode: normalizedAgencyCode,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Agency-Code': normalizedAgencyCode,
+      },
       body: JSON.stringify({
         typePieceClient: toBnaCustomerIdType(typePieceClient),
         noPieceClient: normalizedNoPiece,
@@ -852,13 +938,14 @@ export async function getClientTndActiveAccounts(
           etatCompte: 'V',
           codeDevise: toCurrencyNumeric('TND'),
         },
+        codeAgence: toAgencyCodeNumber(normalizedAgencyCode),
       }),
       userMessage:
         `Les comptes TND actifs du client n’ont pas pu être chargés pour l’agence ${normalizedAgencyCode}.`,
     },
   );
 
-  const mappedAccounts = mapClientAccounts(response.comptes || []);
+  const mappedAccounts = mapRefAccountRows(response.comptes || []);
 
   return mappedAccounts.filter(account => (
     normalizeAgencyCode(account.codeAgence) === normalizedAgencyCode
@@ -868,9 +955,8 @@ export async function getClientTndActiveAccounts(
 }
 
 /**
- * BNA-CLI-001 + BNA-ACC-001.
- * @deprecated Prefer searchClientWithAgencyScope() for the new Agency client
- * selection flow. This function keeps the legacy current-agency behavior.
+ * @deprecated Prefer searchClientWithAgencyScope() for the agency-selection
+ * flow. Kept only for older callers, but it is now fully backed by REF.
  */
 export async function getClientCompteCom(
   typePieceClient: CustomerIdType,
@@ -885,67 +971,77 @@ export async function getClientCompteCom(
     throw new UserMessageError(eligibility.message);
   }
 
-  const bnaTypePiece = toBnaCustomerIdType(typePieceClient);
+  const agencyCode = normalizeAgencyCode(
+    eligibility.currentAgency?.code || requireSessionAgencyCode(),
+  );
 
-  const [profile, accountResponse] = await Promise.all([
-    requestBna<BnaClientProfileResponse>(BNA_ENDPOINTS.clientProfile, {
+  const [personne, accountResponse] = await Promise.all([
+    getRefPersonneByNoPiece(typePieceClient, normalizedNoPiece),
+    requestRef<RefAccountSearchResponse>(REF_ENDPOINTS.accountSearch, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Agency-Code': agencyCode,
+      },
       body: JSON.stringify({
-        typePiecePersonne: bnaTypePiece,
-        noPiecePersonne: normalizedNoPiece,
-      }),
-      userMessage: 'La fiche du client n’a pas pu être chargée.',
-    }),
-    requestBna<BnaAccountSearchResponse>(BNA_ENDPOINTS.accountSearch, {
-      method: 'POST',
-      body: JSON.stringify({
-        typePieceClient: bnaTypePiece,
+        typePieceClient: toBnaCustomerIdType(typePieceClient),
         noPieceClient: normalizedNoPiece,
         filtres: {
           etatCompte: 'V',
-          codeDevise: null,
           compteProfessionnelON: 'N',
         },
+        codeAgence: toAgencyCodeNumber(agencyCode),
       }),
       userMessage: 'Les comptes du client n’ont pas pu être chargés.',
     }),
   ]);
 
-  const currentAgencyCode = normalizeAgencyCode(
-    accountResponse.agenceCourante
-    || eligibility.currentAgency?.code,
-  );
-
-  return mapClientData(
+  return mapRefPersonneToClientData(
+    personne,
     typePieceClient,
-    profile,
-    accountResponse.comptes || [],
-    currentAgencyCode,
+    agencyCode,
+    mapRefAccountRows(accountResponse.comptes || []),
   );
 }
 
-/** Internal IBANSYS reference data — not a BNA interface. */
+/** REF — quoted currencies. */
 export async function getQuotedCurrencies(): Promise<QuotedCurrency[]> {
-  return Promise.resolve(MOCK_QUOTED_CURRENCIES);
+  const response = await requestRef<RefDeviseListResponse>(
+    REF_ENDPOINTS.devisesCotes,
+    {
+      method: 'GET',
+      userMessage: 'La liste des devises n’a pas pu être chargée.',
+    },
+  );
+
+  return response
+    .filter(devise => devise.isCote !== false)
+    .map(mapRefDeviseToQuotedCurrency)
+    .filter(currency => /^[A-Z]{3}$/.test(currency.code))
+    .sort((left, right) => left.code.localeCompare(right.code));
 }
 
-
-/**
- * Country reference used by the Donneur d'ordre LOV.
- *
- * Current temporary source: local ISO 3166-1 alpha-2 reference.
- * The selected country always exposes a normalized alpha-2 code and its
- * matching label, so PartyForm can update codePays/pays atomically.
- *
- * When the master country reference is confirmed, replace the implementation
- * of this function with the real reference call while preserving the
- * CountryOption[] contract.
- */
+/** REF — country reference. */
 export async function getCountries(): Promise<CountryOption[]> {
-  return Promise.resolve(buildCountryReference());
+  const response = await requestRef<RefPaysListResponse>(
+    REF_ENDPOINTS.pays,
+    {
+      method: 'GET',
+      userMessage: 'La liste des pays n’a pas pu être chargée.',
+    },
+  );
+
+  return response
+    .map(mapRefPaysToCountryOption)
+    .filter(country => /^[A-Z]{2}$/.test(country.alpha2))
+    .sort((left, right) =>
+      left.label.localeCompare(right.label, 'fr-FR', {
+        sensitivity: 'base',
+      }),
+    );
 }
 
-/** BNA-FX-001 — seller rate used for an outbound currency purchase. */
+/** REF — daily rate used for the indicative TND counter-value. */
 export async function getCounterValueTnd(
   codeDevise: string,
   montantOrdre: number,
@@ -969,21 +1065,18 @@ export async function getCounterValueTnd(
     };
   }
 
-  const dateCible = new Date().toISOString().slice(0, 10);
-  const rate = await requestBna<BnaFxRateResponse>(
-    BNA_ENDPOINTS.fxRates,
+  const dateJournee = new Date().toISOString().slice(0, 10);
+  const numericCurrency = toCurrencyNumeric(normalizedCurrency);
+  const rate = await requestRef<RefCoursJourneeAvaResponse>(
+    REF_ENDPOINTS.coursJourneeAva(numericCurrency, dateJournee),
     {
-      method: 'POST',
-      body: JSON.stringify({
-        codeDevise: toCurrencyNumeric(normalizedCurrency),
-        dateCible,
-      }),
+      method: 'GET',
       userMessage:
         `Le cours de la devise ${normalizedCurrency} n’a pas pu être récupéré.`,
     },
   );
 
-  const coursConversion = toNumber(rate.coursVente, 'le cours vendeur');
+  const coursConversion = toNumber(rate.cours, 'le cours de conversion');
 
   if (coursConversion <= 0) {
     throw new UserMessageError(
@@ -997,7 +1090,7 @@ export async function getCounterValueTnd(
     coursConversion,
     contreValeurTnd: montantOrdre * coursConversion,
     indicative: true,
-    dateValeur: rate.dateValeur,
+    dateValeur: rate.dateJournee,
   };
 }
 
@@ -1020,8 +1113,8 @@ export async function getBankByBic(bicfi: string): Promise<BankData> {
     );
   }
 
-  const bank = await requestBna<BnaBankResponse>(
-    BNA_ENDPOINTS.bankByBic(normalizedBic),
+  const bank = await requestRef<RefBankResponse>(
+    REF_ENDPOINTS.bankByBic(normalizedBic),
     {
       method: 'GET',
       userMessage:
@@ -1053,14 +1146,14 @@ export async function getBankByBic(bicfi: string): Promise<BankData> {
   };
 }
 
-/** REF-BIC-001 — Nostro route lookup by alphabetic currency code. */
+/** REF — Nostro route lookup by currency sigle. */
 export async function getNostroAccount(
   currency: string,
 ): Promise<NostroAccount> {
   const normalizedCurrency = currency.trim().toUpperCase();
 
-  const response = await requestBna<BnaNostroResponse>(
-    BNA_ENDPOINTS.nostro(normalizedCurrency),
+  const response = await requestRef<RefNostroResponse[]>(
+    REF_ENDPOINTS.nostroBySigle(normalizedCurrency),
     {
       method: 'GET',
       userMessage:
@@ -1068,10 +1161,36 @@ export async function getNostroAccount(
     },
   );
 
-  return response;
+  const nostro =
+    response.find(item =>
+      String(item.currency || '').trim().toUpperCase()
+        === normalizedCurrency,
+    )
+    || response[0];
+
+  if (!nostro) {
+    throw new UserMessageError(
+      `Aucun compte Nostro n’est configuré pour la devise ${normalizedCurrency}.`,
+    );
+  }
+
+  return {
+    currency:
+      String(nostro.currency || normalizedCurrency)
+        .trim()
+        .toUpperCase(),
+    accountRef:
+      nostro.accountRef
+      || nostro.cptNostro
+      || nostro.cptIban
+      || nostro.compteReel
+      || '',
+    bicfi: nostro.bicfi || '',
+    routeType: nostro.routeType || '',
+  };
 }
 
-/** BNA-FUND-001. Should normally be called by the MS-TR backend/BFF. */
+/** BNA mock fallback — no real equivalent supplied yet. */
 export async function blockFunds(
   request: FundsBlockRequest,
 ): Promise<FundsBlockResult> {
@@ -1108,7 +1227,7 @@ export async function blockFunds(
   };
 }
 
-/** BNA-FUND-002. Should normally be called by the MS-TR backend/BFF. */
+/** BNA mock fallback — no real equivalent supplied yet. */
 export async function releaseFunds(
   request: FundsReleaseRequest,
 ): Promise<FundsReleaseResult> {
@@ -1144,7 +1263,7 @@ export async function releaseFunds(
   };
 }
 
-/** BNA-FIN-001. */
+/** BNA mock fallback — no real equivalent supplied yet. */
 export async function searchFinancingResources(
   criteria: FinancingResourceSearchCriteria,
 ): Promise<FinancingResource[]> {
@@ -1173,7 +1292,7 @@ export async function searchFinancingResources(
   }));
 }
 
-/** BNA-FIN-002. Should normally be called by the MS-TR backend/BFF. */
+/** BNA mock fallback — no real equivalent supplied yet. */
 export async function allocateFinancingResource(
   request: FinancingAllocationRequest,
 ): Promise<FinancingAllocationResult> {
@@ -1220,7 +1339,7 @@ export async function allocateFinancingResource(
   };
 }
 
-/** BNA-FIN-003. Should normally be called by the MS-TR backend/BFF. */
+/** BNA mock fallback — no real equivalent supplied yet. */
 export async function releaseFinancingResource(
   request: FinancingReleaseRequest,
 ): Promise<FinancingReleaseResult> {
@@ -1257,7 +1376,7 @@ export async function releaseFinancingResource(
   };
 }
 
-/** BNA-ACC-IMPACT-001 — asynchronous reception ACK. */
+/** BNA mock fallback — no real accounting-impact equivalent supplied yet. */
 export async function sendAccountImpact(
   payload: Record<string, unknown>,
 ): Promise<AsyncReceptionAck> {
@@ -1268,7 +1387,7 @@ export async function sendAccountImpact(
   });
 }
 
-/** BNA-CRO-001 — asynchronous reception ACK. */
+/** BNA mock fallback — no real CRO equivalent supplied yet. */
 export async function sendCro(
   payload: Record<string, unknown>,
 ): Promise<AsyncReceptionAck> {
@@ -1279,7 +1398,7 @@ export async function sendCro(
   });
 }
 
-/** BNA-BO-001 — asynchronous reception ACK. */
+/** BNA mock fallback — no real Back-office send equivalent supplied yet. */
 export async function sendBackOfficeFlow(
   payload: Record<string, unknown>,
 ): Promise<AsyncReceptionAck> {
@@ -1290,7 +1409,7 @@ export async function sendBackOfficeFlow(
   });
 }
 
-/** BNA-BO-002. */
+/** BNA mock fallback — no real Back-office result equivalent supplied yet. */
 export async function queryBackOfficeResult(
   referenceOperationIbansys: string,
 ): Promise<BackOfficeResult> {
@@ -1375,7 +1494,7 @@ export async function submitAgencyInitiation(
   return normalizeAgencyInitiationResponse(response);
 }
 
-/** Internal MS-DOMI service — no corresponding BNA endpoint. */
+/** DOMI — TCE detail and ownership validation. */
 export async function verifyTce(
   search: TceSearchData,
   client: ClientData,
@@ -1386,26 +1505,58 @@ export async function verifyTce(
     );
   }
 
-  if (search.numDomi.toUpperCase() === 'DOM-ERROR') {
-    return {
-      state: 'error',
-      codeTitre: search.codeTitre,
-      numDomi: search.numDomi,
-      dateDomi: search.dateDomi,
-      devise: 'EUR',
-      montantDispo: '0,000',
-      appartient: false,
-      typeEchec: 'Bloquante',
-      codeErreur: 'TCE_NOT_OWNER',
-      libelleErreur:
-        `Le TCE n'appartient pas au client ${client.nomRaison}.`,
-    };
+  if (!client.idClient?.trim()) {
+    throw new UserMessageError(
+      'La référence du client est obligatoire pour vérifier le TCE.',
+    );
   }
 
+  const response = await requestDomi<DomiTceDetailResponse>(
+    DOMI_ENDPOINTS.tceDetail(
+      search.codeTitre.trim(),
+      search.numDomi.trim(),
+      search.dateDomi,
+      client.idClient.trim(),
+    ),
+    {
+      method: 'GET',
+      userMessage:
+        'Le titre de commerce extérieur n’a pas pu être vérifié.',
+    },
+  );
+
+  const failed = String(response.etat ?? '').trim().toUpperCase() === 'F';
+  const failureType = String(response.type_fail ?? '').trim().toUpperCase();
+
+  const state: TCEResult['state'] = failed
+    ? failureType === 'A'
+      ? 'warning'
+      : 'error'
+    : response.titreAppartientClient === false
+      ? 'error'
+      : 'success';
+
+  const typeEchec = failed
+    ? failureType === 'B'
+      ? 'Bloquante'
+      : failureType === 'A'
+        ? 'Alerte'
+        : response.type_fail || undefined
+    : undefined;
+
   return {
-    ...MOCK_TCE,
+    state,
     codeTitre: search.codeTitre,
     numDomi: search.numDomi,
-    dateDomi: search.dateDomi,
+    dateDomi: response.dateDomiciliation || search.dateDomi,
+    devise: response.deviseTitre == null ? '' : String(response.deviseTitre),
+    montantDispo:
+      response.montantDisponible == null
+        ? ''
+        : String(response.montantDisponible),
+    appartient: response.titreAppartientClient === true,
+    typeEchec,
+    codeErreur: response.Code_status || undefined,
+    libelleErreur: response.Libelle_Erreur || undefined,
   };
 }

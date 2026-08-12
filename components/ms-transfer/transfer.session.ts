@@ -191,18 +191,31 @@ export interface AgencyInitiationRequestContext
 
 export function getTransferRequestContext(): TransferRequestContext {
   const wfContext = getWfUserContext() as RawWfContext;
+
   const developmentUserId = String(
     import.meta.env.VITE_DEV_USER_ID || '',
   ).trim();
 
-  const userId = String(
-    wfContext.userId
-      ?? (import.meta.env.DEV ? developmentUserId : ''),
+  const authenticatedUserId = String(
+    wfContext.userId ?? '',
   ).trim();
+
+  /*
+   * Development:
+   * VITE_DEV_USER_ID explicitly overrides the temporary/mock WF user id.
+   *
+   * Integration / production:
+   * only the authenticated workflow user is accepted.
+   */
+  const userId = import.meta.env.DEV
+    ? developmentUserId
+    : authenticatedUserId;
 
   if (!userId) {
     throw new UserMessageError(
-      "L'identifiant de l'utilisateur connecté est indisponible. Veuillez vous reconnecter.",
+      import.meta.env.DEV
+        ? "VITE_DEV_USER_ID n'est pas configuré dans l'environnement de développement."
+        : "L'identifiant de l'utilisateur connecté est indisponible. Veuillez vous reconnecter.",
     );
   }
 
@@ -212,7 +225,9 @@ export function getTransferRequestContext(): TransferRequestContext {
 
   return {
     userId,
-    roleCode: String(wfContext.roleCode || 'AGENT'),
+    roleCode: String(
+      wfContext.roleCode || 'AGENT',
+    ),
     orgNodeId: wfContext.orgNodeId
       ? String(wfContext.orgNodeId)
       : undefined,

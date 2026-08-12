@@ -259,7 +259,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     if (currentSection === 0) return transferType !== null;
     if (currentSection === 1) {
       return (
-        client?.statut === 'ACTIF'
+        Boolean(client)
+        && client?.statut !== 'SUSPENDU'
+        && client?.statut !== 'CLOTURE'
         && Boolean(selectedClientAgency)
         && isCommissionAccountValid(
           clientAgencyAccounts,

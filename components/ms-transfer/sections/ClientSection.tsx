@@ -281,6 +281,10 @@ export function ClientSection({
         ) {
           onCommissionAccountChangeRef.current('');
         }
+
+        if (accounts.length === 0) {
+          onCommissionAccountChangeRef.current('');
+        }
       })
       .catch(reason => {
         if (!active || requestSequence !== accountsSequenceRef.current) {
@@ -632,7 +636,8 @@ export function ClientSection({
                     id="clientAgency"
                     value={selectedClientAgency}
                     onChange={event => handleAgencyChange(event.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    disabled={loadingAccounts}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {eligibleAgencies.length > 1 && (
                       <option value="">
@@ -648,8 +653,9 @@ export function ClientSection({
                   </select>
 
                   <p className="text-xs text-muted-foreground">
-                    Sélectionnez l’agence dans laquelle vous souhaitez initier
-                    l’opération pour ce client.
+                    Sélectionnez l’agence dans laquelle l’opération sera
+                    initiée. Les comptes disponibles seront chargés pour
+                    cette agence.
                   </p>
                 </div>
 
@@ -682,14 +688,34 @@ export function ClientSection({
         && searchStatus === 'SUCCESS'
         && selectedClientAgency
         && (
-          <ClientAccountsTable
-            agencyCode={selectedClientAgency}
-            accounts={agencyAccounts}
-            loading={loadingAccounts}
-            error={accountsError}
-            commissionAccount={commissionAccount}
-            onCommissionAccountChange={onCommissionAccountChange}
-          />
+          <>
+            {!loadingAccounts
+              && !accountsError
+              && agencyAccounts.length === 0
+              && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Aucun compte TND actif n’est disponible pour ce client
+                    dans l’agence sélectionnée.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+            {(loadingAccounts
+              || Boolean(accountsError)
+              || agencyAccounts.length > 0)
+              && (
+                <ClientAccountsTable
+                  agencyCode={selectedClientAgency}
+                  accounts={agencyAccounts}
+                  loading={loadingAccounts}
+                  error={accountsError}
+                  commissionAccount={commissionAccount}
+                  onCommissionAccountChange={onCommissionAccountChange}
+                />
+              )}
+          </>
         )}
     </div>
   );
