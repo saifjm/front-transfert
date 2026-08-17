@@ -112,6 +112,7 @@ export function PartyForm({
           ]}
         />
 
+
         {countryLov ? (
           <div className="space-y-2 md:col-span-2">
             <label
@@ -291,6 +292,7 @@ export function PartyForm({
           }
         />
 
+
         <FI
           label="Type de pièce ou d’identifiant"
           value={value.typePiece}
@@ -308,6 +310,7 @@ export function PartyForm({
           }
           disabled={identifierReadOnly}
         />
+
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ import type {
 } from '../transfer.types';
 import { FI } from '../transfer.ui';
 import { formatAmount, parseAmount } from '../transfer.utils';
+import { BeneficiarySection } from './BeneficiarySection';
 import { PartyForm } from './PartyForm';
 
 interface OrderSectionProps {
@@ -327,27 +328,12 @@ export function OrderSection({
         )}
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Bénéficiaire</CardTitle>
-          <CardDescription>
-            Les informations principales du bénéficiaire sont
-            obligatoires.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PartyForm
-            title="Informations du bénéficiaire"
-            value={order.beneficiary}
-            onChange={value => update('beneficiary', value)}
-            beneficiary
-            countryLov
-            countryOptions={countries}
-            countryLoading={countriesLoading}
-            countryRequired
-          />
-        </CardContent>
-      </Card>
+      <BeneficiarySection
+        value={order.beneficiary}
+        countries={countries}
+        countriesLoading={countriesLoading}
+        onChange={value => update('beneficiary', value)}
+      />
 
       <Card>
         <CardHeader>

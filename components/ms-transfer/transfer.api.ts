@@ -98,7 +98,9 @@ const MS_TR_API_BASE_URL = String(
   import.meta.env.VITE_MS_TR_API_BASE_URL || '/api/ms-tr',
 ).replace(/\/+$/, '');
 
-
+const BNA_MOCK_USER_ID = String(
+  import.meta.env.VITE_DEV_USER_ID || '',
+).trim();
 
 const BNA_ENDPOINTS = {
   fundsBlock: `${BNA_API_BASE_URL}/funds/block`,
@@ -207,10 +209,10 @@ function buildHeaders(
   }
 
   if (!headers.has('X-User-Id')) {
-  headers.set(
-    'X-User-Id',
-    context.userId,
-  );
+    headers.set(
+      'X-User-Id',
+      BNA_MOCK_USER_ID || context.userId,
+    );
   }
 
   if (!headers.has('X-Role-Code')) {
@@ -433,20 +435,37 @@ async function requestRef<T>(
   return unwrapPayload<T>(rawPayload);
 }
 
-export async function getRefPersonneByNoPiece(
-  typePieceClient: CustomerIdType,
+export async function searchRefPersonnesByNoPiece(
   noPieceClient: string,
-): Promise<RefPersonneResponse> {
+): Promise<RefPersonneSearchResponse> {
   const normalizedNoPiece = normalizeNoPiece(noPieceClient);
-  const expectedTypePiece = toBnaCustomerIdType(typePieceClient);
+
+  if (!normalizedNoPiece) {
+    throw new UserMessageError(
+      'Le numéro de pièce ou identifiant client est obligatoire.',
+    );
+  }
 
   const response = await requestRef<RefPersonneSearchResponse>(
     REF_ENDPOINTS.personneByNoPiece(normalizedNoPiece),
     {
       method: 'GET',
       userMessage:
-        'La fiche d’identité du client n’a pas pu être chargée.',
+        'La recherche du client dans le référentiel n’a pas pu aboutir.',
     },
+  );
+
+  return Array.isArray(response) ? response : [];
+}
+
+export async function getRefPersonneByNoPiece(
+  typePieceClient: CustomerIdType,
+  noPieceClient: string,
+): Promise<RefPersonneResponse> {
+  const normalizedNoPiece = normalizeNoPiece(noPieceClient);
+  const expectedTypePiece = toBnaCustomerIdType(typePieceClient);
+  const response = await searchRefPersonnesByNoPiece(
+    normalizedNoPiece,
   );
 
   const personne = findRefPersonne(

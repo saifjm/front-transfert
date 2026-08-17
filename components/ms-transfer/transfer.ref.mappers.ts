@@ -1,8 +1,10 @@
 import type {
   AccountRow,
+  BankClientBeneficiaryCandidate,
   ClientData,
   CountryOption,
   CustomerIdType,
+  PartyData,
   QuotedCurrency,
 } from './transfer.types';
 import type {
@@ -12,7 +14,10 @@ import type {
   RefPersonneResponse,
 } from './transfer.ref.contracts';
 import { normalizeAgencyCode } from './transfer.session';
-import { toCurrencyAlpha } from './transfer.mappers';
+import {
+  fromBnaCustomerIdType,
+  toCurrencyAlpha,
+} from './transfer.mappers';
 
 function clean(value: string | null | undefined): string {
   return String(value ?? '').trim();
@@ -20,6 +25,14 @@ function clean(value: string | null | undefined): string {
 
 function upper(value: string | null | undefined): string {
   return clean(value).toUpperCase();
+}
+
+
+function normalizedText(value: string | null | undefined): string {
+  return upper(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 function joinAddressLines(...values: Array<string | null | undefined>): string {
@@ -145,6 +158,105 @@ export function mapRefPersonneToClientData(
   };
 }
 
+function resolveCountryFromNationality(
+  nationality: string,
+  countries: CountryOption[],
+): CountryOption | null {
+  const normalizedNationality = normalizedText(nationality);
+
+  if (!normalizedNationality) {
+    return null;
+  }
+
+  return countries.find(country => {
+    const comparableValues = [
+      country.nationality,
+      country.label,
+      country.alpha2,
+      country.alpha3,
+      country.numericCode,
+    ];
+
+    return comparableValues.some(value => (
+      normalizedText(value) === normalizedNationality
+    ));
+  }) ?? null;
+}
+
+export function mapRefPersonneToBeneficiaryCandidate(
+  personne: RefPersonneResponse,
+  countries: CountryOption[],
+): BankClientBeneficiaryCandidate {
+  const numericTypePiece = Number(personne.id.typePiecePersonne);
+  const typePiece = fromBnaCustomerIdType(numericTypePiece);
+  const noPiece = clean(personne.id.noPiecePersonne);
+  const nom = clean(personne.nom);
+  const prenom = clean(personne.prenom);
+  const nationalite = clean(personne.nationalite);
+  const internalReference = clean(personne.numRefCltInt);
+  const internalReferenceType = clean(personne.typRefCltInt);
+  const country = resolveCountryFromNationality(
+    nationalite,
+    countries,
+  );
+
+  const nomRaison = typePiece === 'MF' || typePiece === 'RC'
+    ? nom
+    : [nom, prenom].filter(Boolean).join(' ').trim();
+
+  /*
+   * Beneficiary and ordering-party forms deliberately share the same
+   * PartyData field model. The REF identity lookup may expose additional
+   * attributes (phone, e-mail, fax, activity, correspondence address, etc.),
+   * but they are not injected as hidden operational fields because they do
+   * not exist on the ordering-party form.
+   *
+   * The four REF residential address lines are folded into the two address
+   * fields available on both party forms so the imported address remains
+   * visible and editable.
+   */
+  const party: PartyData | null = typePiece
+    ? {
+        nomRaison: nomRaison || nom,
+        type: resolvePartyType(typePiece),
+        codePays: country?.alpha2 || '',
+        pays: country?.label || '',
+        townName: '',
+        compte: '',
+        adresseLigne1: clean(personne.adrRes1),
+        adresseLigne2: joinAddressLines(
+          personne.adrRes2,
+          personne.adrRes3,
+          personne.adrRes4,
+        ),
+        codePostal: '',
+        residence: '',
+        typePiece,
+        noPiece,
+      }
+    : null;
+
+  return {
+    key: [
+      numericTypePiece,
+      upper(noPiece),
+      upper(internalReferenceType),
+      upper(internalReference),
+    ].join(':'),
+    numericTypePiece,
+    typePiece,
+    noPiece,
+    nomRaison: nomRaison || nom || noPiece,
+    nationalite,
+    internalReference: [
+      internalReferenceType,
+      internalReference,
+    ].filter(Boolean).join(' / '),
+    supported: Boolean(typePiece),
+    party,
+  };
+}
+
 export function mapRefDeviseToQuotedCurrency(
   devise: RefDeviseResponse,
 ): QuotedCurrency {
@@ -179,6 +291,7 @@ export function mapRefPaysToCountryOption(
     alpha3: alpha3 || undefined,
     numericCode: String(pays.codePays),
     label: clean(pays.libPays) || alpha2 || String(pays.codePays),
+    nationality: clean(pays.nationalite) || undefined,
     active: true,
   };
 }

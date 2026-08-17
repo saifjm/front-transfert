@@ -84,18 +84,18 @@ export interface ClientData {
   typeRefClientInterne?: string;
   numRefClientInterne?: string;
   typeClient: PartyType;
-  resident: boolean;
-  residence: string;
-  pays: string;
-  codePays: string;
-  ville: string;
+  resident?: boolean;
+  residence?: string;
+  pays?: string;
+  codePays?: string;
+  ville?: string;
   adresse: string;
-  agence: string;
-  codeAgence: string;
-  statut: 'ACTIF' | 'SUSPENDU' | 'CLOTURE';
-  niveauRisque: 'FAIBLE' | 'MOYEN' | 'ELEVE';
+  agence?: string;
+  codeAgence?: string;
+  statut?: 'ACTIF' | 'SUSPENDU' | 'CLOTURE';
+  niveauRisque?: 'FAIBLE' | 'MOYEN' | 'ELEVE';
   taxable?: boolean;
-  totalementExportatrice: boolean;
+  totalementExportatrice?: boolean;
   clientProhibe?: boolean;
   codeDouane?: string;
   activiteCode?: string;
@@ -121,13 +121,6 @@ export interface CounterValueResult {
 
 export interface PartyData {
   nomRaison: string;
-  nom?: string;
-  prenom?: string;
-  nationalite?: string;
-  telephone?: string;
-  email?: string;
-  typeRefClientInterne?: string;
-  numRefClientInterne?: string;
   type: PartyType;
   codePays: string;
   pays: string;
@@ -141,6 +134,28 @@ export interface PartyData {
   noPiece: string;
 }
 
+/**
+ * Search abstraction used by the beneficiary UI.
+ * For now REF only exposes search by noPieceClient. Additional criteria can be
+ * added here later without coupling the component to the transport contract.
+ */
+export interface BeneficiarySearchCriteria {
+  noPiece: string;
+}
+
+export interface BankClientBeneficiaryCandidate {
+  key: string;
+  numericTypePiece: number;
+  typePiece: CustomerIdType | null;
+  noPiece: string;
+  nomRaison: string;
+  nationalite: string;
+  internalReference: string;
+  supported: boolean;
+  /** Null when REF returns an identifier type not supported by MS-TR. */
+  party: PartyData | null;
+}
+
 export interface BankData {
   bicfi: string;
   nom: string;
@@ -148,315 +163,5 @@ export interface BankData {
   pays: string;
   townName: string;
   adresse: string;
-  active?: boolean;
-}
-
-export interface NostroAccount {
-  currency: string;
-  accountRef: string;
-  bicfi: string;
-  routeType: string;
-}
-
-export interface TransferOrder {
-  montantOrdre: string;
-  deviseOrdre: string;
-  deviseTransfert: string;
-  dateValeur: string;
-  coursConversion: string;
-  contreValeurTnd: string;
-  serviceLevel: string;
-  purposeCode: string;
-  refFacture: string;
-  chargeBearer: string;
-  motifPaiement: string;
-  observations: string;
-  debtor: PartyData;
-  ultimateDebtorEnabled: boolean;
-  ultimateDebtor: PartyData;
-  beneficiary: PartyData;
-  ultimateCreditorEnabled: boolean;
-  ultimateCreditor: PartyData;
-  beneficiaryBank: BankData;
-}
-
-export interface Modality {
-  id: string;
-  type: ModalityType;
-  montant: string;
-  deviseOrdre: string;
-  compteADebiter: string;
-  deviseCompte: string;
-  dossierFinancementId: string;
-  fxRateMode: FxRateMode;
-  coursIndicatif: string;
-  coursSaisi: string;
-  montantDebit: string;
-  refDeal: string;
-  blocage: boolean;
-}
-
-export interface BctAuthorization {
-  id: string;
-  reference: string;
-  type: 'F1' | 'F2';
-  dateEmission: string;
-  dateValidite: string;
-  montantAutorise: string;
-  montantDisponible: string;
-  devise: string;
-  objet: string;
-}
-
-export interface RegulatoryData {
-  codeNatureOperation: string;
-  authorizationRequired: boolean;
-  selectedAuthorizationId: string;
-}
-
-export interface TCEResult {
-  state: 'success' | 'warning' | 'error';
-  codeTitre: string;
-  numDomi: string;
-  dateDomi: string;
-  devise: string;
-  montantDispo: string;
-  appartient: boolean;
-  typeEchec?: string;
-  codeErreur?: string;
-  libelleErreur?: string;
-}
-
-export interface FicheInformationData {
-  numero: string;
-  date: string;
-  objet: string;
-  montant: string;
-  devise: string;
-  commentaire: string;
-}
-
-export interface TceSearchData {
-  codeTitre: string;
-  numDomi: string;
-  dateDomi: string;
-}
-
-export interface RegulatorySupportData {
-  type: SupportType;
-  ficheInformation: FicheInformationData;
-  tceSearch: TceSearchData;
-  tceResult: TCEResult | null;
-}
-
-export interface TransferListItem {
-  ref: string;
-  type: TransferType;
-  client: string;
-  montant: string;
-  devise: string;
-  support: string;
-  statut: string;
-  etape: string;
-  maj: string;
-}
-
-export interface TransferSubmissionPayload {
-  initiationSource: TransferInitiationSource;
-  transferType: TransferType;
-  clientId: string;
-  clientTypePiece: CustomerIdType;
-  clientNoPiece: string;
-  commissionAccount: string;
-  order: TransferOrder;
-  modalities: Modality[];
-  regulatoryData: RegulatoryData;
-  regulatorySupport: RegulatorySupportData;
-}
-
-export interface FundsBlockRequest {
-  typePieceClient: CustomerIdType;
-  noPieceClient: string;
-  compteRib: string;
-  montantBlocage: number;
-  codeDevise: string;
-  referenceOperationIbansys: string;
-}
-
-export type FundsBlockResult =
-  | {
-      statut: 'OK';
-      referenceBlocage: string;
-      montantEffectivementBloque: number;
-      montantRestantBloque: number;
-      codeDevise: string;
-    }
-  | {
-      statut: 'KO';
-      codeErreur: string;
-      messageErreur: string;
-    };
-
-export interface FundsReleaseRequest {
-  referenceBlocage: string;
-  typePieceClient: CustomerIdType;
-  noPieceClient: string;
-  compteRib: string;
-  montantALiberer: number;
-  codeDevise: string;
-  referenceOperationIbansys: string;
-}
-
-export type FundsReleaseResult =
-  | {
-      statut: 'OK';
-      montantEffectivementLibere: number;
-      montantRestantBloque: number;
-      codeDevise: string;
-      referenceDeblocage?: string;
-    }
-  | {
-      statut: 'KO';
-      motifEchec: string;
-    };
-
-export type FinancingResourceType =
-  | 'COMPTE_CLIENT'
-  | 'DOSSIER_FINANCEMENT_IMPORT'
-  | 'FONDS_RECUS_AUTRE_BANQUE'
-  | 'NEGOCIATION_INTERBANCAIRE'
-  | string;
-
-export interface FinancingResourceSearchCriteria {
-  typePieceClient: CustomerIdType;
-  noPieceClient: string;
-  typeRessource?: FinancingResourceType;
-  statutRessource?: string;
-  codeDevise?: string;
-  dateValiditeDebut?: string;
-  dateValiditeFin?: string;
-  identifiantRessource?: string;
-}
-
-export interface FinancingResource {
-  typeRessource: FinancingResourceType;
-  identifiantRessource: string;
-  statutRessource: string;
-  eligible: boolean;
-  codeDeviseRessource: string;
-  montantRessourceOrigine?: number;
-  montantDisponible?: number;
-  dateDebutValidite?: string;
-  dateFinValidite?: string;
-  motifIneligibilite?: string | null;
-}
-
-export interface FinancingAllocationRequest {
-  referenceOperationIbansys: string;
-  sequenceRessource: string | number;
-  typeRessource: FinancingResourceType;
-  identifiantRessource: string;
-  montantDemandeOrigine: number;
-  codeDeviseRessource: string;
-  codeDeviseTransfert: string;
-  typePieceClient: CustomerIdType;
-  noPieceClient: string;
-}
-
-export type FinancingAllocationResult =
-  | {
-      statut: 'OK';
-      referenceAffectation: string;
-      montantEffectivementAffecte: number;
-      codeDeviseRessource: string;
-      reliquatDisponible?: number;
-    }
-  | {
-      statut: 'KO';
-      codeErreur: string;
-      messageErreur: string;
-    };
-
-export interface FinancingReleaseRequest {
-  referenceOperationIbansys: string;
-  referenceAffectation: string;
-  sequenceRessource: string | number;
-  typeRessource: FinancingResourceType;
-  identifiantRessource: string;
-  montantALiberer: number;
-  codeDeviseRessource: string;
-  motifLiberation: string;
-}
-
-export type FinancingReleaseResult =
-  | {
-      statut: 'OK';
-      montantEffectivementLibere: number;
-      reliquatAffecte?: number;
-      message?: string;
-    }
-  | {
-      statut: 'KO';
-      codeErreur?: string;
-      messageErreur?: string;
-      motifEchec?: string;
-    };
-
-export interface AsyncReceptionAck {
-  accuseReception: 'ACK';
-  messageId?: string;
-  referenceOperationIbansys?: string;
-}
-
-export interface BackOfficeResult {
-  referenceOperationIbansys: string;
-  statutTraitement: 'OK' | 'KO' | string;
-  motifEchec?: string | null;
-  lastUpdatedAt: string;
-}
-
-export interface DocumentReference {
-  documentId: string;
-  createdAt?: string;
-  [key: string]: unknown;
-}
-
-export type TransferNavigationHandler = (
-  section: string,
-  dossierNum?: string,
-) => void;
-
-export interface AgencyInitiationResult {
-  operationRef: string;
-  status: string;
-  message?: string | null;
-  raw: Record<string, unknown>;
-}
-
-
-export interface CountryOption {
-  /**
-   * Code ISO utilisé dans MS-TR / ISO 20022.
-   * Ex: TN, FR, DE.
-   */
-  alpha2: string;
-
-  /**
-   * Code numérique éventuel du référentiel.
-   * Ex: 788.
-   */
-  numericCode?: string;
-
-  /**
-   * Code ISO alpha-3 éventuel.
-   * Ex: TUN.
-   */
-  alpha3?: string;
-
-  /**
-   * Libellé affiché à l'utilisateur.
-   */
-  label: string;
-
   active?: boolean;
 }

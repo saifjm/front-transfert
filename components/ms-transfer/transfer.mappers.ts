@@ -77,6 +77,22 @@ export function toBnaCustomerIdType(
   return mapped;
 }
 
+
+export function fromBnaCustomerIdType(
+  value: string | number,
+): CustomerIdType | null {
+  const numericValue = Number(value);
+
+  const match = (
+    Object.entries(CUSTOMER_ID_TYPE_TO_BNA) as Array<[
+      CustomerIdType,
+      number,
+    ]>
+  ).find(([, code]) => code === numericValue);
+
+  return match?.[0] ?? null;
+}
+
 export function toCurrencyNumeric(codeDevise: string): number {
   const normalized = codeDevise.trim().toUpperCase();
   const numeric = CURRENCY_ALPHA_TO_NUMERIC[normalized];
