@@ -51,13 +51,13 @@ import type {
 } from './ms-transfer/transfer.types';
 import { TypeBadge } from './ms-transfer/transfer.ui';
 import {
-  calculateCoverage,
   clientToParty,
   isOrderComplete,
   isSupportComplete,
-  requiresDebitAccount,
-  requiresFinancingFile,
 } from './ms-transfer/transfer.utils';
+import {
+  arePaymentModalitiesComplete,
+} from './ms-transfer/transfer.payment-modality';
 import { ClientSection } from './ms-transfer/sections/ClientSection';
 import {
   NAVIGATION_ITEMS,
@@ -183,32 +183,11 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     );
   }, [order.deviseOrdre, order.coursConversion]);
 
-  const modalitiesComplete = () => {
-    const coverage = calculateCoverage(
+  const modalitiesComplete = () =>
+    arePaymentModalitiesComplete(
       modalities,
       order.montantOrdre,
     );
-
-    return (
-      modalities.length > 0 &&
-      coverage.complete &&
-      modalities.every(
-        modality =>
-          !requiresDebitAccount(modality.type) ||
-          Boolean(modality.compteADebiter),
-      ) &&
-      modalities.every(
-        modality =>
-          !requiresFinancingFile(modality.type) ||
-          Boolean(modality.dossierFinancementId),
-      ) &&
-      modalities.every(
-        modality =>
-          modality.fxRateMode === 'NORMAL' ||
-          Boolean(modality.coursSaisi),
-      )
-    );
-  };
 
   const regulatoryComplete = () =>
     Boolean(regulatoryData.codeNatureOperation) &&
@@ -216,29 +195,24 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       Boolean(regulatoryData.selectedAuthorizationId));
 
   const partyCountryIsValid = (
-  party: PartyData | null | undefined,
-  required: boolean,
-) => {
-  if (!party) {
-    return !required;
-  }
-
-  const countryCode = String(
-    party.codePays ?? '',
-  )
-    .trim()
-    .toUpperCase();
-
-  if (!countryCode) {
-    return !required;
-  }
-
-  return countries.some(country => (
-    String(country.alpha2 ?? '')
+    party: PartyData,
+    required: boolean,
+  ) => {
+    const countryCode = String(
+      party?.codePays ?? '',
+    )
       .trim()
-      .toUpperCase() === countryCode
-  ));
-};
+      .toUpperCase();
+
+    if (!countryCode) {
+      return !required;
+    }
+
+    return countries.some(
+      country =>
+        country.alpha2.trim().toUpperCase() === countryCode,
+    );
+  };
 
   const orderPartyCountriesAreValid = () => (
     partyCountryIsValid(order.debtor, true)
@@ -254,24 +228,24 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   );
 
   const debtorAccountIsValid = () => {
-  const accountNumber = String(
-    order.debtor?.compte ?? '',
-  ).trim();
+    const accountNumber = String(
+      order.debtor?.compte ?? '',
+    ).trim();
+    const agencyCode = normalizeAgencyCode(
+      selectedClientAgency,
+    );
 
-  const agencyCode = normalizeAgencyCode(
-    selectedClientAgency,
-  );
+    if (!accountNumber || !agencyCode) {
+      return false;
+    }
 
-  if (!accountNumber || !agencyCode) {
-    return false;
-  }
-
-  return clientAgencyAccounts.some(account => (
-    String(account.numero ?? '').trim() === accountNumber
-    && normalizeAgencyCode(account.codeAgence) === agencyCode
-    && account.statut === 'ACTIF'
-  ));
-};
+    return clientAgencyAccounts.some(
+      account =>
+        account.numero.trim() === accountNumber
+        && normalizeAgencyCode(account.codeAgence) === agencyCode
+        && account.statut === 'ACTIF',
+    );
+  };
 
   const orderValidationErrors = (): string[] => {
     const errors: string[] = [];

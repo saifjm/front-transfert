@@ -1,5 +1,10 @@
 import React from 'react';
-import { CheckCircle2, CircleAlert, Plus, Trash2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -11,7 +16,12 @@ import {
   CardTitle,
 } from '../../ui/card';
 
-import { MODALITY_TYPE_OPTIONS } from '../transfer.mock';
+import {
+  getDefaultModalityValueDate,
+  isModalityValueDateRequired,
+  PAYMENT_MODALITY_TYPE_OPTIONS,
+  validateModalityValueDate,
+} from '../transfer.payment-modality';
 import type {
   AccountRow,
   Modality,
@@ -27,6 +37,17 @@ import {
   requiresFinancingFile,
 } from '../transfer.utils';
 
+function createModalityId(): string {
+  if (
+    typeof crypto !== 'undefined'
+    && typeof crypto.randomUUID === 'function'
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function newModality(
   order: TransferOrder,
   accounts: AccountRow[],
@@ -37,10 +58,11 @@ function newModality(
   const rate = parseAmount(order.coursConversion);
 
   return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: createModalityId(),
     type: 'ACHAT_DEVISE_COMPTE_TND',
     montant: order.montantOrdre,
     deviseOrdre: order.deviseOrdre,
+    dateValeur: getDefaultModalityValueDate(order),
     compteADebiter: defaultAccount?.numero ?? '',
     deviseCompte: defaultAccount?.devise ?? '',
     dossierFinancementId: '',
@@ -81,7 +103,10 @@ export function PaymentModalitiesSection({
       modalities.map(modality => {
         if (modality.id !== id) return modality;
 
-        const updated = { ...modality, [field]: value };
+        const updated: Modality = {
+          ...modality,
+          [field]: value,
+        };
 
         if (field === 'compteADebiter') {
           const selectedAccount = accounts.find(
@@ -96,9 +121,9 @@ export function PaymentModalitiesSection({
         }
 
         if (
-          field === 'montant' ||
-          field === 'coursSaisi' ||
-          field === 'fxRateMode'
+          field === 'montant'
+          || field === 'coursSaisi'
+          || field === 'fxRateMode'
         ) {
           const amount = parseAmount(
             field === 'montant' ? String(value) : updated.montant,
@@ -127,7 +152,8 @@ export function PaymentModalitiesSection({
     { value: '', label: 'Sélectionner un compte' },
     ...accounts.map(account => ({
       value: account.numero,
-      label: `${account.numero} — ${account.devise} — ${account.solde}`,
+      // REF account search intentionally does not expose balances/provision.
+      label: `${account.numero} — ${account.devise}`,
     })),
   ];
 
@@ -142,25 +168,31 @@ export function PaymentModalitiesSection({
     },
     {
       ok: modalities.every(
+        modality => validateModalityValueDate(modality) === null,
+      ),
+      label: 'Date de valeur renseignée',
+    },
+    {
+      ok: modalities.every(
         modality =>
-          !requiresDebitAccount(modality.type) ||
-          Boolean(modality.compteADebiter),
+          !requiresDebitAccount(modality.type)
+          || Boolean(modality.compteADebiter),
       ),
       label: 'Compte renseigné si requis',
     },
     {
       ok: modalities.every(
         modality =>
-          !requiresFinancingFile(modality.type) ||
-          Boolean(modality.dossierFinancementId),
+          !requiresFinancingFile(modality.type)
+          || Boolean(modality.dossierFinancementId),
       ),
       label: 'Dossier financement renseigné',
     },
     {
       ok: modalities.every(
         modality =>
-          modality.fxRateMode === 'NORMAL' ||
-          Boolean(modality.coursSaisi),
+          modality.fxRateMode === 'NORMAL'
+          || Boolean(modality.coursSaisi),
       ),
       label: 'Cours négocié ou à terme renseigné',
     },
@@ -174,7 +206,7 @@ export function PaymentModalitiesSection({
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           La somme des modalités doit couvrir 100 % du montant de
-          l’ordre.
+          l’ordre. Chaque modalité possède sa propre date de valeur.
         </p>
       </div>
 
@@ -236,6 +268,10 @@ export function PaymentModalitiesSection({
         const financingRequired = requiresFinancingFile(
           modality.type,
         );
+        const valueDateRequired = isModalityValueDateRequired(
+          modality,
+        );
+        const valueDateError = validateModalityValueDate(modality);
         const tndAccount = modality.deviseCompte === 'TND';
         const editableRate =
           tndAccount && modality.fxRateMode !== 'NORMAL';
@@ -263,7 +299,7 @@ export function PaymentModalitiesSection({
             </CardHeader>
 
             <CardContent className="space-y-5">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <FI
                   label="Type de modalité"
                   value={modality.type}
@@ -276,7 +312,7 @@ export function PaymentModalitiesSection({
                   }
                   select
                   required
-                  opts={MODALITY_TYPE_OPTIONS.map(option => ({
+                  opts={PAYMENT_MODALITY_TYPE_OPTIONS.map(option => ({
                     ...option,
                   }))}
                 />
@@ -292,6 +328,16 @@ export function PaymentModalitiesSection({
                   label="Devise de l’ordre"
                   value={order.deviseOrdre}
                   disabled
+                />
+                <FI
+                  label="Date de valeur modalité"
+                  value={modality.dateValeur}
+                  onChange={value =>
+                    update(modality.id, 'dateValeur', value)
+                  }
+                  type="date"
+                  required={valueDateRequired}
+                  error={valueDateError || undefined}
                 />
 
                 {debitAccountRequired && (
@@ -389,8 +435,8 @@ export function PaymentModalitiesSection({
                       update(modality.id, 'refDeal', value)
                     }
                     required={
-                      modality.fxRateMode === 'NEGOCIE' ||
-                      modality.fxRateMode === 'TERME'
+                      modality.fxRateMode === 'NEGOCIE'
+                      || modality.fxRateMode === 'TERME'
                     }
                   />
                 </div>

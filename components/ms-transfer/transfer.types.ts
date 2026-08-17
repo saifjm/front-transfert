@@ -165,3 +165,287 @@ export interface BankData {
   adresse: string;
   active?: boolean;
 }
+
+export interface NostroAccount {
+  currency: string;
+  accountRef: string;
+  bicfi: string;
+  routeType: string;
+}
+
+export interface TransferOrder {
+  montantOrdre: string;
+  deviseOrdre: string;
+  deviseTransfert: string;
+  dateValeur: string;
+  coursConversion: string;
+  contreValeurTnd: string;
+  serviceLevel: string;
+  purposeCode: string;
+  refFacture: string;
+  chargeBearer: string;
+  motifPaiement: string;
+  observations: string;
+  debtor: PartyData;
+  ultimateDebtorEnabled: boolean;
+  ultimateDebtor: PartyData;
+  beneficiary: PartyData;
+  ultimateCreditorEnabled: boolean;
+  ultimateCreditor: PartyData;
+  beneficiaryBank: BankData;
+}
+
+export interface Modality {
+  id: string;
+  type: ModalityType;
+  montant: string;
+  deviseOrdre: string;
+  /** Date de valeur propre à cette modalité (AAAA-MM-JJ). */
+  dateValeur: string;
+  compteADebiter: string;
+  deviseCompte: string;
+  dossierFinancementId: string;
+  fxRateMode: FxRateMode;
+  coursIndicatif: string;
+  coursSaisi: string;
+  montantDebit: string;
+  refDeal: string;
+  blocage: boolean;
+}
+
+export interface BctAuthorization {
+  id: string;
+  reference: string;
+  type: 'F1' | 'F2';
+  dateEmission: string;
+  dateValidite: string;
+  montantAutorise: string;
+  montantDisponible: string;
+  devise: string;
+  objet: string;
+}
+
+export interface RegulatoryData {
+  codeNatureOperation: string;
+  authorizationRequired: boolean;
+  selectedAuthorizationId: string;
+}
+
+export interface TCEResult {
+  state: 'success' | 'warning' | 'error';
+  codeTitre: string;
+  numDomi: string;
+  dateDomi: string;
+  devise: string;
+  montantDispo: string;
+  appartient: boolean;
+  typeEchec?: string;
+  codeErreur?: string;
+  libelleErreur?: string;
+}
+
+export interface FicheInformationData {
+  numero: string;
+  date: string;
+  objet: string;
+  montant: string;
+  devise: string;
+  commentaire: string;
+}
+
+export interface TceSearchData {
+  codeTitre: string;
+  numDomi: string;
+  dateDomi: string;
+}
+
+export interface RegulatorySupportData {
+  type: SupportType;
+  ficheInformation: FicheInformationData;
+  tceSearch: TceSearchData;
+  tceResult: TCEResult | null;
+}
+
+export interface TransferListItem {
+  ref: string;
+  type: TransferType;
+  client: string;
+  montant: string;
+  devise: string;
+  support: string;
+  statut: string;
+  etape: string;
+  maj: string;
+}
+
+export interface TransferSubmissionPayload {
+  initiationSource: TransferInitiationSource;
+  transferType: TransferType;
+  clientId: string;
+  clientTypePiece: CustomerIdType;
+  clientNoPiece: string;
+  commissionAccount: string;
+  order: TransferOrder;
+  modalities: Modality[];
+  regulatoryData: RegulatoryData;
+  regulatorySupport: RegulatorySupportData;
+}
+
+export interface FundsBlockRequest {
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  compteRib: string;
+  montantBlocage: number;
+  codeDevise: string;
+  referenceOperationIbansys: string;
+}
+
+export type FundsBlockResult =
+  | {
+      statut: 'OK';
+      referenceBlocage: string;
+      montantEffectivementBloque: number;
+      montantRestantBloque: number;
+      codeDevise: string;
+    }
+  | {
+      statut: 'KO';
+      codeErreur: string;
+      messageErreur: string;
+    };
+
+export interface FundsReleaseRequest {
+  referenceBlocage: string;
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  compteRib: string;
+  montantALiberer: number;
+  codeDevise: string;
+  referenceOperationIbansys: string;
+}
+
+export type FundsReleaseResult =
+  | {
+      statut: 'OK';
+      montantEffectivementLibere: number;
+      montantRestantBloque: number;
+      codeDevise: string;
+      referenceDeblocage?: string;
+    }
+  | {
+      statut: 'KO';
+      motifEchec: string;
+    };
+
+export type FinancingResourceType =
+  | 'COMPTE_CLIENT'
+  | 'DOSSIER_FINANCEMENT_IMPORT'
+  | 'FONDS_RECUS_AUTRE_BANQUE'
+  | 'NEGOCIATION_INTERBANCAIRE'
+  | string;
+
+export interface FinancingResourceSearchCriteria {
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+  typeRessource?: FinancingResourceType;
+  statutRessource?: string;
+  codeDevise?: string;
+  dateValiditeDebut?: string;
+  dateValiditeFin?: string;
+  identifiantRessource?: string;
+}
+
+export interface FinancingResource {
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  statutRessource: string;
+  eligible: boolean;
+  codeDeviseRessource: string;
+  montantRessourceOrigine?: number;
+  montantDisponible?: number;
+  dateDebutValidite?: string;
+  dateFinValidite?: string;
+  motifIneligibilite?: string | null;
+}
+
+export interface FinancingAllocationRequest {
+  referenceOperationIbansys: string;
+  sequenceRessource: string | number;
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  montantDemandeOrigine: number;
+  codeDeviseRessource: string;
+  codeDeviseTransfert: string;
+  typePieceClient: CustomerIdType;
+  noPieceClient: string;
+}
+
+export type FinancingAllocationResult =
+  | {
+      statut: 'OK';
+      referenceAffectation: string;
+      montantEffectivementAffecte: number;
+      codeDeviseRessource: string;
+      reliquatDisponible?: number;
+    }
+  | {
+      statut: 'KO';
+      codeErreur: string;
+      messageErreur: string;
+    };
+
+export interface FinancingReleaseRequest {
+  referenceOperationIbansys: string;
+  referenceAffectation: string;
+  sequenceRessource: string | number;
+  typeRessource: FinancingResourceType;
+  identifiantRessource: string;
+  montantALiberer: number;
+  codeDeviseRessource: string;
+  motifLiberation: string;
+}
+
+export type FinancingReleaseResult =
+  | {
+      statut: 'OK';
+      montantEffectivementLibere: number;
+      reliquatAffecte?: number;
+      message?: string;
+    }
+  | {
+      statut: 'KO';
+      codeErreur?: string;
+      messageErreur?: string;
+      motifEchec?: string;
+    };
+
+export interface AsyncReceptionAck {
+  accuseReception: 'ACK';
+  messageId?: string;
+  referenceOperationIbansys?: string;
+}
+
+export interface BackOfficeResult {
+  referenceOperationIbansys: string;
+  statutTraitement: 'OK' | 'KO' | string;
+  motifEchec?: string | null;
+  lastUpdatedAt: string;
+}
+
+export interface DocumentReference {
+  documentId: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export type TransferNavigationHandler = (
+  section: string,
+  dossierNum?: string,
+) => void;
+
+export interface AgencyInitiationResult {
+  operationRef: string;
+  status: string;
+  message?: string | null;
+  raw: Record<string, unknown>;
+}

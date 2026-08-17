@@ -223,6 +223,10 @@ function mapPaymentModality(
   return {
     sequenceNo: index + 1,
     modalityType: resolveModalityType(modality),
+    valueDate: toIsoDate(
+      modality.dateValeur,
+      `La date de valeur de la modalité ${index + 1}`,
+    ),
     coveragePercentage,
     // Agency initiation creates a draft. Final covered amounts are calculated
     // and secured later; no blocking or reservation is executed here.

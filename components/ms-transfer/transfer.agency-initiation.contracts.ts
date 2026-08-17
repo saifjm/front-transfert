@@ -41,6 +41,8 @@ export interface AgencyPartyCommand {
 export interface AgencyPaymentModalityCommand {
   sequenceNo: number;
   modalityType: string;
+  /** Date de valeur propre à la modalité, format AAAA-MM-JJ. */
+  valueDate: string;
   coveragePercentage: number;
   coveredTransferAmount: number | null;
   coveredTransferCurrency: string;
