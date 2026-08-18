@@ -5,6 +5,10 @@ import type {
   CountryOption,
   PartyData,
 } from '../transfer.types';
+import {
+  isPartyFieldLocked,
+  type PartyField,
+} from '../transfer.party-locks';
 import { FI } from '../transfer.ui';
 
 interface PartyFormProps {
@@ -19,7 +23,12 @@ interface PartyFormProps {
   accountLov?: boolean;
   accountOptions?: AccountRow[];
   accountRequired?: boolean;
-  identifierReadOnly?: boolean;
+
+  /**
+   * Fields protected because they were loaded from an authoritative customer
+   * file. Missing/non-imported fields remain editable.
+   */
+  lockedFields?: readonly PartyField[];
 }
 
 export function PartyForm({
@@ -34,19 +43,32 @@ export function PartyForm({
   accountLov = false,
   accountOptions = [],
   accountRequired = beneficiary,
-  identifierReadOnly = false,
+  lockedFields = [],
 }: PartyFormProps) {
+  const locked = (field: PartyField) =>
+    isPartyFieldLocked(lockedFields, field);
+
   const update = <K extends keyof PartyData>(
     field: K,
     fieldValue: PartyData[K],
   ) => {
+    // UI disabled state is not the only protection: ignore updates to a
+    // locked customer-file field even if an event is triggered indirectly.
+    if (locked(field)) return;
+
     onChange({
       ...value,
       [field]: fieldValue,
     });
   };
 
+  const countryLocked =
+    locked('codePays')
+    || locked('pays');
+
   const handleCountryChange = (countryCode: string) => {
+    if (countryLocked) return;
+
     if (!countryCode) {
       onChange({
         ...value,
@@ -84,6 +106,7 @@ export function PartyForm({
               update('nomRaison', fieldValue)
             }
             required
+            disabled={locked('nomRaison')}
           />
         </div>
 
@@ -98,6 +121,7 @@ export function PartyForm({
           }
           select
           required
+          disabled={locked('type')}
           opts={[
             {
               value: '',
@@ -130,7 +154,7 @@ export function PartyForm({
               onChange={event =>
                 handleCountryChange(event.target.value)
               }
-              disabled={countryLoading}
+              disabled={countryLoading || countryLocked}
               required={countryRequired}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -169,6 +193,7 @@ export function PartyForm({
               }
               placeholder="DE"
               required={countryRequired}
+              disabled={locked('codePays')}
             />
 
             <FI
@@ -178,6 +203,7 @@ export function PartyForm({
                 update('pays', fieldValue)
               }
               required={countryRequired}
+              disabled={locked('pays')}
             />
           </>
         )}
@@ -189,6 +215,7 @@ export function PartyForm({
             update('townName', fieldValue)
           }
           required={beneficiary}
+          disabled={locked('townName')}
         />
 
         {accountLov ? (
@@ -204,6 +231,7 @@ export function PartyForm({
             }
             select
             required={accountRequired}
+            disabled={locked('compte')}
             opts={[
               {
                 value: '',
@@ -238,6 +266,7 @@ export function PartyForm({
               )
             }
             required={beneficiary}
+            disabled={locked('compte')}
           />
         )}
 
@@ -251,6 +280,7 @@ export function PartyForm({
             )
           }
           select
+          disabled={locked('residence')}
           opts={[
             {
               value: '',
@@ -273,6 +303,7 @@ export function PartyForm({
           onChange={fieldValue =>
             update('codePostal', fieldValue)
           }
+          disabled={locked('codePostal')}
         />
 
         <div className="md:col-span-2">
@@ -282,6 +313,7 @@ export function PartyForm({
             onChange={fieldValue =>
               update('adresseLigne1', fieldValue)
             }
+            disabled={locked('adresseLigne1')}
           />
         </div>
 
@@ -291,6 +323,7 @@ export function PartyForm({
           onChange={fieldValue =>
             update('adresseLigne2', fieldValue)
           }
+          disabled={locked('adresseLigne2')}
         />
 
         <FI
@@ -299,7 +332,7 @@ export function PartyForm({
           onChange={fieldValue =>
             update('typePiece', fieldValue)
           }
-          disabled={identifierReadOnly}
+          disabled={locked('typePiece')}
         />
 
         <FI
@@ -308,7 +341,7 @@ export function PartyForm({
           onChange={fieldValue =>
             update('noPiece', fieldValue)
           }
-          disabled={identifierReadOnly}
+          disabled={locked('noPiece')}
         />
       </div>
     </div>

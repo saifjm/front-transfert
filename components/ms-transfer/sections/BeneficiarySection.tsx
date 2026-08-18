@@ -22,6 +22,13 @@ import {
   searchBankClientBeneficiaries,
 } from '../transfer.beneficiary';
 import { getUserMessage } from '../transfer.errors';
+import {
+  createEmptyParty,
+} from '../transfer.initial-state';
+import {
+  getPrefilledPartyLockedFields,
+  type PartyField,
+} from '../transfer.party-locks';
 import type {
   BankClientBeneficiaryCandidate,
   CountryOption,
@@ -46,7 +53,7 @@ export function BeneficiarySection({
   onChange,
 }: BeneficiarySectionProps) {
   const [mode, setMode] = useState<BeneficiaryEntryMode>('MANUAL');
-  const [searchValue, setSearchValue] = useState(value.noPiece || '');
+  const [searchValue, setSearchValue] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searchPerformed, setSearchPerformed] = useState(false);
@@ -54,21 +61,72 @@ export function BeneficiarySection({
     BankClientBeneficiaryCandidate[]
   >([]);
   const [selectedCandidateKey, setSelectedCandidateKey] = useState('');
+  const [bankClientLockedFields, setBankClientLockedFields] = useState<
+    PartyField[]
+  >([]);
+
   const requestSequenceRef = useRef(0);
 
+  /**
+   * Keep the manual beneficiary draft separate from imported bank-client data.
+   * Switching back to MANUAL cannot be used to unlock/alter an imported
+   * customer-file record.
+   */
+  const manualDraftRef = useRef<PartyData>({
+    ...value,
+  });
+
+  const handlePartyChange = (nextValue: PartyData) => {
+    onChange(nextValue);
+
+    if (mode === 'MANUAL') {
+      manualDraftRef.current = {
+        ...nextValue,
+      };
+    }
+  };
+
   const changeMode = (nextMode: BeneficiaryEntryMode) => {
-    setMode(nextMode);
+    if (nextMode === mode) return;
+
     setSearchError('');
 
-    if (nextMode === 'BANK_CLIENT' && !searchValue && value.noPiece) {
-      setSearchValue(value.noPiece);
+    if (nextMode === 'BANK_CLIENT') {
+      manualDraftRef.current = {
+        ...value,
+      };
+
+      // Bank-client mode starts without imported customer data.
+      onChange(createEmptyParty());
+      setSelectedCandidateKey('');
+      setBankClientLockedFields([]);
+      setCandidates([]);
+      setSearchPerformed(false);
+      setSearchValue('');
+    } else {
+      // Restore the independent manual draft instead of making imported
+      // customer-file fields editable.
+      onChange({
+        ...manualDraftRef.current,
+      });
+      setSelectedCandidateKey('');
+      setBankClientLockedFields([]);
+      setCandidates([]);
+      setSearchPerformed(false);
+      setSearchValue('');
     }
+
+    setMode(nextMode);
   };
 
   const searchBeneficiary = async (event?: React.FormEvent) => {
     event?.preventDefault();
 
-    const normalizedSearchValue = searchValue.trim().toUpperCase();
+    const normalizedSearchValue = String(
+      searchValue ?? '',
+    )
+      .trim()
+      .toUpperCase();
 
     if (!normalizedSearchValue) {
       setSearchError(
@@ -83,11 +141,12 @@ export function BeneficiarySection({
     setSearching(true);
     setSearchError('');
     setSearchPerformed(true);
-    setSelectedCandidateKey('');
 
     try {
       const results = await searchBankClientBeneficiaries(
-        { noPiece: normalizedSearchValue },
+        {
+          noPiece: normalizedSearchValue,
+        },
         countries,
       );
 
@@ -118,27 +177,44 @@ export function BeneficiarySection({
   const importCandidate = (
     candidate: BankClientBeneficiaryCandidate,
   ) => {
-    if (!candidate.party) {
-      return;
-    }
+    if (!candidate.party) return;
 
-    onChange(candidate.party);
+    const importedParty = {
+      ...candidate.party,
+    };
+
+    onChange(importedParty);
     setSelectedCandidateKey(candidate.key);
+
+    setBankClientLockedFields(
+      getPrefilledPartyLockedFields(
+        importedParty,
+        ['nomRaison'],
+      ),
+    );
   };
+
+  const partyLockedFields =
+    mode === 'BANK_CLIENT'
+      ? bankClientLockedFields
+      : [];
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Bénéficiaire</CardTitle>
         <CardDescription>
-          Sélectionnez un client de la banque ou renseignez le bénéficiaire
-          manuellement. Les données utilisées dans l’opération restent
-          modifiables.
+          Sélectionnez un client de la banque ou renseignez un
+          bénéficiaire manuellement.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Mode de saisie du bénéficiaire">
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Mode de saisie du bénéficiaire"
+        >
           <Button
             type="button"
             variant={mode === 'MANUAL' ? 'default' : 'outline'}
@@ -165,9 +241,9 @@ export function BeneficiarySection({
                 Rechercher un client de la banque
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pour cette première version, la recherche utilise le numéro
-                de pièce ou l’identifiant client. La sélection reste explicite
-                lorsqu’au moins un résultat est retourné.
+                Pour cette version, la recherche utilise le numéro de
+                pièce ou l’identifiant client. La sélection reste explicite
+                lorsqu’un ou plusieurs résultats sont retournés.
               </p>
             </div>
 
@@ -179,13 +255,14 @@ export function BeneficiarySection({
                 label="Numéro de pièce / identifiant client"
                 value={searchValue}
                 onChange={fieldValue => {
-                  setSearchValue(fieldValue.toUpperCase());
+                  setSearchValue(
+                    String(fieldValue ?? '').toUpperCase(),
+                  );
                   setSearchError('');
                   setSearchPerformed(false);
                   setCandidates([]);
-                  setSelectedCandidateKey('');
                 }}
-                placeholder="Ex. 07458963"
+                placeholder="Saisir l’identifiant"
               />
 
               <div className="flex items-end">
@@ -212,7 +289,9 @@ export function BeneficiarySection({
 
             {searchError && (
               <Alert variant="destructive">
-                <AlertDescription>{searchError}</AlertDescription>
+                <AlertDescription>
+                  {searchError}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -236,7 +315,8 @@ export function BeneficiarySection({
 
                 <div className="space-y-2">
                   {candidates.map(candidate => {
-                    const selected = selectedCandidateKey === candidate.key;
+                    const selected =
+                      selectedCandidateKey === candidate.key;
 
                     return (
                       <div
@@ -247,27 +327,32 @@ export function BeneficiarySection({
                           <p className="font-medium">
                             {candidate.nomRaison || 'Client sans libellé'}
                           </p>
+
                           <p className="text-xs text-muted-foreground">
                             {beneficiaryIdentifierTypeLabel(
                               candidate.typePiece,
                               candidate.numericTypePiece,
                             )}
                             {' — '}
-                            {candidate.noPiece || 'Identifiant non renseigné'}
+                            {candidate.noPiece
+                              || 'Identifiant non renseigné'}
                           </p>
+
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span>
-                              Nationalité : {candidate.nationalite || '—'}
+                              Nationalité :{' '}
+                              {candidate.nationalite || '—'}
                             </span>
                             <span>
-                              Référence client : {candidate.internalReference || '—'}
+                              Référence client :{' '}
+                              {candidate.internalReference || '—'}
                             </span>
                           </div>
 
                           {!candidate.supported && (
                             <p className="text-xs text-destructive">
-                              Le type de pièce retourné n’est pas encore pris
-                              en charge par MS-TR.
+                              Le type de pièce retourné n’est pas encore
+                              pris en charge par MS-TR.
                             </p>
                           )}
                         </div>
@@ -276,7 +361,9 @@ export function BeneficiarySection({
                           type="button"
                           variant={selected ? 'outline' : 'default'}
                           disabled={!candidate.supported}
-                          onClick={() => importCandidate(candidate)}
+                          onClick={() =>
+                            importCandidate(candidate)
+                          }
                         >
                           {selected && (
                             <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -294,11 +381,11 @@ export function BeneficiarySection({
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Les données disponibles correspondant aux champs du
-                  bénéficiaire ont été importées dans l’ordre et restent
-                  modifiables. Les champs non fournis par la recherche actuelle
-                  — notamment ville, résidence, code postal et compte/IBAN —
-                  doivent être complétés lorsqu’ils sont requis.
+                  Les données effectivement importées depuis la fiche
+                  client sont en lecture seule, sauf le champ
+                  « Nom et prénom / Raison sociale ». Les champs non fournis
+                  par la fiche client restent modifiables afin de pouvoir
+                  compléter l’opération.
                 </AlertDescription>
               </Alert>
             )}
@@ -308,12 +395,13 @@ export function BeneficiarySection({
         <PartyForm
           title="Informations du bénéficiaire"
           value={value}
-          onChange={onChange}
+          onChange={handlePartyChange}
           beneficiary
           countryLov
           countryOptions={countries}
           countryLoading={countriesLoading}
           countryRequired
+          lockedFields={partyLockedFields}
         />
       </CardContent>
     </Card>

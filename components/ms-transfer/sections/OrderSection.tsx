@@ -28,7 +28,14 @@ import type {
   TransferOrder,
 } from '../transfer.types';
 import { FI } from '../transfer.ui';
-import { formatAmount, parseAmount } from '../transfer.utils';
+import {
+  clientToParty,
+  formatAmount,
+  parseAmount,
+} from '../transfer.utils';
+import {
+  getPrefilledPartyLockedFields,
+} from '../transfer.party-locks';
 import { BeneficiarySection } from './BeneficiarySection';
 import { PartyForm } from './PartyForm';
 
@@ -172,6 +179,20 @@ export function OrderSection({
     );
   };
 
+  const debtorCustomerFileSource = client
+    ? {
+        ...clientToParty(client),
+        // The debit account is an operation choice, not customer-file data
+        // imported into the order.
+        compte: '',
+      }
+    : null;
+
+  const debtorLockedFields = getPrefilledPartyLockedFields(
+    debtorCustomerFileSource,
+    ['nomRaison'],
+  );
+
   const searchBank = async () => {
     const bicfi = normalizeText(
       order.beneficiaryBank.bicfi,
@@ -220,10 +241,10 @@ export function OrderSection({
         <h2 className="text-xl font-semibold tracking-tight">
           Données de l’ordre de transfert
         </h2>
-        
+      
       </div>
 
-      
+     
 
       <Card>
         <CardHeader>
@@ -344,16 +365,18 @@ export function OrderSection({
             accountLov
             accountOptions={debtorAccountOptions}
             accountRequired
-            identifierReadOnly
+            lockedFields={debtorLockedFields}
           />
 
           {client && (
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
-                Les données d’identité disponibles pour le client ont été
-                reprises. Aucun compte de débit n’est choisi
-                automatiquement.
+                Les données disponibles issues de la fiche client sont
+                protégées contre la modification, à l’exception du champ
+                « Nom et prénom / Raison sociale ». Les champs absents de la
+                fiche client restent complétables. Aucun compte de débit
+                n’est choisi automatiquement.
               </AlertDescription>
             </Alert>
           )}
