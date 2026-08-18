@@ -21,10 +21,12 @@ import {
   submitAgencyInitiation,
 } from './ms-transfer/transfer.api';
 import {
-  INITIAL_ORDER,
   INITIAL_REGULATORY_DATA,
   INITIAL_SUPPORT_DATA,
 } from './ms-transfer/transfer.mock';
+import {
+  createBlankTransferOrder,
+} from './ms-transfer/transfer.initial-state';
 import { getUserMessage } from './ms-transfer/transfer.errors';
 import {
   isCommissionAccountValid,
@@ -111,7 +113,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const [countriesLoading, setCountriesLoading] = useState(false);
   const [countryReferenceError, setCountryReferenceError] = useState('');
   const [referenceError, setReferenceError] = useState('');
-  const [order, setOrder] = useState<TransferOrder>(INITIAL_ORDER);
+  const [order, setOrder] = useState<TransferOrder>(
+    () => createBlankTransferOrder(),
+  );
   const [modalities, setModalities] = useState<Modality[]>([]);
   const [regulatoryData, setRegulatoryData] =
     useState<RegulatoryData>(INITIAL_REGULATORY_DATA);
@@ -125,7 +129,6 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const idempotencyKeyRef = useRef(
     createAgencyInitiationIdempotencyKey(),
   );
-  const previousCommissionAccountRef = useRef('');
 
   useEffect(() => {
     let active = true;
@@ -137,7 +140,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       .catch(() => {
         if (active) {
           setReferenceError(
-            'La liste des devises n’a pas pu être actualisée.',
+            'La liste des devises n’a pas pu être chargée.',
           );
         }
       });
@@ -213,7 +216,9 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
     return countries.some(
       country =>
-        country.alpha2.trim().toUpperCase() === countryCode,
+        String(country.alpha2 ?? '')
+          .trim()
+          .toUpperCase() === countryCode,
     );
   };
 
@@ -244,7 +249,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
     return clientAgencyAccounts.some(
       account =>
-        account.numero.trim() === accountNumber
+        String(account.numero ?? '').trim() === accountNumber
         && normalizeAgencyCode(account.codeAgence) === agencyCode
         && account.statut === 'ACTIF',
     );
@@ -312,8 +317,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
-    previousCommissionAccountRef.current = '';
-    setOrder(INITIAL_ORDER);
+    setOrder(createBlankTransferOrder());
     setModalities([]);
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(INITIAL_SUPPORT_DATA);
@@ -335,16 +339,35 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
-    previousCommissionAccountRef.current = '';
-    setModalities(current => current.map(clearModalityAccountSelection));
+
+    // A type change starts a new operational order.
+    // Only data already known for the selected customer may be carried.
+    setOrder(() => {
+      const blankOrder = createBlankTransferOrder();
+
+      if (!client) {
+        return blankOrder;
+      }
+
+      return {
+        ...blankOrder,
+        debtor: {
+          ...clientToParty(client),
+          compte: '',
+        },
+      };
+    });
+
+    setModalities([]);
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport({
       ...INITIAL_SUPPORT_DATA,
       type: type === 'financier' ? 'FI' : null,
       ficheInformation: {
         ...INITIAL_SUPPORT_DATA.ficheInformation,
-        devise: order.deviseOrdre,
+        devise: '',
       },
+      tceAllocations: [],
     });
     setCurrentSection(1);
   };
@@ -354,23 +377,26 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
-    previousCommissionAccountRef.current = '';
 
-    setOrder(current => ({
-      ...current,
+    // A new customer gets a new blank operational order.
+    // Only values actually available in the customer profile are copied.
+    setOrder(() => ({
+      ...createBlankTransferOrder(),
       debtor: {
         ...clientToParty(loadedClient),
         compte: '',
       },
     }));
-    setModalities(current => current.map(clearModalityAccountSelection));
 
+    setModalities([]);
     setRegulatoryData(INITIAL_REGULATORY_DATA);
-    setSupport(current => ({ ...current, tceAllocations: [] }));
+    setSupport(current => ({
+      ...current,
+      tceAllocations: [],
+    }));
   };
 
   const handleClientAgencyChange = (agencyCode: string) => {
-    previousCommissionAccountRef.current = '';
     setSelectedClientAgency(agencyCode);
     setClientAgencyAccounts([]);
     setCommissionAccount('');
@@ -385,29 +411,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   };
 
   const handleCommissionAccountChange = (accountNumber: string) => {
-    const previousCommissionAccount =
-      previousCommissionAccountRef.current;
-
+    // Commission account is independent from the transfer debit account.
     setCommissionAccount(accountNumber);
-
-    setOrder(current => {
-      const currentDebtorAccount = current.debtor.compte;
-      const shouldApplyCommissionAsDefault =
-        !currentDebtorAccount
-        || currentDebtorAccount === previousCommissionAccount;
-
-      return {
-        ...current,
-        debtor: {
-          ...current.debtor,
-          compte: shouldApplyCommissionAsDefault
-            ? accountNumber
-            : currentDebtorAccount,
-        },
-      };
-    });
-
-    previousCommissionAccountRef.current = accountNumber;
   };
 
   const handleAgencyAccountsChange = (accounts: AccountRow[]) => {
@@ -418,44 +423,36 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     );
 
     setOrder(current => {
-      const currentDebtorAccount = current.debtor.compte.trim();
+      const currentDebtorAccount = String(
+        current.debtor?.compte ?? '',
+      ).trim();
 
-      const currentAccountStillAvailable =
-        Boolean(currentDebtorAccount)
-        && accounts.some(
-          account =>
-            account.numero.trim() === currentDebtorAccount
-            && normalizeAgencyCode(account.codeAgence) === agencyCode
-            && account.statut === 'ACTIF',
-        );
+      // No explicit debit account selection: keep the form blank.
+      if (!currentDebtorAccount) {
+        return current;
+      }
+
+      const currentAccountStillAvailable = accounts.some(
+        account =>
+          String(account.numero ?? '').trim() === currentDebtorAccount
+          && normalizeAgencyCode(account.codeAgence) === agencyCode
+          && account.statut === 'ACTIF',
+      );
 
       if (currentAccountStillAvailable) {
         return current;
       }
 
-      const commissionAccountNumber = commissionAccount.trim();
-      const commissionAccountAvailable =
-        Boolean(commissionAccountNumber)
-        && accounts.some(
-          account =>
-            account.numero.trim() === commissionAccountNumber
-            && normalizeAgencyCode(account.codeAgence) === agencyCode
-            && account.statut === 'ACTIF',
-        );
-
+      // Clear an obsolete selection but never choose another account.
       return {
         ...current,
         debtor: {
           ...current.debtor,
-          compte: commissionAccountAvailable
-            ? commissionAccountNumber
-            : '',
+          compte: '',
         },
       };
     });
   };
-
-
 
   const handleClientCleared = () => {
     setClient(null);
@@ -463,12 +460,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setSelectedClientAgency('');
     setClientAgencyAccounts([]);
     setCommissionAccount('');
-    previousCommissionAccountRef.current = '';
-    setOrder(current => ({
-      ...current,
-      debtor: { ...INITIAL_ORDER.debtor },
-    }));
-    setModalities(current => current.map(clearModalityAccountSelection));
+    setOrder(createBlankTransferOrder());
+    setModalities([]);
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(current => ({
       ...current,
@@ -621,8 +614,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            {referenceError} La liste actuellement disponible reste
-            utilisable.
+            {referenceError} Réessayez avant de renseigner les devises de
+            l’ordre.
           </AlertDescription>
         </Alert>
       )}
@@ -683,7 +676,6 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
             countries={countries}
             countriesLoading={countriesLoading}
             clientAccounts={clientAgencyAccounts}
-            commissionAccount={commissionAccount}
             onChange={setOrder}
           />
         )}

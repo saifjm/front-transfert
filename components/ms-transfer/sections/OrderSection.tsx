@@ -39,8 +39,34 @@ interface OrderSectionProps {
   countries: CountryOption[];
   countriesLoading?: boolean;
   clientAccounts: AccountRow[];
-  commissionAccount: string;
   onChange: (order: TransferOrder) => void;
+}
+
+function normalizeText(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function clearIndicativeConversion(
+  order: TransferOrder,
+): TransferOrder {
+  return {
+    ...order,
+    coursConversion: '',
+    contreValeurTnd: '',
+  };
+}
+
+function blankBankWithBic(
+  bicfi: string,
+): TransferOrder['beneficiaryBank'] {
+  return {
+    bicfi,
+    nom: '',
+    codePays: '',
+    pays: '',
+    townName: '',
+    adresse: '',
+  };
 }
 
 export function OrderSection({
@@ -50,7 +76,6 @@ export function OrderSection({
   countries,
   countriesLoading = false,
   clientAccounts,
-  commissionAccount,
   onChange,
 }: OrderSectionProps) {
   const [counterValueLoading, setCounterValueLoading] = useState(false);
@@ -62,27 +87,45 @@ export function OrderSection({
     field: K,
     value: TransferOrder[K],
   ) => {
-    onChange({ ...order, [field]: value });
+    onChange({
+      ...order,
+      [field]: value,
+    });
   };
 
-  const currencyOptions = quotedCurrencies.map(currency => ({
-    value: currency.code,
-    label: `${currency.code} — ${currency.label}`,
-  }));
+  const updateConversionSource = (
+    field: 'montantOrdre' | 'deviseOrdre',
+    value: string,
+  ) => {
+    setCounterValueError('');
+
+    onChange({
+      ...clearIndicativeConversion(order),
+      [field]: value,
+    });
+  };
+
+  const currencyOptions = [
+    {
+      value: '',
+      label: 'Sélectionner une devise',
+    },
+    ...quotedCurrencies.map(currency => ({
+      value: currency.code,
+      label: `${currency.code} — ${currency.label}`,
+    })),
+  ];
 
   const debtorAccountOptions = clientAccounts.filter(account => (
-    account.numero.trim() !== ''
+    normalizeText(account.numero) !== ''
     && account.statut === 'ACTIF'
   ));
 
-  const commissionAccountAvailable = debtorAccountOptions.some(
-    account => account.numero === commissionAccount,
-  );
-
   const calculateCounterValue = async () => {
+    const currency = normalizeText(order.deviseOrdre).toUpperCase();
     const amount = parseAmount(order.montantOrdre);
 
-    if (!order.deviseOrdre || amount <= 0) {
+    if (!currency || amount <= 0) {
       setCounterValueError(
         'Renseignez une devise cotée et un montant d’ordre valide.',
       );
@@ -94,12 +137,13 @@ export function OrderSection({
 
     try {
       const result = await getCounterValueTnd(
-        order.deviseOrdre,
+        currency,
         amount,
       );
 
       onChange({
         ...order,
+        deviseOrdre: currency,
         coursConversion: result.coursConversion.toFixed(8),
         contreValeurTnd: formatAmount(result.contreValeurTnd),
       });
@@ -115,8 +159,25 @@ export function OrderSection({
     }
   };
 
+  const updateBankBic = (rawBic: string) => {
+    const bicfi = rawBic
+      .replace(/\s/g, '')
+      .toUpperCase();
+
+    setBankError('');
+
+    update(
+      'beneficiaryBank',
+      blankBankWithBic(bicfi),
+    );
+  };
+
   const searchBank = async () => {
-    if (!order.beneficiaryBank.bicfi.trim()) {
+    const bicfi = normalizeText(
+      order.beneficiaryBank.bicfi,
+    ).toUpperCase();
+
+    if (!bicfi) {
       setBankError(
         'Le code BIC est obligatoire pour rechercher la banque bénéficiaire.',
       );
@@ -127,11 +188,21 @@ export function OrderSection({
     setBankError('');
 
     try {
-      const bank = await getBankByBic(
-        order.beneficiaryBank.bicfi,
-      );
-      update('beneficiaryBank', bank);
+      const bank = await getBankByBic(bicfi);
+
+      onChange({
+        ...order,
+        beneficiaryBank: {
+          ...bank,
+          bicfi,
+        },
+      });
     } catch (reason) {
+      onChange({
+        ...order,
+        beneficiaryBank: blankBankWithBic(bicfi),
+      });
+
       setBankError(
         getUserMessage(
           reason,
@@ -149,17 +220,17 @@ export function OrderSection({
         <h2 className="text-xl font-semibold tracking-tight">
           Données de l’ordre de transfert
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Renseignez les montants, les intervenants, la banque
-          bénéficiaire et les instructions de paiement.
-        </p>
+        
       </div>
+
+      
 
       <Card>
         <CardHeader>
           <CardTitle>Montants et date valeur</CardTitle>
           <CardDescription>
-            Seules les devises cotées peuvent être utilisées.
+            Renseignez explicitement les caractéristiques financières de
+            l’ordre. Le cours indicatif est calculé uniquement sur demande.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -167,43 +238,59 @@ export function OrderSection({
             <FI
               label="Devise ordre"
               value={order.deviseOrdre}
-              onChange={value => update('deviseOrdre', value)}
+              onChange={value =>
+                updateConversionSource('deviseOrdre', value)
+              }
               select
               required
               opts={currencyOptions}
             />
+
             <FI
               label="Montant ordre"
               value={order.montantOrdre}
-              onChange={value => update('montantOrdre', value)}
+              onChange={value =>
+                updateConversionSource('montantOrdre', value)
+              }
               required
-              placeholder="20 000,000"
+              placeholder="Saisir le montant"
             />
+
             <FI
               label="Devise transfert"
               value={order.deviseTransfert}
-              onChange={value => update('deviseTransfert', value)}
+              onChange={value =>
+                update('deviseTransfert', value)
+              }
               select
               required
               opts={currencyOptions}
             />
+
             <FI
               label="Date valeur"
               value={order.dateValeur}
-              onChange={value => update('dateValeur', value)}
+              onChange={value =>
+                update('dateValeur', value)
+              }
               type="date"
               required
             />
+
             <FI
               label="Cours de conversion indicatif"
               value={order.coursConversion}
               disabled
+              placeholder="Non calculé"
             />
+
             <FI
               label="Contre-valeur TND"
               value={order.contreValeurTnd}
               disabled
+              placeholder="Non calculée"
             />
+
             <div className="flex items-end md:col-span-2">
               <Button
                 type="button"
@@ -224,24 +311,13 @@ export function OrderSection({
 
           {counterValueError && (
             <Alert variant="destructive">
-              <AlertDescription>{counterValueError}</AlertDescription>
+              <AlertDescription>
+                {counterValueError}
+              </AlertDescription>
             </Alert>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-            <span className="text-muted-foreground">
-              Résumé de conversion :
-            </span>
-            <strong>
-              {order.montantOrdre || '0'} {order.deviseOrdre}
-            </strong>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono">
-              × {order.coursConversion || '—'}
-            </span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <strong>{order.contreValeurTnd || '—'} TND</strong>
-          </div>
+          
         </CardContent>
       </Card>
 
@@ -249,15 +325,18 @@ export function OrderSection({
         <CardHeader>
           <CardTitle>Donneur d’ordre</CardTitle>
           <CardDescription>
-            Les informations sont préremplies depuis la fiche client et
-            restent modifiables.
+            Les informations disponibles dans la fiche du client sont
+            préremplies. Le compte de débit reste une sélection explicite.
           </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <PartyForm
             title="Informations du donneur d’ordre"
             value={order.debtor}
-            onChange={value => update('debtor', value)}
+            onChange={value =>
+              update('debtor', value)
+            }
             countryLov
             countryOptions={countries}
             countryLoading={countriesLoading}
@@ -272,15 +351,9 @@ export function OrderSection({
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
-                Les données du client ont été chargées automatiquement.
-                Le pays et le compte peuvent être ajustés parmi les valeurs
-                disponibles.
-                {commissionAccountAvailable && commissionAccount && (
-                  <>
-                    {' '}Le compte commission est proposé par défaut comme
-                    compte du donneur d’ordre.
-                  </>
-                )}
+                Les données d’identité disponibles pour le client ont été
+                reprises. Aucun compte de débit n’est choisi
+                automatiquement.
               </AlertDescription>
             </Alert>
           )}
@@ -297,6 +370,7 @@ export function OrderSection({
                 client.
               </CardDescription>
             </div>
+
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -313,12 +387,15 @@ export function OrderSection({
             </label>
           </div>
         </CardHeader>
+
         {order.ultimateDebtorEnabled && (
           <CardContent>
             <PartyForm
               title="Informations du donneur d’ordre final"
               value={order.ultimateDebtor}
-              onChange={value => update('ultimateDebtor', value)}
+              onChange={value =>
+                update('ultimateDebtor', value)
+              }
               countryLov
               countryOptions={countries}
               countryLoading={countriesLoading}
@@ -332,7 +409,9 @@ export function OrderSection({
         value={order.beneficiary}
         countries={countries}
         countriesLoading={countriesLoading}
-        onChange={value => update('beneficiary', value)}
+        onChange={value =>
+          update('beneficiary', value)
+        }
       />
 
       <Card>
@@ -345,6 +424,7 @@ export function OrderSection({
                 bénéficiaire du paiement.
               </CardDescription>
             </div>
+
             <label className="flex items-center gap-2 text-sm font-medium">
               <input
                 type="checkbox"
@@ -361,12 +441,15 @@ export function OrderSection({
             </label>
           </div>
         </CardHeader>
+
         {order.ultimateCreditorEnabled && (
           <CardContent>
             <PartyForm
               title="Informations du bénéficiaire final"
               value={order.ultimateCreditor}
-              onChange={value => update('ultimateCreditor', value)}
+              onChange={value =>
+                update('ultimateCreditor', value)
+              }
               beneficiary
               countryLov
               countryOptions={countries}
@@ -381,25 +464,22 @@ export function OrderSection({
         <CardHeader>
           <CardTitle>Banque bénéficiaire</CardTitle>
           <CardDescription>
-            Renseignez le code BIC pour récupérer les informations de la
-            banque.
+            Saisissez le BIC puis lancez explicitement la recherche.
+            Aucune banque n’est pré-positionnée.
           </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <FI
               label="Code BIC de la banque"
               value={order.beneficiaryBank.bicfi}
-              onChange={value =>
-                update('beneficiaryBank', {
-                  ...order.beneficiaryBank,
-                  bicfi: value.toUpperCase(),
-                })
-              }
-              placeholder="DEUTDEFFXXX"
+              onChange={updateBankBic}
+              placeholder="Saisir le BIC"
               required
               error={bankError || undefined}
             />
+
             <div className="flex items-end">
               <Button
                 type="button"
@@ -415,23 +495,28 @@ export function OrderSection({
                 Rechercher
               </Button>
             </div>
+
             <div className="md:col-span-2">
               <FI
                 label="Nom banque"
                 value={order.beneficiaryBank.nom}
                 disabled
+                placeholder="Chargé après recherche"
               />
             </div>
+
             <FI
               label="Pays banque"
               value={order.beneficiaryBank.pays}
               disabled
             />
+
             <FI
               label="Ville banque"
               value={order.beneficiaryBank.townName}
               disabled
             />
+
             <div className="md:col-span-2">
               <FI
                 label="Adresse banque"
@@ -463,26 +548,40 @@ export function OrderSection({
         <CardHeader>
           <CardTitle>Instruction de paiement</CardTitle>
           <CardDescription>
-            Motif, frais, catégorie et observations du transfert
+            Ces données décrivent l’opération et doivent être choisies ou
+            saisies explicitement.
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <FI
               label="Motif de paiement"
               value={order.motifPaiement}
-              onChange={value => update('motifPaiement', value)}
+              onChange={value =>
+                update('motifPaiement', value)
+              }
               required
-              placeholder="Import marchandises, frais de scolarité..."
+              placeholder="Saisir le motif du paiement"
             />
+
             <FI
               label="Répartition des frais"
               value={order.chargeBearer}
-              onChange={value => update('chargeBearer', value)}
+              onChange={value =>
+                update('chargeBearer', value)
+              }
               select
               required
               opts={[
-                { value: 'SHAR', label: 'Frais partagés' },
+                {
+                  value: '',
+                  label: 'Sélectionner la répartition',
+                },
+                {
+                  value: 'SHAR',
+                  label: 'Frais partagés',
+                },
                 {
                   value: 'DEBT',
                   label: 'À la charge du donneur d’ordre',
@@ -493,12 +592,19 @@ export function OrderSection({
                 },
               ]}
             />
+
             <FI
               label="Catégorie du paiement"
               value={order.purposeCode}
-              onChange={value => update('purposeCode', value)}
+              onChange={value =>
+                update('purposeCode', value)
+              }
               select
               opts={[
+                {
+                  value: '',
+                  label: 'Sélectionner une catégorie',
+                },
                 { value: 'GDDS', label: 'Biens' },
                 { value: 'SVCS', label: 'Services' },
                 { value: 'FEES', label: 'Honoraires' },
@@ -506,33 +612,53 @@ export function OrderSection({
                 { value: 'DIVD', label: 'Dividendes' },
               ]}
             />
+
             <FI
               label="Délai d’exécution"
               value={order.serviceLevel}
-              onChange={value => update('serviceLevel', value)}
+              onChange={value =>
+                update('serviceLevel', value)
+              }
               select
               opts={[
-                { value: 'NURG', label: 'Standard' },
+                {
+                  value: '',
+                  label: 'Sélectionner le délai',
+                },
+                {
+                  value: 'NURG',
+                  label: 'Standard',
+                },
                 {
                   value: 'SDVA',
                   label: 'Exécution le jour même',
                 },
-                { value: 'SEPA', label: 'Paiement SEPA' },
+                {
+                  value: 'SEPA',
+                  label: 'Paiement SEPA',
+                },
               ]}
             />
+
             <FI
               label="Référence facture / justificatif"
               value={order.refFacture}
-              onChange={value => update('refFacture', value)}
+              onChange={value =>
+                update('refFacture', value)
+              }
+              placeholder="Saisir une référence si disponible"
             />
+
             <div className="md:col-span-3">
               <FI
                 label="Observations"
                 value={order.observations}
-                onChange={value => update('observations', value)}
+                onChange={value =>
+                  update('observations', value)
+                }
                 multiline
                 rows={4}
-                placeholder="Observations de l’agence ou informations complémentaires destinées aux services centraux."
+                placeholder="Observations de l’agence ou informations complémentaires."
               />
             </div>
           </div>

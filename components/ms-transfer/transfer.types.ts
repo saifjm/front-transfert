@@ -126,7 +126,7 @@ export interface CounterValueResult {
 
 export interface PartyData {
   nomRaison: string;
-  type: PartyType;
+  type: PartyType | '';
   codePays: string;
   pays: string;
   townName: string;

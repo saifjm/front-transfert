@@ -60,9 +60,7 @@ export function PartyForm({
       item => item.alpha2 === countryCode,
     );
 
-    if (!country) {
-      return;
-    }
+    if (!country) return;
 
     onChange({
       ...value,
@@ -102,6 +100,10 @@ export function PartyForm({
           required
           opts={[
             {
+              value: '',
+              label: 'Sélectionner le type',
+            },
+            {
               value: 'PERSONNE_MORALE',
               label: 'Personne morale',
             },
@@ -111,7 +113,6 @@ export function PartyForm({
             },
           ]}
         />
-
 
         {countryLov ? (
           <div className="space-y-2 md:col-span-2">
@@ -292,7 +293,6 @@ export function PartyForm({
           }
         />
 
-
         <FI
           label="Type de pièce ou d’identifiant"
           value={value.typePiece}
@@ -310,7 +310,6 @@ export function PartyForm({
           }
           disabled={identifierReadOnly}
         />
-
       </div>
     </div>
   );
