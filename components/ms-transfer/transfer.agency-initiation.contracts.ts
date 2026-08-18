@@ -58,6 +58,7 @@ export interface AgencyPaymentModalityCommand {
 }
 
 export interface AgencyRegulatorySupportCommand {
+  /** Sequence of this support in the operation-level support collection. */
   sequenceNo: number;
   typeSupport: string;
   codeSupportBct: number;

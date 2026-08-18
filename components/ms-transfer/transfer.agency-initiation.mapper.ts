@@ -12,6 +12,10 @@ import type {
   PartyData,
   TransferSubmissionPayload,
 } from './transfer.types';
+import {
+  determineCommercialNatureOperationBct,
+  normalizeBctNatureCode,
+} from './transfer.regulatory';
 import { parseAmount } from './transfer.utils';
 
 const COUNTRY_ALPHA2_TO_NUMERIC: Record<string, string> = {
@@ -44,10 +48,6 @@ function requiredText(value: unknown, label: string): string {
   return normalized;
 }
 
-function optionalPositiveNumber(value: string): number | null {
-  const parsed = parseAmount(value);
-  return parsed > 0 ? parsed : null;
-}
 
 function toIsoDate(value: string, label: string): string {
   const normalized = requiredText(value, label);
@@ -247,57 +247,132 @@ function mapPaymentModality(
   };
 }
 
+
+function mapBctNatureCode(
+  payload: TransferSubmissionPayload,
+): string {
+  const receivedCode = normalizeBctNatureCode(
+    payload.regulatoryData.codeNatureOperationBct,
+  );
+
+  if (payload.transferType === 'commercial') {
+    const calculatedCode = determineCommercialNatureOperationBct(
+      payload.order.commercialValuationBasis,
+    );
+
+    // When calculable, use the authoritative frontend rule result.
+    // When not calculable, keep the value optional/non-blocking.
+    return calculatedCode ?? receivedCode;
+  }
+
+  return receivedCode;
+}
+
 function mapRegulatorySupport(
   payload: TransferSubmissionPayload,
+  allocation: import('./transfer.types').TceAllocation,
+  index: number,
 ): AgencyRegulatorySupportCommand {
+  const supportNumber = requiredText(
+    allocation.numDomi,
+    `Le numéro de domiciliation TCE ${index + 1}`,
+  );
+  const supportDate = toIsoDate(
+    allocation.dateDomi,
+    `La date de domiciliation TCE ${index + 1}`,
+  );
+  const beneficiaryCountry =
+    payload.order.beneficiaryBank.codePays
+    || payload.order.beneficiary.codePays;
+
+  if (
+    allocation.verificationState !== 'success'
+    || !allocation.appartient
+  ) {
+    throw new UserMessageError(
+      `Le TCE ${supportNumber} doit être vérifié et appartenir au client.`,
+    );
+  }
+
+  const allocatedAmount = parseAmount(allocation.montantAffecte);
+  if (allocatedAmount <= 0) {
+    throw new UserMessageError(
+      `Le montant affecté au TCE ${supportNumber} doit être strictement positif.`,
+    );
+  }
+
+  const availableAmount = parseAmount(
+    allocation.montantDisponibleControle,
+  );
+  if (availableAmount > 0 && allocatedAmount > availableAmount) {
+    throw new UserMessageError(
+      `Le montant affecté au TCE ${supportNumber} dépasse le disponible constaté.`,
+    );
+  }
+
+  return {
+    sequenceNo: index + 1,
+    typeSupport: 'TCE',
+    codeSupportBct: 3,
+    codeTitre: requiredText(
+      allocation.codeTitre,
+      `Le code titre TCE ${index + 1}`,
+    ),
+    numSupport: supportNumber,
+    dateSupport: supportDate,
+    numIdentification: supportNumber,
+    dateIdentification: supportDate,
+    codeNatureOperation: mapBctNatureCode(payload),
+    codePays: toCountryNumeric(beneficiaryCountry),
+    codeRd: '10',
+    modeReglement: 1,
+    deviseSupport: requiredText(
+      allocation.devise || payload.order.deviseOrdre,
+      `La devise du TCE ${index + 1}`,
+    ).toUpperCase(),
+    // The frontend sends one amount per attached title. Reservation and the
+    // authoritative remaining amount are still re-checked by the backend.
+    montantUtiliseCourant: allocatedAmount,
+    montantTnd: null,
+    coursConversion: null,
+  };
+}
+
+function mapRegulatorySupports(
+  payload: TransferSubmissionPayload,
+): AgencyRegulatorySupportCommand[] {
   if (payload.regulatorySupport.type !== 'TCE') {
     throw new UserMessageError(
       "La première intégration Agency Initiation couvre uniquement un transfert commercial adossé à un TCE.",
     );
   }
 
-  const tce = payload.regulatorySupport.tceResult;
-  if (!tce || tce.state !== 'success' || !tce.appartient) {
+  const allocations = payload.regulatorySupport.tceAllocations;
+  if (!allocations.length) {
     throw new UserMessageError(
-      "Le TCE doit être vérifié et appartenir au client avant la création du brouillon agence.",
+      'Au moins un TCE doit être rattaché avant la création du brouillon agence.',
     );
   }
 
-  const supportNumber = requiredText(
-    tce.numDomi,
-    'Le numéro de domiciliation TCE',
-  );
-  const supportDate = toIsoDate(tce.dateDomi, 'La date de domiciliation TCE');
-  const beneficiaryCountry =
-    payload.order.beneficiaryBank.codePays
-    || payload.order.beneficiary.codePays;
+  const seen = new Set<string>();
+  allocations.forEach(allocation => {
+    const key = [
+      allocation.codeTitre.trim().toUpperCase(),
+      allocation.numDomi.trim().toUpperCase(),
+      allocation.dateDomi.trim(),
+    ].join('|');
 
-  return {
-    sequenceNo: 1,
-    typeSupport: 'TCE',
-    codeSupportBct: 3,
-    codeTitre: requiredText(tce.codeTitre, 'Le code titre TCE'),
-    // The current frontend model exposes the domiciliation reference only.
-    // It is provisionally used as both support and identification reference.
-    numSupport: supportNumber,
-    dateSupport: supportDate,
-    numIdentification: supportNumber,
-    dateIdentification: supportDate,
-    codeNatureOperation: requiredText(
-      payload.regulatoryData.codeNatureOperation,
-      'Le code nature opération',
-    ),
-    codePays: toCountryNumeric(beneficiaryCountry),
-    codeRd: '10',
-    modeReglement: 1,
-    deviseSupport: requiredText(
-      tce.devise || payload.order.deviseOrdre,
-      'La devise du support',
-    ).toUpperCase(),
-    montantUtiliseCourant: null,
-    montantTnd: null,
-    coursConversion: null,
-  };
+    if (seen.has(key)) {
+      throw new UserMessageError(
+        `Le TCE ${allocation.numDomi} est rattaché plusieurs fois.`,
+      );
+    }
+    seen.add(key);
+  });
+
+  return allocations.map((allocation, index) =>
+    mapRegulatorySupport(payload, allocation, index)
+  );
 }
 
 export function buildAgencyInitiationCommand(
@@ -367,10 +442,7 @@ export function buildAgencyInitiationCommand(
         categoryPurposeCode,
         'La catégorie du paiement',
       ),
-      purposeCode: requiredText(
-        payload.regulatoryData.codeNatureOperation,
-        'Le code nature opération',
-      ),
+      purposeCode: mapBctNatureCode(payload),
       purposeProprietary: requiredText(
         payload.order.motifPaiement,
         'Le motif de paiement',
@@ -428,7 +500,7 @@ export function buildAgencyInitiationCommand(
       ),
     },
     regulatorySupports: {
-      supports: [mapRegulatorySupport(payload)],
+      supports: mapRegulatorySupports(payload),
     },
   };
 }

@@ -16,6 +16,11 @@ export type RegulatoryType =
 
 export type FxRateMode = 'NORMAL' | 'NEGOCIE' | 'TERME';
 
+export type CommercialValuationBasis =
+  | 'FOB_EQUIVALENT'
+  | 'CAF_EQUIVALENT'
+  | 'UNDETERMINED';
+
 export type ModalityType =
   | 'ACHAT_DEVISE_COMPTE_TND'
   | 'DEBIT_COMPTE_DEVISE'
@@ -186,6 +191,12 @@ export interface TransferOrder {
   chargeBearer: string;
   motifPaiement: string;
   observations: string;
+  /**
+   * Business input used to calculate the BCT nature code for eligible
+   * commercial transfers. It must ultimately come from authoritative
+   * operation/TCE data; the regulatory screen never lets the user edit it.
+   */
+  commercialValuationBasis?: CommercialValuationBasis;
   debtor: PartyData;
   ultimateDebtorEnabled: boolean;
   ultimateDebtor: PartyData;
@@ -226,7 +237,8 @@ export interface BctAuthorization {
 }
 
 export interface RegulatoryData {
-  codeNatureOperation: string;
+  /** BCT Balance of Payments nature code, always kept as four characters. */
+  codeNatureOperationBct: string;
   authorizationRequired: boolean;
   selectedAuthorizationId: string;
 }
@@ -242,6 +254,47 @@ export interface TCEResult {
   typeEchec?: string;
   codeErreur?: string;
   libelleErreur?: string;
+}
+
+export type TceReservationStatus =
+  | 'NOT_REQUESTED'
+  | 'PENDING'
+  | 'RESERVED'
+  | 'FAILED'
+  | 'RELEASED';
+
+/**
+ * Operational attachment of one TCE to the transfer.
+ *
+ * `montantDisponibleControle` is only the availability observed during the
+ * read-only DOMI verification. The backend must re-check the real remaining
+ * amount when reservation/validation is executed.
+ */
+export interface TceAllocation {
+  /** Stable frontend row identifier; never use the array index as identity. */
+  id: string;
+
+  codeTitre: string;
+  numDomi: string;
+  dateDomi: string;
+  devise: string;
+
+  /** Amount assigned by the operator to this title, expressed in devise. */
+  montantAffecte: string;
+
+  /** Control snapshot returned by the current by-title verification call. */
+  montantDisponibleControle: string;
+  appartient: boolean;
+  verificationState: TCEResult['state'];
+  checkedAt: string;
+
+  typeEchec?: string;
+  codeErreur?: string;
+  libelleErreur?: string;
+
+  reservationStatus?: TceReservationStatus;
+  reservationReference?: string;
+  reliquatApresReservation?: string;
 }
 
 export interface FicheInformationData {
@@ -262,8 +315,15 @@ export interface TceSearchData {
 export interface RegulatorySupportData {
   type: SupportType;
   ficheInformation: FicheInformationData;
+
+  /**
+   * Draft search form. It is not part of the persisted TCE collection.
+   * Each successful verification creates one independent TceAllocation.
+   */
   tceSearch: TceSearchData;
-  tceResult: TCEResult | null;
+
+  /** One transfer can affect one or several distinct TCE titles. */
+  tceAllocations: TceAllocation[];
 }
 
 export interface TransferListItem {

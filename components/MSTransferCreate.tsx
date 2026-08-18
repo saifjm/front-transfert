@@ -53,11 +53,16 @@ import { TypeBadge } from './ms-transfer/transfer.ui';
 import {
   clientToParty,
   isOrderComplete,
-  isSupportComplete,
 } from './ms-transfer/transfer.utils';
+import {
+  isRegulatorySupportComplete,
+} from './ms-transfer/transfer.tce';
 import {
   arePaymentModalitiesComplete,
 } from './ms-transfer/transfer.payment-modality';
+import {
+  isRegulatoryDataComplete,
+} from './ms-transfer/transfer.regulatory';
 import { ClientSection } from './ms-transfer/sections/ClientSection';
 import {
   NAVIGATION_ITEMS,
@@ -190,9 +195,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     );
 
   const regulatoryComplete = () =>
-    Boolean(regulatoryData.codeNatureOperation) &&
-    (!regulatoryData.authorizationRequired ||
-      Boolean(regulatoryData.selectedAuthorizationId));
+    isRegulatoryDataComplete(regulatoryData);
 
   const partyCountryIsValid = (
     party: PartyData,
@@ -297,7 +300,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     }
     if (currentSection === 3) return modalitiesComplete();
     if (currentSection === 4) return regulatoryComplete();
-    if (currentSection === 5) return isSupportComplete(support);
+    if (currentSection === 5) return isRegulatorySupportComplete(support, order);
     return true;
   };
 
@@ -363,7 +366,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setModalities(current => current.map(clearModalityAccountSelection));
 
     setRegulatoryData(INITIAL_REGULATORY_DATA);
-    setSupport(current => ({ ...current, tceResult: null }));
+    setSupport(current => ({ ...current, tceAllocations: [] }));
   };
 
   const handleClientAgencyChange = (agencyCode: string) => {
@@ -469,7 +472,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setRegulatoryData(INITIAL_REGULATORY_DATA);
     setSupport(current => ({
       ...current,
-      tceResult: null,
+      tceAllocations: [],
     }));
   };
 
@@ -696,6 +699,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
         {currentSection === 4 && (
           <RegulatoryDataSection
+            transferType={transferType}
+            order={order}
             client={client}
             value={regulatoryData}
             onChange={setRegulatoryData}
