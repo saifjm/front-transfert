@@ -1,25 +1,10 @@
 import type {
   BankData,
-  PartyData,
   TransferOrder,
 } from './transfer.types';
-
-export function createEmptyParty(): PartyData {
-  return {
-    nomRaison: '',
-    type: '',
-    codePays: '',
-    pays: '',
-    townName: '',
-    compte: '',
-    adresseLigne1: '',
-    adresseLigne2: '',
-    codePostal: '',
-    residence: '',
-    typePiece: '',
-    noPiece: '',
-  };
-}
+import {
+  createEmptyCbprParty,
+} from './transfer.cbpr-party';
 
 export function createEmptyBank(): BankData {
   return {
@@ -33,7 +18,10 @@ export function createEmptyBank(): BankData {
 }
 
 /**
- * Runtime creation state: no operational/business value is guessed.
+ * Runtime creation state.
+ *
+ * No amount, currency, party kind, address mode, country, identifier,
+ * beneficiary, bank or payment instruction has a default value.
  */
 export function createBlankTransferOrder(): TransferOrder {
   return {
@@ -50,15 +38,15 @@ export function createBlankTransferOrder(): TransferOrder {
     motifPaiement: '',
     observations: '',
 
-    debtor: createEmptyParty(),
+    debtor: createEmptyCbprParty(),
 
     ultimateDebtorEnabled: false,
-    ultimateDebtor: createEmptyParty(),
+    ultimateDebtor: createEmptyCbprParty(),
 
-    beneficiary: createEmptyParty(),
+    beneficiary: createEmptyCbprParty(),
 
     ultimateCreditorEnabled: false,
-    ultimateCreditor: createEmptyParty(),
+    ultimateCreditor: createEmptyCbprParty(),
 
     beneficiaryBank: createEmptyBank(),
   };

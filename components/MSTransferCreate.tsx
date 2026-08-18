@@ -53,9 +53,16 @@ import type {
 } from './ms-transfer/transfer.types';
 import { TypeBadge } from './ms-transfer/transfer.ui';
 import {
-  clientToParty,
-  isOrderComplete,
-} from './ms-transfer/transfer.utils';
+  clientToCbprParty,
+} from './ms-transfer/transfer.cbpr-party.adapters';
+import {
+  countryExists,
+  getPrimaryPartyCountryCode,
+  normalizeCbprParty,
+} from './ms-transfer/transfer.cbpr-party';
+import {
+  isCbprOrderComplete,
+} from './ms-transfer/transfer.cbpr-order';
 import {
   isRegulatorySupportComplete,
 } from './ms-transfer/transfer.tce';
@@ -201,24 +208,20 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     isRegulatoryDataComplete(regulatoryData);
 
   const partyCountryIsValid = (
-    party: PartyData,
+    party: PartyData | null | undefined,
     required: boolean,
   ) => {
-    const countryCode = String(
-      party?.codePays ?? '',
-    )
-      .trim()
-      .toUpperCase();
+    const normalizedParty = normalizeCbprParty(party);
+    const countryCode =
+      getPrimaryPartyCountryCode(normalizedParty);
 
     if (!countryCode) {
       return !required;
     }
 
-    return countries.some(
-      country =>
-        String(country.alpha2 ?? '')
-          .trim()
-          .toUpperCase() === countryCode,
+    return countryExists(
+      countries,
+      countryCode,
     );
   };
 
@@ -237,7 +240,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
   const debtorAccountIsValid = () => {
     const accountNumber = String(
-      order.debtor?.compte ?? '',
+      order.debtor?.account ?? '',
     ).trim();
     const agencyCode = normalizeAgencyCode(
       selectedClientAgency,
@@ -258,7 +261,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
   const orderValidationErrors = (): string[] => {
     const errors: string[] = [];
 
-    if (!isOrderComplete(order)) {
+    if (!isCbprOrderComplete(order)) {
       errors.push(
         'Certaines données obligatoires de l’ordre sont incomplètes.',
       );
@@ -352,8 +355,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       return {
         ...blankOrder,
         debtor: {
-          ...clientToParty(client),
-          compte: '',
+          ...clientToCbprParty(client),
+          account: '',
         },
       };
     });
@@ -383,8 +386,8 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
     setOrder(() => ({
       ...createBlankTransferOrder(),
       debtor: {
-        ...clientToParty(loadedClient),
-        compte: '',
+        ...clientToCbprParty(loadedClient),
+        account: '',
       },
     }));
 
@@ -404,7 +407,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
       ...current,
       debtor: {
         ...current.debtor,
-        compte: '',
+        account: '',
       },
     }));
     setModalities(current => current.map(clearModalityAccountSelection));
@@ -424,7 +427,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
 
     setOrder(current => {
       const currentDebtorAccount = String(
-        current.debtor?.compte ?? '',
+        current.debtor?.account ?? '',
       ).trim();
 
       // No explicit debit account selection: keep the form blank.
@@ -448,7 +451,7 @@ export function MSTransferCreate({ onNavigate }: MSTransferCreateProps) {
         ...current,
         debtor: {
           ...current.debtor,
-          compte: '',
+          account: '',
         },
       };
     });
