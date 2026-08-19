@@ -21,10 +21,8 @@ import type {
 import { FR, TypeBadge } from '../transfer.ui';
 import {
   calculateCoverage,
+  isOrderComplete,
 } from '../transfer.utils';
-import {
-  isCbprOrderComplete,
-} from '../transfer.cbpr-order';
 import {
   formatTceAllocationTotals,
   isRegulatorySupportComplete,
@@ -102,7 +100,7 @@ export function RecapSection({
       label: 'Compte commission sélectionné',
     },
     {
-      ok: isCbprOrderComplete(order),
+      ok: isOrderComplete(order),
       label: 'Données de l’ordre complètes',
     },
     {
@@ -205,19 +203,19 @@ export function RecapSection({
           <div className="space-y-3">
             <FR
               label="Bénéficiaire"
-              value={order.beneficiary.name}
+              value={order.beneficiary.nomRaison}
             />
             <FR
               label="Compte bénéficiaire"
               value={(
                 <span className="font-mono text-xs">
-                  {order.beneficiary.account}
+                  {order.beneficiary.compte}
                 </span>
               )}
             />
             <FR
               label="Ville / Pays"
-              value={`${order.beneficiary.postalAddress.townName || '—'} — ${order.beneficiary.countryOfResidence || order.beneficiary.postalAddress.country || '—'}`}
+              value={`${order.beneficiary.townName || '—'} — ${order.beneficiary.pays || '—'}`}
             />
             <FR
               label="Code BIC / Banque"

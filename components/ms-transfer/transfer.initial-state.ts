@@ -1,10 +1,16 @@
 import type {
   BankData,
+  PartyData,
   TransferOrder,
 } from './transfer.types';
+
 import {
-  createEmptyCbprParty,
-} from './transfer.cbpr-party';
+  createEmptyParty as createStructuredEmptyParty,
+} from './transfer.party-structured';
+
+export function createEmptyParty(): PartyData {
+  return createStructuredEmptyParty();
+}
 
 export function createEmptyBank(): BankData {
   return {
@@ -18,10 +24,8 @@ export function createEmptyBank(): BankData {
 }
 
 /**
- * Runtime creation state.
- *
- * No amount, currency, party kind, address mode, country, identifier,
- * beneficiary, bank or payment instruction has a default value.
+ * Runtime creation state: all four parties are created with the complete
+ * structured PartyData shape.
  */
 export function createBlankTransferOrder(): TransferOrder {
   return {
@@ -38,15 +42,15 @@ export function createBlankTransferOrder(): TransferOrder {
     motifPaiement: '',
     observations: '',
 
-    debtor: createEmptyCbprParty(),
+    debtor: createEmptyParty(),
 
     ultimateDebtorEnabled: false,
-    ultimateDebtor: createEmptyCbprParty(),
+    ultimateDebtor: createEmptyParty(),
 
-    beneficiary: createEmptyCbprParty(),
+    beneficiary: createEmptyParty(),
 
     ultimateCreditorEnabled: false,
-    ultimateCreditor: createEmptyCbprParty(),
+    ultimateCreditor: createEmptyParty(),
 
     beneficiaryBank: createEmptyBank(),
   };

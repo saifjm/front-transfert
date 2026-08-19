@@ -1,4 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, {
+  useRef,
+  useState,
+} from 'react';
 import {
   Building2,
   CheckCircle2,
@@ -7,7 +10,10 @@ import {
   UserRound,
 } from 'lucide-react';
 
-import { Alert, AlertDescription } from '../../ui/alert';
+import {
+  Alert,
+  AlertDescription,
+} from '../../ui/alert';
 import { Button } from '../../ui/button';
 import {
   Card,
@@ -21,28 +27,32 @@ import {
   beneficiaryIdentifierTypeLabel,
   searchBankClientBeneficiaries,
 } from '../transfer.beneficiary';
-import {
-  createEmptyCbprParty,
-  getPrefilledCbprPartyLockedFields,
-  normalizeCbprParty,
-  type CbprPartyFieldPath,
-} from '../transfer.cbpr-party';
 import { getUserMessage } from '../transfer.errors';
+import {
+  createEmptyParty,
+} from '../transfer.initial-state';
+import {
+  getPrefilledPartyLockedFields,
+  type PartyField,
+} from '../transfer.party-locks';
 import type {
   BankClientBeneficiaryCandidate,
-  CbprPartyData,
   CountryOption,
+  PartyData,
 } from '../transfer.types';
 import { FI } from '../transfer.ui';
-import { CbprPartyForm } from './CbprPartyForm';
+import { PartyForm } from './PartyForm';
 
-type BeneficiaryEntryMode = 'MANUAL' | 'BANK_CLIENT';
+type BeneficiaryEntryMode =
+  | 'MANUAL'
+  | 'BANK_CLIENT';
 
 interface BeneficiarySectionProps {
-  value: CbprPartyData;
+  value: PartyData;
   countries: CountryOption[];
   countriesLoading?: boolean;
-  onChange: (value: CbprPartyData) => void;
+  onChange:
+    (value: PartyData) => void;
 }
 
 export function BeneficiarySection({
@@ -51,57 +61,96 @@ export function BeneficiarySection({
   countriesLoading = false,
   onChange,
 }: BeneficiarySectionProps) {
-  const [mode, setMode] = useState<BeneficiaryEntryMode>('MANUAL');
-  const [searchValue, setSearchValue] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [searchPerformed, setSearchPerformed] = useState(false);
-  const [candidates, setCandidates] = useState<
+  const [mode, setMode] =
+    useState<BeneficiaryEntryMode>(
+      'MANUAL',
+    );
+
+  const [
+    searchValue,
+    setSearchValue,
+  ] = useState('');
+
+  const [
+    searching,
+    setSearching,
+  ] = useState(false);
+
+  const [
+    searchError,
+    setSearchError,
+  ] = useState('');
+
+  const [
+    searchPerformed,
+    setSearchPerformed,
+  ] = useState(false);
+
+  const [
+    candidates,
+    setCandidates,
+  ] = useState<
     BankClientBeneficiaryCandidate[]
   >([]);
-  const [selectedCandidateKey, setSelectedCandidateKey] = useState('');
-  const [lockedFields, setLockedFields] = useState<
-    CbprPartyFieldPath[]
-  >([]);
 
-  const requestSequenceRef = useRef(0);
+  const [
+    selectedCandidateKey,
+    setSelectedCandidateKey,
+  ] = useState('');
 
-  const manualDraftRef = useRef<CbprPartyData>(
-    normalizeCbprParty(value),
-  );
+  const [
+    bankClientLockedFields,
+    setBankClientLockedFields,
+  ] = useState<PartyField[]>([]);
+
+  const requestSequenceRef =
+    useRef(0);
+
+  const manualDraftRef =
+    useRef<PartyData>({
+      ...value,
+    });
 
   const handlePartyChange = (
-    nextValue: CbprPartyData,
+    nextValue: PartyData,
   ) => {
     onChange(nextValue);
 
     if (mode === 'MANUAL') {
-      manualDraftRef.current = {
-        ...nextValue,
-      };
+      manualDraftRef.current =
+        nextValue;
     }
   };
 
   const changeMode = (
-    nextMode: BeneficiaryEntryMode,
+    nextMode:
+      BeneficiaryEntryMode,
   ) => {
-    if (nextMode === mode) return;
+    if (nextMode === mode) {
+      return;
+    }
 
     setSearchError('');
 
-    if (nextMode === 'BANK_CLIENT') {
-      manualDraftRef.current = normalizeCbprParty(value);
+    if (
+      nextMode
+      === 'BANK_CLIENT'
+    ) {
+      manualDraftRef.current =
+        value;
 
-      onChange(createEmptyCbprParty());
+      onChange(
+        createEmptyParty(),
+      );
     } else {
-      onChange({
-        ...manualDraftRef.current,
-      });
+      onChange(
+        manualDraftRef.current,
+      );
     }
 
     setMode(nextMode);
     setSelectedCandidateKey('');
-    setLockedFields([]);
+    setBankClientLockedFields([]);
     setCandidates([]);
     setSearchPerformed(false);
     setSearchValue('');
@@ -112,11 +161,12 @@ export function BeneficiarySection({
   ) => {
     event?.preventDefault();
 
-    const normalizedSearchValue = String(
-      searchValue ?? '',
-    )
-      .trim()
-      .toUpperCase();
+    const normalizedSearchValue =
+      String(
+        searchValue ?? '',
+      )
+        .trim()
+        .toUpperCase();
 
     if (!normalizedSearchValue) {
       setSearchError(
@@ -138,7 +188,8 @@ export function BeneficiarySection({
       const results =
         await searchBankClientBeneficiaries(
           {
-            noPiece: normalizedSearchValue,
+            noPiece:
+              normalizedSearchValue,
           },
           countries,
         );
@@ -160,6 +211,7 @@ export function BeneficiarySection({
       }
 
       setCandidates([]);
+
       setSearchError(
         getUserMessage(
           reason,
@@ -177,36 +229,53 @@ export function BeneficiarySection({
   };
 
   const importCandidate = (
-    candidate: BankClientBeneficiaryCandidate,
+    candidate:
+      BankClientBeneficiaryCandidate,
   ) => {
-    if (!candidate.party) return;
+    if (!candidate.party) {
+      return;
+    }
 
-    const importedParty: CbprPartyData =
-      normalizeCbprParty(candidate.party);
+    const importedParty =
+      candidate.party;
 
     onChange(importedParty);
-    setSelectedCandidateKey(candidate.key);
 
-    // Every actual customer-file value is read-only except Nm.
-    setLockedFields(
-      getPrefilledCbprPartyLockedFields(
+    setSelectedCandidateKey(
+      candidate.key,
+    );
+
+    setBankClientLockedFields(
+      getPrefilledPartyLockedFields(
         importedParty,
+        ['nomRaison'],
       ),
     );
   };
 
+  const partyLockedFields =
+    mode === 'BANK_CLIENT'
+      ? bankClientLockedFields
+      : [];
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bénéficiaire — Cdtr</CardTitle>
+        <CardTitle>
+          Bénéficiaire
+        </CardTitle>
+
         <CardDescription>
-          Structure CBPR+ avec saisie manuelle ou import d’un client de
-          la banque.
+          Sélectionnez un client de la banque ou renseignez un bénéficiaire manuellement.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Mode de saisie du bénéficiaire"
+        >
           <Button
             type="button"
             variant={
@@ -214,7 +283,9 @@ export function BeneficiarySection({
                 ? 'default'
                 : 'outline'
             }
-            onClick={() => changeMode('MANUAL')}
+            onClick={() =>
+              changeMode('MANUAL')
+            }
           >
             <UserRound className="mr-2 h-4 w-4" />
             Saisie manuelle
@@ -228,7 +299,9 @@ export function BeneficiarySection({
                 : 'outline'
             }
             onClick={() =>
-              changeMode('BANK_CLIENT')
+              changeMode(
+                'BANK_CLIENT',
+              )
             }
           >
             <Building2 className="mr-2 h-4 w-4" />
@@ -240,20 +313,29 @@ export function BeneficiarySection({
           <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
             <form
               className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]"
-              onSubmit={searchBeneficiary}
+              onSubmit={
+                searchBeneficiary
+              }
             >
               <FI
                 label="Numéro de pièce / identifiant client"
                 value={searchValue}
-                onChange={fieldValue => {
-                  setSearchValue(
-                    String(fieldValue ?? '')
-                      .toUpperCase(),
-                  );
-                  setSearchError('');
-                  setSearchPerformed(false);
-                  setCandidates([]);
-                }}
+                onChange={
+                  fieldValue => {
+                    setSearchValue(
+                      String(
+                        fieldValue
+                        ?? '',
+                      )
+                        .toUpperCase(),
+                    );
+                    setSearchError('');
+                    setSearchPerformed(
+                      false,
+                    );
+                    setCandidates([]);
+                  }
+                }
                 placeholder="Saisir l’identifiant"
               />
 
@@ -286,7 +368,8 @@ export function BeneficiarySection({
             {!searching
               && searchPerformed
               && !searchError
-              && candidates.length === 0
+              && candidates.length
+                === 0
               && (
                 <Alert>
                   <AlertDescription>
@@ -295,84 +378,98 @@ export function BeneficiarySection({
                 </Alert>
               )}
 
-            {candidates.length > 0 && (
-              <div className="space-y-2">
-                {candidates.map(candidate => {
-                  const selected =
-                    selectedCandidateKey
-                    === candidate.key;
+            {candidates.length
+              > 0
+              && (
+                <div className="space-y-2">
+                  {candidates.map(
+                    candidate => {
+                      const selected =
+                        selectedCandidateKey
+                        === candidate.key;
 
-                  return (
-                    <div
-                      key={candidate.key}
-                      className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {candidate.nomRaison
-                            || 'Client sans libellé'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {beneficiaryIdentifierTypeLabel(
-                            candidate.typePiece,
-                            candidate.numericTypePiece,
-                          )}
-                          {' — '}
-                          {candidate.noPiece || '—'}
-                        </p>
-                      </div>
+                      return (
+                        <div
+                          key={
+                            candidate.key
+                          }
+                          className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium">
+                              {candidate.nomRaison
+                                || 'Client sans libellé'}
+                            </p>
 
-                      <Button
-                        type="button"
-                        variant={
-                          selected
-                            ? 'outline'
-                            : 'default'
-                        }
-                        disabled={!candidate.supported}
-                        onClick={() =>
-                          importCandidate(candidate)
-                        }
-                      >
-                        {selected && (
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                        )}
-                        {selected
-                          ? 'Importé'
-                          : 'Importer'}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                            <p className="text-xs text-muted-foreground">
+                              {beneficiaryIdentifierTypeLabel(
+                                candidate.typePiece,
+                                candidate.numericTypePiece,
+                              )}
+                              {' — '}
+                              {candidate.noPiece
+                                || '—'}
+                            </p>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant={
+                              selected
+                                ? 'outline'
+                                : 'default'
+                            }
+                            disabled={
+                              !candidate.supported
+                            }
+                            onClick={() =>
+                              importCandidate(
+                                candidate,
+                              )
+                            }
+                          >
+                            {selected && (
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                            )}
+                            {selected
+                              ? 'Importé'
+                              : 'Importer'}
+                          </Button>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              )}
 
             {selectedCandidateKey && (
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Les champs réellement importés depuis la fiche client
-                  sont en lecture seule, sauf « Nom et prénom / Raison
-                  sociale ». Les champs absents restent complétables.
+                  Les données effectivement importées depuis la fiche client sont en lecture seule, sauf le champ « Nom et prénom / Raison sociale ». Les champs non fournis restent complétables.
                 </AlertDescription>
               </Alert>
             )}
           </div>
         )}
 
-        <CbprPartyForm
+        <PartyForm
           title="Informations du bénéficiaire"
-          role="CREDITOR"
-          value={normalizeCbprParty(value)}
-          onChange={handlePartyChange}
-          countries={countries}
-          countriesLoading={countriesLoading}
-          accountRequired
+          value={value}
+          onChange={
+            handlePartyChange
+          }
+          beneficiary
+          countryLov
+          countryOptions={
+            countries
+          }
+          countryLoading={
+            countriesLoading
+          }
           countryRequired
           lockedFields={
-            mode === 'BANK_CLIENT'
-              ? lockedFields
-              : []
+            partyLockedFields
           }
         />
       </CardContent>
