@@ -1,69 +1,157 @@
-import type { PartyData } from './transfer.types';
+import type {
+  PartyData,
+} from './transfer.types';
 
-export type PartyField = keyof PartyData;
+export type PartyField =
+  | 'nomRaison'
+  | 'type'
+  | 'compte'
+  | 'countryOfResidence'
+  | `postalAddress.${keyof PartyData['postalAddress']}`
+  | `organisationIdentification.anyBic`
+  | `organisationIdentification.lei`
+  | `organisationIdentification.other.${number}.id`
+  | `organisationIdentification.other.${number}.schemeName.code`
+  | `organisationIdentification.other.${number}.schemeName.proprietary`
+  | `organisationIdentification.other.${number}.issuer`
+  | `privateIdentification.dateAndPlaceOfBirth.${keyof PartyData['privateIdentification']['dateAndPlaceOfBirth']}`
+  | `privateIdentification.other.${number}.id`
+  | `privateIdentification.other.${number}.schemeName.code`
+  | `privateIdentification.other.${number}.schemeName.proprietary`
+  | `privateIdentification.other.${number}.issuer`;
 
-const PARTY_FIELDS: readonly PartyField[] = [
-  'nomRaison',
-  'type',
-  'codePays',
-  'pays',
-  'townName',
-  'compte',
-  'adresseLigne1',
-  'adresseLigne2',
-  'codePostal',
-  'residence',
-  'typePiece',
-  'noPiece',
-];
+function hasValue(
+  value: unknown,
+): boolean {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
 
-function hasPrefilledValue(value: unknown): boolean {
-  return String(value ?? '').trim() !== '';
+  return (
+    value != null
+    && String(value).trim() !== ''
+  );
+}
+
+function collectLockedPaths(
+  value: unknown,
+  prefix: string,
+  editable: ReadonlySet<string>,
+  result: Set<PartyField>,
+) {
+  if (
+    value == null
+    || editable.has(prefix)
+  ) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(
+      (item, index) => {
+        collectLockedPaths(
+          item,
+          `${prefix}.${index}`,
+          editable,
+          result,
+        );
+      },
+    );
+    return;
+  }
+
+  if (
+    typeof value === 'object'
+  ) {
+    Object.entries(
+      value as Record<string, unknown>,
+    ).forEach(
+      ([key, child]) => {
+        const path =
+          prefix
+            ? `${prefix}.${key}`
+            : key;
+
+        collectLockedPaths(
+          child,
+          path,
+          editable,
+          result,
+        );
+      },
+    );
+    return;
+  }
+
+  if (
+    prefix
+    && hasValue(value)
+  ) {
+    result.add(
+      prefix as PartyField,
+    );
+  }
 }
 
 /**
- * Returns the fields which must be protected because their value came from
- * an authoritative customer-file lookup.
- *
- * Important:
- * - `nomRaison` is deliberately editable even when prefilled.
- * - missing customer-file values remain editable so the agent can complete
- *   the operation without inventing a value at import time.
- * - country code + label are treated atomically.
+ * Locks only values that were actually prefilled by the authoritative source.
+ * Nom / raison sociale stays editable by default.
  */
 export function getPrefilledPartyLockedFields(
-  source: PartyData | null | undefined,
-  editablePrefilledFields: readonly PartyField[] = ['nomRaison'],
+  source:
+    | PartyData
+    | null
+    | undefined,
+  editablePrefilledFields:
+    readonly PartyField[]
+      = ['nomRaison'],
 ): PartyField[] {
-  if (!source) return [];
-
-  const editable = new Set<PartyField>(editablePrefilledFields);
-  const locked = new Set<PartyField>();
-
-  for (const field of PARTY_FIELDS) {
-    if (
-      !editable.has(field)
-      && hasPrefilledValue(source[field])
-    ) {
-      locked.add(field);
-    }
+  if (!source) {
+    return [];
   }
 
-  const countryWasPrefilled =
-    hasPrefilledValue(source.codePays)
-    || hasPrefilledValue(source.pays);
+  const editable =
+    new Set<string>(
+      editablePrefilledFields,
+    );
 
-  if (countryWasPrefilled) {
-    if (!editable.has('codePays')) locked.add('codePays');
-    if (!editable.has('pays')) locked.add('pays');
-  }
+  const result =
+    new Set<PartyField>();
 
-  return [...locked];
+  collectLockedPaths(
+    source,
+    '',
+    editable,
+    result,
+  );
+
+  return [...result];
 }
 
 export function isPartyFieldLocked(
-  lockedFields: readonly PartyField[] | undefined,
+  lockedFields:
+    | readonly PartyField[]
+    | undefined,
   field: PartyField,
 ): boolean {
-  return Boolean(lockedFields?.includes(field));
+  return Boolean(
+    lockedFields?.includes(field),
+  );
+}
+
+export function isPartySubtreeLocked(
+  lockedFields:
+    | readonly PartyField[]
+    | undefined,
+  prefix: string,
+): boolean {
+  return Boolean(
+    lockedFields?.some(
+      field =>
+        field === prefix
+        || field.startsWith(
+          `${prefix}.`,
+        ),
+    ),
+  );
 }

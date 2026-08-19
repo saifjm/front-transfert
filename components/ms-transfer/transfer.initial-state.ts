@@ -4,21 +4,12 @@ import type {
   TransferOrder,
 } from './transfer.types';
 
+import {
+  createEmptyParty as createStructuredEmptyParty,
+} from './transfer.party-structured';
+
 export function createEmptyParty(): PartyData {
-  return {
-    nomRaison: '',
-    type: '',
-    codePays: '',
-    pays: '',
-    townName: '',
-    compte: '',
-    adresseLigne1: '',
-    adresseLigne2: '',
-    codePostal: '',
-    residence: '',
-    typePiece: '',
-    noPiece: '',
-  };
+  return createStructuredEmptyParty();
 }
 
 export function createEmptyBank(): BankData {
@@ -33,7 +24,8 @@ export function createEmptyBank(): BankData {
 }
 
 /**
- * Runtime creation state: no operational/business value is guessed.
+ * Runtime creation state: all four parties are created with the complete
+ * structured PartyData shape.
  */
 export function createBlankTransferOrder(): TransferOrder {
   return {

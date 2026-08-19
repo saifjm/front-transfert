@@ -124,19 +124,132 @@ export interface CounterValueResult {
   dateValeur?: string;
 }
 
-export interface PartyData {
-  nomRaison: string;
-  type: PartyType | '';
-  codePays: string;
-  pays: string;
+export interface PartyIdentificationScheme {
+  code: string;
+  proprietary: string;
+}
+
+export interface PartyOtherIdentification {
+  id: string;
+  schemeName: PartyIdentificationScheme;
+  issuer: string;
+}
+
+export interface PartyPostalAddress {
+  /** Dept */
+  department: string;
+
+  /** SubDept */
+  subDepartment: string;
+
+  /** StrtNm */
+  streetName: string;
+
+  /** BldgNb */
+  buildingNumber: string;
+
+  /** BldgNm */
+  buildingName: string;
+
+  /** Flr */
+  floor: string;
+
+  /** PstBx */
+  postBox: string;
+
+  /** Room */
+  room: string;
+
+  /** PstCd */
+  postCode: string;
+
+  /** TwnNm */
   townName: string;
+
+  /** TwnLctnNm */
+  townLocationName: string;
+
+  /** DstrctNm */
+  districtName: string;
+
+  /** CtrySubDvsn */
+  countrySubDivision: string;
+
+  /** Ctry — ISO 3166 alpha-2 */
+  country: string;
+}
+
+export interface PartyOrganisationIdentification {
+  /** AnyBIC */
+  anyBic: string;
+
+  /** LEI */
+  lei: string;
+
+  /** Othr */
+  other: PartyOtherIdentification[];
+}
+
+export interface PartyDateAndPlaceOfBirth {
+  /** BirthDt */
+  birthDate: string;
+
+  /** PrvcOfBirth */
+  provinceOfBirth: string;
+
+  /** CityOfBirth */
+  cityOfBirth: string;
+
+  /** CtryOfBirth — ISO 3166 alpha-2 */
+  countryOfBirth: string;
+}
+
+export interface PartyPrivateIdentification {
+  /** DtAndPlcOfBirth */
+  dateAndPlaceOfBirth: PartyDateAndPlaceOfBirth;
+
+  /** Othr */
+  other: PartyOtherIdentification[];
+}
+
+/**
+ * Common transfer-party model used by:
+ * - debtor
+ * - ultimate debtor
+ * - creditor
+ * - ultimate creditor
+ *
+ * The postal address is structured only.
+ * Legacy free-form address lines are intentionally removed.
+ */
+export interface PartyData {
+  /** Nm — max. 140 characters */
+  nomRaison: string;
+
+  /**
+   * Selects the exclusive identification branch:
+   * - PERSONNE_MORALE -> organisationIdentification
+   * - PERSONNE_PHYSIQUE -> privateIdentification
+   */
+  type: PartyType | '';
+
+  /**
+   * Operational account / IBAN used by MS-TR.
+   * It is not part of the party-identification XML structure itself.
+   */
   compte: string;
-  adresseLigne1: string;
-  adresseLigne2: string;
-  codePostal: string;
-  residence: 'RESIDENT' | 'NON_RESIDENT' | '';
-  typePiece: string;
-  noPiece: string;
+
+  /** PstlAdr */
+  postalAddress: PartyPostalAddress;
+
+  /** Id / OrgId */
+  organisationIdentification: PartyOrganisationIdentification;
+
+  /** Id / PrvtId */
+  privateIdentification: PartyPrivateIdentification;
+
+  /** CtryOfRes — ISO 3166 alpha-2 */
+  countryOfResidence: string;
 }
 
 /**

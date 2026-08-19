@@ -1,4 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, {
+  useRef,
+  useState,
+} from 'react';
 import {
   Building2,
   CheckCircle2,
@@ -7,7 +10,10 @@ import {
   UserRound,
 } from 'lucide-react';
 
-import { Alert, AlertDescription } from '../../ui/alert';
+import {
+  Alert,
+  AlertDescription,
+} from '../../ui/alert';
 import { Button } from '../../ui/button';
 import {
   Card,
@@ -37,13 +43,16 @@ import type {
 import { FI } from '../transfer.ui';
 import { PartyForm } from './PartyForm';
 
-type BeneficiaryEntryMode = 'MANUAL' | 'BANK_CLIENT';
+type BeneficiaryEntryMode =
+  | 'MANUAL'
+  | 'BANK_CLIENT';
 
 interface BeneficiarySectionProps {
   value: PartyData;
   countries: CountryOption[];
   countriesLoading?: boolean;
-  onChange: (value: PartyData) => void;
+  onChange:
+    (value: PartyData) => void;
 }
 
 export function BeneficiarySection({
@@ -52,81 +61,112 @@ export function BeneficiarySection({
   countriesLoading = false,
   onChange,
 }: BeneficiarySectionProps) {
-  const [mode, setMode] = useState<BeneficiaryEntryMode>('MANUAL');
-  const [searchValue, setSearchValue] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [searchPerformed, setSearchPerformed] = useState(false);
-  const [candidates, setCandidates] = useState<
+  const [mode, setMode] =
+    useState<BeneficiaryEntryMode>(
+      'MANUAL',
+    );
+
+  const [
+    searchValue,
+    setSearchValue,
+  ] = useState('');
+
+  const [
+    searching,
+    setSearching,
+  ] = useState(false);
+
+  const [
+    searchError,
+    setSearchError,
+  ] = useState('');
+
+  const [
+    searchPerformed,
+    setSearchPerformed,
+  ] = useState(false);
+
+  const [
+    candidates,
+    setCandidates,
+  ] = useState<
     BankClientBeneficiaryCandidate[]
   >([]);
-  const [selectedCandidateKey, setSelectedCandidateKey] = useState('');
-  const [bankClientLockedFields, setBankClientLockedFields] = useState<
-    PartyField[]
-  >([]);
 
-  const requestSequenceRef = useRef(0);
+  const [
+    selectedCandidateKey,
+    setSelectedCandidateKey,
+  ] = useState('');
 
-  /**
-   * Keep the manual beneficiary draft separate from imported bank-client data.
-   * Switching back to MANUAL cannot be used to unlock/alter an imported
-   * customer-file record.
-   */
-  const manualDraftRef = useRef<PartyData>({
-    ...value,
-  });
+  const [
+    bankClientLockedFields,
+    setBankClientLockedFields,
+  ] = useState<PartyField[]>([]);
 
-  const handlePartyChange = (nextValue: PartyData) => {
+  const requestSequenceRef =
+    useRef(0);
+
+  const manualDraftRef =
+    useRef<PartyData>({
+      ...value,
+    });
+
+  const handlePartyChange = (
+    nextValue: PartyData,
+  ) => {
     onChange(nextValue);
 
     if (mode === 'MANUAL') {
-      manualDraftRef.current = {
-        ...nextValue,
-      };
+      manualDraftRef.current =
+        nextValue;
     }
   };
 
-  const changeMode = (nextMode: BeneficiaryEntryMode) => {
-    if (nextMode === mode) return;
+  const changeMode = (
+    nextMode:
+      BeneficiaryEntryMode,
+  ) => {
+    if (nextMode === mode) {
+      return;
+    }
 
     setSearchError('');
 
-    if (nextMode === 'BANK_CLIENT') {
-      manualDraftRef.current = {
-        ...value,
-      };
+    if (
+      nextMode
+      === 'BANK_CLIENT'
+    ) {
+      manualDraftRef.current =
+        value;
 
-      // Bank-client mode starts without imported customer data.
-      onChange(createEmptyParty());
-      setSelectedCandidateKey('');
-      setBankClientLockedFields([]);
-      setCandidates([]);
-      setSearchPerformed(false);
-      setSearchValue('');
+      onChange(
+        createEmptyParty(),
+      );
     } else {
-      // Restore the independent manual draft instead of making imported
-      // customer-file fields editable.
-      onChange({
-        ...manualDraftRef.current,
-      });
-      setSelectedCandidateKey('');
-      setBankClientLockedFields([]);
-      setCandidates([]);
-      setSearchPerformed(false);
-      setSearchValue('');
+      onChange(
+        manualDraftRef.current,
+      );
     }
 
     setMode(nextMode);
+    setSelectedCandidateKey('');
+    setBankClientLockedFields([]);
+    setCandidates([]);
+    setSearchPerformed(false);
+    setSearchValue('');
   };
 
-  const searchBeneficiary = async (event?: React.FormEvent) => {
+  const searchBeneficiary = async (
+    event?: React.FormEvent,
+  ) => {
     event?.preventDefault();
 
-    const normalizedSearchValue = String(
-      searchValue ?? '',
-    )
-      .trim()
-      .toUpperCase();
+    const normalizedSearchValue =
+      String(
+        searchValue ?? '',
+      )
+        .trim()
+        .toUpperCase();
 
     if (!normalizedSearchValue) {
       setSearchError(
@@ -137,30 +177,41 @@ export function BeneficiarySection({
       return;
     }
 
-    const requestSequence = ++requestSequenceRef.current;
+    const requestSequence =
+      ++requestSequenceRef.current;
+
     setSearching(true);
     setSearchError('');
     setSearchPerformed(true);
 
     try {
-      const results = await searchBankClientBeneficiaries(
-        {
-          noPiece: normalizedSearchValue,
-        },
-        countries,
-      );
+      const results =
+        await searchBankClientBeneficiaries(
+          {
+            noPiece:
+              normalizedSearchValue,
+          },
+          countries,
+        );
 
-      if (requestSequence !== requestSequenceRef.current) {
+      if (
+        requestSequence
+        !== requestSequenceRef.current
+      ) {
         return;
       }
 
       setCandidates(results);
     } catch (reason) {
-      if (requestSequence !== requestSequenceRef.current) {
+      if (
+        requestSequence
+        !== requestSequenceRef.current
+      ) {
         return;
       }
 
       setCandidates([]);
+
       setSearchError(
         getUserMessage(
           reason,
@@ -168,23 +219,31 @@ export function BeneficiarySection({
         ),
       );
     } finally {
-      if (requestSequence === requestSequenceRef.current) {
+      if (
+        requestSequence
+        === requestSequenceRef.current
+      ) {
         setSearching(false);
       }
     }
   };
 
   const importCandidate = (
-    candidate: BankClientBeneficiaryCandidate,
+    candidate:
+      BankClientBeneficiaryCandidate,
   ) => {
-    if (!candidate.party) return;
+    if (!candidate.party) {
+      return;
+    }
 
-    const importedParty = {
-      ...candidate.party,
-    };
+    const importedParty =
+      candidate.party;
 
     onChange(importedParty);
-    setSelectedCandidateKey(candidate.key);
+
+    setSelectedCandidateKey(
+      candidate.key,
+    );
 
     setBankClientLockedFields(
       getPrefilledPartyLockedFields(
@@ -202,10 +261,12 @@ export function BeneficiarySection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bénéficiaire</CardTitle>
+        <CardTitle>
+          Bénéficiaire
+        </CardTitle>
+
         <CardDescription>
-          Sélectionnez un client de la banque ou renseignez un
-          bénéficiaire manuellement.
+          Sélectionnez un client de la banque ou renseignez un bénéficiaire manuellement.
         </CardDescription>
       </CardHeader>
 
@@ -217,8 +278,14 @@ export function BeneficiarySection({
         >
           <Button
             type="button"
-            variant={mode === 'MANUAL' ? 'default' : 'outline'}
-            onClick={() => changeMode('MANUAL')}
+            variant={
+              mode === 'MANUAL'
+                ? 'default'
+                : 'outline'
+            }
+            onClick={() =>
+              changeMode('MANUAL')
+            }
           >
             <UserRound className="mr-2 h-4 w-4" />
             Saisie manuelle
@@ -226,8 +293,16 @@ export function BeneficiarySection({
 
           <Button
             type="button"
-            variant={mode === 'BANK_CLIENT' ? 'default' : 'outline'}
-            onClick={() => changeMode('BANK_CLIENT')}
+            variant={
+              mode === 'BANK_CLIENT'
+                ? 'default'
+                : 'outline'
+            }
+            onClick={() =>
+              changeMode(
+                'BANK_CLIENT',
+              )
+            }
           >
             <Building2 className="mr-2 h-4 w-4" />
             Client de la banque
@@ -236,40 +311,41 @@ export function BeneficiarySection({
 
         {mode === 'BANK_CLIENT' && (
           <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-            <div>
-              <p className="text-sm font-medium">
-                Rechercher un client de la banque
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Pour cette version, la recherche utilise le numéro de
-                pièce ou l’identifiant client. La sélection reste explicite
-                lorsqu’un ou plusieurs résultats sont retournés.
-              </p>
-            </div>
-
             <form
               className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]"
-              onSubmit={searchBeneficiary}
+              onSubmit={
+                searchBeneficiary
+              }
             >
               <FI
                 label="Numéro de pièce / identifiant client"
                 value={searchValue}
-                onChange={fieldValue => {
-                  setSearchValue(
-                    String(fieldValue ?? '').toUpperCase(),
-                  );
-                  setSearchError('');
-                  setSearchPerformed(false);
-                  setCandidates([]);
-                }}
+                onChange={
+                  fieldValue => {
+                    setSearchValue(
+                      String(
+                        fieldValue
+                        ?? '',
+                      )
+                        .toUpperCase(),
+                    );
+                    setSearchError('');
+                    setSearchPerformed(
+                      false,
+                    );
+                    setCandidates([]);
+                  }
+                }
                 placeholder="Saisir l’identifiant"
               />
 
               <div className="flex items-end">
                 <Button
                   type="submit"
-                  className="w-full md:w-auto"
-                  disabled={searching || countriesLoading}
+                  disabled={
+                    searching
+                    || countriesLoading
+                  }
                 >
                   {searching ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -280,12 +356,6 @@ export function BeneficiarySection({
                 </Button>
               </div>
             </form>
-
-            {countriesLoading && (
-              <p className="text-xs text-muted-foreground">
-                Chargement du référentiel pays avant la recherche…
-              </p>
-            )}
 
             {searchError && (
               <Alert variant="destructive">
@@ -298,7 +368,8 @@ export function BeneficiarySection({
             {!searching
               && searchPerformed
               && !searchError
-              && candidates.length === 0
+              && candidates.length
+                === 0
               && (
                 <Alert>
                   <AlertDescription>
@@ -307,85 +378,75 @@ export function BeneficiarySection({
                 </Alert>
               )}
 
-            {candidates.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium">
-                  Résultats ({candidates.length})
-                </p>
-
+            {candidates.length
+              > 0
+              && (
                 <div className="space-y-2">
-                  {candidates.map(candidate => {
-                    const selected =
-                      selectedCandidateKey === candidate.key;
+                  {candidates.map(
+                    candidate => {
+                      const selected =
+                        selectedCandidateKey
+                        === candidate.key;
 
-                    return (
-                      <div
-                        key={candidate.key}
-                        className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
-                      >
-                        <div className="min-w-0 space-y-1">
-                          <p className="font-medium">
-                            {candidate.nomRaison || 'Client sans libellé'}
-                          </p>
+                      return (
+                        <div
+                          key={
+                            candidate.key
+                          }
+                          className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium">
+                              {candidate.nomRaison
+                                || 'Client sans libellé'}
+                            </p>
 
-                          <p className="text-xs text-muted-foreground">
-                            {beneficiaryIdentifierTypeLabel(
-                              candidate.typePiece,
-                              candidate.numericTypePiece,
-                            )}
-                            {' — '}
-                            {candidate.noPiece
-                              || 'Identifiant non renseigné'}
-                          </p>
-
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span>
-                              Nationalité :{' '}
-                              {candidate.nationalite || '—'}
-                            </span>
-                            <span>
-                              Référence client :{' '}
-                              {candidate.internalReference || '—'}
-                            </span>
+                            <p className="text-xs text-muted-foreground">
+                              {beneficiaryIdentifierTypeLabel(
+                                candidate.typePiece,
+                                candidate.numericTypePiece,
+                              )}
+                              {' — '}
+                              {candidate.noPiece
+                                || '—'}
+                            </p>
                           </div>
 
-                          {!candidate.supported && (
-                            <p className="text-xs text-destructive">
-                              Le type de pièce retourné n’est pas encore
-                              pris en charge par MS-TR.
-                            </p>
-                          )}
+                          <Button
+                            type="button"
+                            variant={
+                              selected
+                                ? 'outline'
+                                : 'default'
+                            }
+                            disabled={
+                              !candidate.supported
+                            }
+                            onClick={() =>
+                              importCandidate(
+                                candidate,
+                              )
+                            }
+                          >
+                            {selected && (
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                            )}
+                            {selected
+                              ? 'Importé'
+                              : 'Importer'}
+                          </Button>
                         </div>
-
-                        <Button
-                          type="button"
-                          variant={selected ? 'outline' : 'default'}
-                          disabled={!candidate.supported}
-                          onClick={() =>
-                            importCandidate(candidate)
-                          }
-                        >
-                          {selected && (
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                          )}
-                          {selected ? 'Importé' : 'Importer'}
-                        </Button>
-                      </div>
-                    );
-                  })}
+                      );
+                    },
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
             {selectedCandidateKey && (
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Les données effectivement importées depuis la fiche
-                  client sont en lecture seule, sauf le champ
-                  « Nom et prénom / Raison sociale ». Les champs non fournis
-                  par la fiche client restent modifiables afin de pouvoir
-                  compléter l’opération.
+                  Les données effectivement importées depuis la fiche client sont en lecture seule, sauf le champ « Nom et prénom / Raison sociale ». Les champs non fournis restent complétables.
                 </AlertDescription>
               </Alert>
             )}
@@ -395,13 +456,21 @@ export function BeneficiarySection({
         <PartyForm
           title="Informations du bénéficiaire"
           value={value}
-          onChange={handlePartyChange}
+          onChange={
+            handlePartyChange
+          }
           beneficiary
           countryLov
-          countryOptions={countries}
-          countryLoading={countriesLoading}
+          countryOptions={
+            countries
+          }
+          countryLoading={
+            countriesLoading
+          }
           countryRequired
-          lockedFields={partyLockedFields}
+          lockedFields={
+            partyLockedFields
+          }
         />
       </CardContent>
     </Card>
