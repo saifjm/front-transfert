@@ -124,111 +124,20 @@ export interface CounterValueResult {
   dateValeur?: string;
 }
 
-export type CbprPartyKind =
-  | ''
-  | 'ORGANISATION'
-  | 'PRIVATE_PERSON';
-
-export type TransferPartyRole =
-  | 'DEBTOR'
-  | 'ULTIMATE_DEBTOR'
-  | 'CREDITOR'
-  | 'ULTIMATE_CREDITOR';
-
-export type CbprAddressMode =
-  | ''
-  | 'STRUCTURED'
-  | 'ADDRESS_LINES';
-
-export interface CbprSchemeName {
-  /** ISO/CBPR+ coded scheme name when a standard code is used. */
-  code: string;
-  /** Proprietary scheme name when no standard code is used. */
-  proprietary: string;
-}
-
-export interface CbprOtherIdentification {
-  id: string;
-  schemeName: CbprSchemeName;
-  issuer: string;
-}
-
-export interface CbprOrganisationIdentification {
-  anyBic: string;
-  lei: string;
-  other: CbprOtherIdentification[];
-}
-
-export interface CbprDateAndPlaceOfBirth {
-  birthDate: string;
-  provinceOfBirth: string;
-  cityOfBirth: string;
-  countryOfBirth: string;
-}
-
-export interface CbprPrivateIdentification {
-  dateAndPlaceOfBirth: CbprDateAndPlaceOfBirth;
-  other: CbprOtherIdentification[];
-}
-
-export interface CbprPostalAddress {
-  department: string;
-  subDepartment: string;
-  streetName: string;
-  buildingNumber: string;
-  buildingName: string;
-  floor: string;
-  postBox: string;
-  room: string;
-  postCode: string;
+export interface PartyData {
+  nomRaison: string;
+  type: PartyType | '';
+  codePays: string;
+  pays: string;
   townName: string;
-  townLocationName: string;
-  districtName: string;
-  countrySubDivision: string;
-  country: string;
-
-  /**
-   * Alternative to the structured-address fields.
-   * Maximum 7 lines, maximum 70 characters per line in the UI.
-   */
-  addressLines: string[];
+  compte: string;
+  adresseLigne1: string;
+  adresseLigne2: string;
+  codePostal: string;
+  residence: 'RESIDENT' | 'NON_RESIDENT' | '';
+  typePiece: string;
+  noPiece: string;
 }
-
-/**
- * CBPR+-aligned party used for Dbtr / Cdtr and the optional ultimate parties.
- *
- * No business value has a runtime default. `partyKind` and `addressMode`
- * deliberately accept the empty string until data are imported or entered.
- */
-export interface CbprPartyData {
-  /** Dbtr.Nm / Cdtr.Nm */
-  name: string;
-
-  /** Determines the exclusive OrgId vs PrvtId choice. */
-  partyKind: CbprPartyKind;
-
-  /** Determines the exclusive structured address vs AdrLine choice. */
-  addressMode: CbprAddressMode;
-  postalAddress: CbprPostalAddress;
-
-  organisationIdentification: CbprOrganisationIdentification;
-  privateIdentification: CbprPrivateIdentification;
-
-  /** Dbtr.CtryOfRes / Cdtr.CtryOfRes */
-  countryOfResidence: string;
-
-  /**
-   * Operational account/IBAN used by MS-TR.
-   * It is not a child of the ISO Dbtr/Cdtr party element itself.
-   */
-  account: string;
-}
-
-/**
- * Compatibility alias used by existing MS-TR APIs/components while the
- * migration to the explicit CbprPartyData name is completed.
- */
-export type PartyData = CbprPartyData;
 
 /**
  * Search abstraction used by the beneficiary UI.
@@ -288,12 +197,12 @@ export interface TransferOrder {
    * operation/TCE data; the regulatory screen never lets the user edit it.
    */
   commercialValuationBasis?: CommercialValuationBasis;
-  debtor: CbprPartyData;
+  debtor: PartyData;
   ultimateDebtorEnabled: boolean;
-  ultimateDebtor: CbprPartyData;
-  beneficiary: CbprPartyData;
+  ultimateDebtor: PartyData;
+  beneficiary: PartyData;
   ultimateCreditorEnabled: boolean;
-  ultimateCreditor: CbprPartyData;
+  ultimateCreditor: PartyData;
   beneficiaryBank: BankData;
 }
 

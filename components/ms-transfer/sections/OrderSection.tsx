@@ -29,17 +29,15 @@ import type {
 } from '../transfer.types';
 import { FI } from '../transfer.ui';
 import {
+  clientToParty,
   formatAmount,
   parseAmount,
 } from '../transfer.utils';
 import {
-  clientToCbprParty,
-} from '../transfer.cbpr-party.adapters';
-import {
-  getPrefilledCbprPartyLockedFields,
-} from '../transfer.cbpr-party';
+  getPrefilledPartyLockedFields,
+} from '../transfer.party-locks';
 import { BeneficiarySection } from './BeneficiarySection';
-import { CbprPartyForm } from './CbprPartyForm';
+import { PartyForm } from './PartyForm';
 
 interface OrderSectionProps {
   order: TransferOrder;
@@ -130,15 +128,6 @@ export function OrderSection({
     && account.statut === 'ACTIF'
   ));
 
-  const debtorCustomerFileSource = client
-    ? clientToCbprParty(client)
-    : null;
-
-  const debtorLockedFields =
-    getPrefilledCbprPartyLockedFields(
-      debtorCustomerFileSource,
-    );
-
   const calculateCounterValue = async () => {
     const currency = normalizeText(order.deviseOrdre).toUpperCase();
     const amount = parseAmount(order.montantOrdre);
@@ -190,6 +179,20 @@ export function OrderSection({
     );
   };
 
+  const debtorCustomerFileSource = client
+    ? {
+        ...clientToParty(client),
+        // The debit account is an operation choice, not customer-file data
+        // imported into the order.
+        compte: '',
+      }
+    : null;
+
+  const debtorLockedFields = getPrefilledPartyLockedFields(
+    debtorCustomerFileSource,
+    ['nomRaison'],
+  );
+
   const searchBank = async () => {
     const bicfi = normalizeText(
       order.beneficiaryBank.bicfi,
@@ -238,10 +241,10 @@ export function OrderSection({
         <h2 className="text-xl font-semibold tracking-tight">
           Données de l’ordre de transfert
         </h2>
-        
+      
       </div>
 
-      
+     
 
       <Card>
         <CardHeader>
@@ -341,7 +344,7 @@ export function OrderSection({
 
       <Card>
         <CardHeader>
-          <CardTitle>Donneur d’ordre — Dbtr</CardTitle>
+          <CardTitle>Donneur d’ordre</CardTitle>
           <CardDescription>
             Les informations disponibles dans la fiche du client sont
             préremplies. Le compte de débit reste une sélection explicite.
@@ -349,19 +352,19 @@ export function OrderSection({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <CbprPartyForm
+          <PartyForm
             title="Informations du donneur d’ordre"
-            role="DEBTOR"
             value={order.debtor}
             onChange={value =>
               update('debtor', value)
             }
-            countries={countries}
-            countriesLoading={countriesLoading}
+            countryLov
+            countryOptions={countries}
+            countryLoading={countriesLoading}
+            countryRequired
             accountLov
             accountOptions={debtorAccountOptions}
             accountRequired
-            countryRequired
             lockedFields={debtorLockedFields}
           />
 
@@ -369,9 +372,11 @@ export function OrderSection({
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
-                Les données d’identité disponibles pour le client ont été
-                reprises. Aucun compte de débit n’est choisi
-                automatiquement.
+                Les données disponibles issues de la fiche client sont
+                protégées contre la modification, à l’exception du champ
+                « Nom et prénom / Raison sociale ». Les champs absents de la
+                fiche client restent complétables. Aucun compte de débit
+                n’est choisi automatiquement.
               </AlertDescription>
             </Alert>
           )}
@@ -382,7 +387,7 @@ export function OrderSection({
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle>Donneur d’ordre final — UltmtDbtr</CardTitle>
+              <CardTitle>Donneur d’ordre final</CardTitle>
               <CardDescription>
                 Facultatif lorsque le donneur d’ordre final diffère du
                 client.
@@ -408,15 +413,15 @@ export function OrderSection({
 
         {order.ultimateDebtorEnabled && (
           <CardContent>
-            <CbprPartyForm
+            <PartyForm
               title="Informations du donneur d’ordre final"
-              role="ULTIMATE_DEBTOR"
               value={order.ultimateDebtor}
               onChange={value =>
                 update('ultimateDebtor', value)
               }
-              countries={countries}
-              countriesLoading={countriesLoading}
+              countryLov
+              countryOptions={countries}
+              countryLoading={countriesLoading}
               countryRequired
             />
           </CardContent>
@@ -436,7 +441,7 @@ export function OrderSection({
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <CardTitle>Bénéficiaire final — UltmtCdtr</CardTitle>
+              <CardTitle>Bénéficiaire final</CardTitle>
               <CardDescription>
                 Facultatif lorsque le bénéficiaire final diffère du
                 bénéficiaire du paiement.
@@ -462,15 +467,16 @@ export function OrderSection({
 
         {order.ultimateCreditorEnabled && (
           <CardContent>
-            <CbprPartyForm
+            <PartyForm
               title="Informations du bénéficiaire final"
-              role="ULTIMATE_CREDITOR"
               value={order.ultimateCreditor}
               onChange={value =>
                 update('ultimateCreditor', value)
               }
-              countries={countries}
-              countriesLoading={countriesLoading}
+              beneficiary
+              countryLov
+              countryOptions={countries}
+              countryLoading={countriesLoading}
               countryRequired
             />
           </CardContent>

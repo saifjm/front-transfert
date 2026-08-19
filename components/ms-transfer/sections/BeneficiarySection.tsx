@@ -21,28 +21,29 @@ import {
   beneficiaryIdentifierTypeLabel,
   searchBankClientBeneficiaries,
 } from '../transfer.beneficiary';
-import {
-  createEmptyCbprParty,
-  getPrefilledCbprPartyLockedFields,
-  normalizeCbprParty,
-  type CbprPartyFieldPath,
-} from '../transfer.cbpr-party';
 import { getUserMessage } from '../transfer.errors';
+import {
+  createEmptyParty,
+} from '../transfer.initial-state';
+import {
+  getPrefilledPartyLockedFields,
+  type PartyField,
+} from '../transfer.party-locks';
 import type {
   BankClientBeneficiaryCandidate,
-  CbprPartyData,
   CountryOption,
+  PartyData,
 } from '../transfer.types';
 import { FI } from '../transfer.ui';
-import { CbprPartyForm } from './CbprPartyForm';
+import { PartyForm } from './PartyForm';
 
 type BeneficiaryEntryMode = 'MANUAL' | 'BANK_CLIENT';
 
 interface BeneficiarySectionProps {
-  value: CbprPartyData;
+  value: PartyData;
   countries: CountryOption[];
   countriesLoading?: boolean;
-  onChange: (value: CbprPartyData) => void;
+  onChange: (value: PartyData) => void;
 }
 
 export function BeneficiarySection({
@@ -60,19 +61,22 @@ export function BeneficiarySection({
     BankClientBeneficiaryCandidate[]
   >([]);
   const [selectedCandidateKey, setSelectedCandidateKey] = useState('');
-  const [lockedFields, setLockedFields] = useState<
-    CbprPartyFieldPath[]
+  const [bankClientLockedFields, setBankClientLockedFields] = useState<
+    PartyField[]
   >([]);
 
   const requestSequenceRef = useRef(0);
 
-  const manualDraftRef = useRef<CbprPartyData>(
-    normalizeCbprParty(value),
-  );
+  /**
+   * Keep the manual beneficiary draft separate from imported bank-client data.
+   * Switching back to MANUAL cannot be used to unlock/alter an imported
+   * customer-file record.
+   */
+  const manualDraftRef = useRef<PartyData>({
+    ...value,
+  });
 
-  const handlePartyChange = (
-    nextValue: CbprPartyData,
-  ) => {
+  const handlePartyChange = (nextValue: PartyData) => {
     onChange(nextValue);
 
     if (mode === 'MANUAL') {
@@ -82,34 +86,40 @@ export function BeneficiarySection({
     }
   };
 
-  const changeMode = (
-    nextMode: BeneficiaryEntryMode,
-  ) => {
+  const changeMode = (nextMode: BeneficiaryEntryMode) => {
     if (nextMode === mode) return;
 
     setSearchError('');
 
     if (nextMode === 'BANK_CLIENT') {
-      manualDraftRef.current = normalizeCbprParty(value);
+      manualDraftRef.current = {
+        ...value,
+      };
 
-      onChange(createEmptyCbprParty());
+      // Bank-client mode starts without imported customer data.
+      onChange(createEmptyParty());
+      setSelectedCandidateKey('');
+      setBankClientLockedFields([]);
+      setCandidates([]);
+      setSearchPerformed(false);
+      setSearchValue('');
     } else {
+      // Restore the independent manual draft instead of making imported
+      // customer-file fields editable.
       onChange({
         ...manualDraftRef.current,
       });
+      setSelectedCandidateKey('');
+      setBankClientLockedFields([]);
+      setCandidates([]);
+      setSearchPerformed(false);
+      setSearchValue('');
     }
 
     setMode(nextMode);
-    setSelectedCandidateKey('');
-    setLockedFields([]);
-    setCandidates([]);
-    setSearchPerformed(false);
-    setSearchValue('');
   };
 
-  const searchBeneficiary = async (
-    event?: React.FormEvent,
-  ) => {
+  const searchBeneficiary = async (event?: React.FormEvent) => {
     event?.preventDefault();
 
     const normalizedSearchValue = String(
@@ -127,35 +137,26 @@ export function BeneficiarySection({
       return;
     }
 
-    const requestSequence =
-      ++requestSequenceRef.current;
-
+    const requestSequence = ++requestSequenceRef.current;
     setSearching(true);
     setSearchError('');
     setSearchPerformed(true);
 
     try {
-      const results =
-        await searchBankClientBeneficiaries(
-          {
-            noPiece: normalizedSearchValue,
-          },
-          countries,
-        );
+      const results = await searchBankClientBeneficiaries(
+        {
+          noPiece: normalizedSearchValue,
+        },
+        countries,
+      );
 
-      if (
-        requestSequence
-        !== requestSequenceRef.current
-      ) {
+      if (requestSequence !== requestSequenceRef.current) {
         return;
       }
 
       setCandidates(results);
     } catch (reason) {
-      if (
-        requestSequence
-        !== requestSequenceRef.current
-      ) {
+      if (requestSequence !== requestSequenceRef.current) {
         return;
       }
 
@@ -167,10 +168,7 @@ export function BeneficiarySection({
         ),
       );
     } finally {
-      if (
-        requestSequence
-        === requestSequenceRef.current
-      ) {
+      if (requestSequence === requestSequenceRef.current) {
         setSearching(false);
       }
     }
@@ -181,39 +179,45 @@ export function BeneficiarySection({
   ) => {
     if (!candidate.party) return;
 
-    const importedParty: CbprPartyData =
-      normalizeCbprParty(candidate.party);
+    const importedParty = {
+      ...candidate.party,
+    };
 
     onChange(importedParty);
     setSelectedCandidateKey(candidate.key);
 
-    // Every actual customer-file value is read-only except Nm.
-    setLockedFields(
-      getPrefilledCbprPartyLockedFields(
+    setBankClientLockedFields(
+      getPrefilledPartyLockedFields(
         importedParty,
+        ['nomRaison'],
       ),
     );
   };
 
+  const partyLockedFields =
+    mode === 'BANK_CLIENT'
+      ? bankClientLockedFields
+      : [];
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bénéficiaire — Cdtr</CardTitle>
+        <CardTitle>Bénéficiaire</CardTitle>
         <CardDescription>
-          Structure CBPR+ avec saisie manuelle ou import d’un client de
-          la banque.
+          Sélectionnez un client de la banque ou renseignez un
+          bénéficiaire manuellement.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap gap-2">
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Mode de saisie du bénéficiaire"
+        >
           <Button
             type="button"
-            variant={
-              mode === 'MANUAL'
-                ? 'default'
-                : 'outline'
-            }
+            variant={mode === 'MANUAL' ? 'default' : 'outline'}
             onClick={() => changeMode('MANUAL')}
           >
             <UserRound className="mr-2 h-4 w-4" />
@@ -222,14 +226,8 @@ export function BeneficiarySection({
 
           <Button
             type="button"
-            variant={
-              mode === 'BANK_CLIENT'
-                ? 'default'
-                : 'outline'
-            }
-            onClick={() =>
-              changeMode('BANK_CLIENT')
-            }
+            variant={mode === 'BANK_CLIENT' ? 'default' : 'outline'}
+            onClick={() => changeMode('BANK_CLIENT')}
           >
             <Building2 className="mr-2 h-4 w-4" />
             Client de la banque
@@ -238,6 +236,17 @@ export function BeneficiarySection({
 
         {mode === 'BANK_CLIENT' && (
           <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
+            <div>
+              <p className="text-sm font-medium">
+                Rechercher un client de la banque
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pour cette version, la recherche utilise le numéro de
+                pièce ou l’identifiant client. La sélection reste explicite
+                lorsqu’un ou plusieurs résultats sont retournés.
+              </p>
+            </div>
+
             <form
               className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]"
               onSubmit={searchBeneficiary}
@@ -247,8 +256,7 @@ export function BeneficiarySection({
                 value={searchValue}
                 onChange={fieldValue => {
                   setSearchValue(
-                    String(fieldValue ?? '')
-                      .toUpperCase(),
+                    String(fieldValue ?? '').toUpperCase(),
                   );
                   setSearchError('');
                   setSearchPerformed(false);
@@ -260,10 +268,8 @@ export function BeneficiarySection({
               <div className="flex items-end">
                 <Button
                   type="submit"
-                  disabled={
-                    searching
-                    || countriesLoading
-                  }
+                  className="w-full md:w-auto"
+                  disabled={searching || countriesLoading}
                 >
                   {searching ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -274,6 +280,12 @@ export function BeneficiarySection({
                 </Button>
               </div>
             </form>
+
+            {countriesLoading && (
+              <p className="text-xs text-muted-foreground">
+                Chargement du référentiel pays avant la recherche…
+              </p>
+            )}
 
             {searchError && (
               <Alert variant="destructive">
@@ -296,54 +308,72 @@ export function BeneficiarySection({
               )}
 
             {candidates.length > 0 && (
-              <div className="space-y-2">
-                {candidates.map(candidate => {
-                  const selected =
-                    selectedCandidateKey
-                    === candidate.key;
+              <div className="space-y-3">
+                <p className="text-sm font-medium">
+                  Résultats ({candidates.length})
+                </p>
 
-                  return (
-                    <div
-                      key={candidate.key}
-                      className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {candidate.nomRaison
-                            || 'Client sans libellé'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {beneficiaryIdentifierTypeLabel(
-                            candidate.typePiece,
-                            candidate.numericTypePiece,
-                          )}
-                          {' — '}
-                          {candidate.noPiece || '—'}
-                        </p>
-                      </div>
+                <div className="space-y-2">
+                  {candidates.map(candidate => {
+                    const selected =
+                      selectedCandidateKey === candidate.key;
 
-                      <Button
-                        type="button"
-                        variant={
-                          selected
-                            ? 'outline'
-                            : 'default'
-                        }
-                        disabled={!candidate.supported}
-                        onClick={() =>
-                          importCandidate(candidate)
-                        }
+                    return (
+                      <div
+                        key={candidate.key}
+                        className="flex flex-col gap-3 rounded-lg border bg-background p-4 lg:flex-row lg:items-center lg:justify-between"
                       >
-                        {selected && (
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                        )}
-                        {selected
-                          ? 'Importé'
-                          : 'Importer'}
-                      </Button>
-                    </div>
-                  );
-                })}
+                        <div className="min-w-0 space-y-1">
+                          <p className="font-medium">
+                            {candidate.nomRaison || 'Client sans libellé'}
+                          </p>
+
+                          <p className="text-xs text-muted-foreground">
+                            {beneficiaryIdentifierTypeLabel(
+                              candidate.typePiece,
+                              candidate.numericTypePiece,
+                            )}
+                            {' — '}
+                            {candidate.noPiece
+                              || 'Identifiant non renseigné'}
+                          </p>
+
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>
+                              Nationalité :{' '}
+                              {candidate.nationalite || '—'}
+                            </span>
+                            <span>
+                              Référence client :{' '}
+                              {candidate.internalReference || '—'}
+                            </span>
+                          </div>
+
+                          {!candidate.supported && (
+                            <p className="text-xs text-destructive">
+                              Le type de pièce retourné n’est pas encore
+                              pris en charge par MS-TR.
+                            </p>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant={selected ? 'outline' : 'default'}
+                          disabled={!candidate.supported}
+                          onClick={() =>
+                            importCandidate(candidate)
+                          }
+                        >
+                          {selected && (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+                          {selected ? 'Importé' : 'Importer'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -351,29 +381,27 @@ export function BeneficiarySection({
               <Alert>
                 <CheckCircle2 className="h-4 w-4" />
                 <AlertDescription>
-                  Les champs réellement importés depuis la fiche client
-                  sont en lecture seule, sauf « Nom et prénom / Raison
-                  sociale ». Les champs absents restent complétables.
+                  Les données effectivement importées depuis la fiche
+                  client sont en lecture seule, sauf le champ
+                  « Nom et prénom / Raison sociale ». Les champs non fournis
+                  par la fiche client restent modifiables afin de pouvoir
+                  compléter l’opération.
                 </AlertDescription>
               </Alert>
             )}
           </div>
         )}
 
-        <CbprPartyForm
+        <PartyForm
           title="Informations du bénéficiaire"
-          role="CREDITOR"
-          value={normalizeCbprParty(value)}
+          value={value}
           onChange={handlePartyChange}
-          countries={countries}
-          countriesLoading={countriesLoading}
-          accountRequired
+          beneficiary
+          countryLov
+          countryOptions={countries}
+          countryLoading={countriesLoading}
           countryRequired
-          lockedFields={
-            mode === 'BANK_CLIENT'
-              ? lockedFields
-              : []
-          }
+          lockedFields={partyLockedFields}
         />
       </CardContent>
     </Card>
